@@ -1,0 +1,77 @@
+﻿Name," Packed",Link/Attachment,Prepped,"Reminders ","Type "
+逐件管理,No,,No,Unique ID / Serial / Asset Tag,Data 物品管理方式
+,No,,No,,Data 物品管理方式
+Shorts,No,,No,Choose versatile pairs,Clothes
+"Cotton pads ",No,,No,Pack in small container or ziplock,Skincare
+"AirPods ",No,,No,"Fully charged ",Loan 借用模式
+"CORSX Moisturizer - travel size ",No,,No,Ensure lid is tightly closed,Skincare
+"Slippers ",No,,No,Pack light foldable ones,Clothes
+"Insect repellent ",No,,No,Check if allowed in cabin (liquid <100ml),Others
+"SPF/Sunscreen ",No,,No,"Pack one for face & body, ensure <100ml for carry-on",Skincare
+"Contact lenses (extra pair) ",No,,No,Pack in lens case for easy access,Toiletries
+"Pen + notepad ",No,,No,Keep one pen in carry-on for forms,Others
+Make up remover,No,,No,Use travel-size micellar water or wipes,Skincare
+"Snacks ",No,,No,"Pack non-perishable snacks (nuts, bars)",Others
+"Hair styling tools ",No,,No,Check voltage compatibility (if overseas,Toiletries
+"Borrow record ",No,,Yes,"清楚記錄借用人+到期日,清楚知道「邊個借咗」「幾時到期」,",System系統核心目標
+Lip care,No,,No,Bring 2 (one in handbag),Skincare
+"Toothpaste - travel size ",No,,No,Ensure <100ml for carry-on,Toiletries
+Power bank,No,,No,"Fully charged ",Loan 借用模式
+"Toner (SOMEBYMI) - travel size ",No,,No,Ensure travel-size bottle is sealed,Skincare
+"House keys ",No,,No,"Keep in a secure, easily accessible pocket",Others
+"Extra plastic bags ",No,,No,For dirty clothes or wet items,Toiletries
+"Mascara ",No,,No,Check expiry date (usually 3-6 months),Cosmetics
+"Toothbrush - electronic ",No,,No,Check battery or charge before packing,Toiletries
+Export,No,,Yes,已借/逾期/庫存清單,System系統核心目標
+數量管理,No,,No,Quantity，例如 10 條線,Data 物品管理方式
+"Hand sanitizer ",No,,No,Ensure <100ml for carry-on,Toiletries
+"Contact lens solution ",No,,No,Ensure <100ml for carry-on (or pack in checked bag),Toiletries
+"Sneakers ",No,,No,"Clean before packing, wear on flight if bulky",Clothes
+"iPhone ",No,,No,Fully charged; download travel apps,Loan 借用模式
+"Foundation ",No,,No,Use travel-size container or cushion compact,Cosmetics
+"Travel insurance ",No,,Yes,Print or save digital copy of policy,System系統核心目標
+"Pajamas ",No,,No,"Use light, quick-dry materials",Clothes
+"iPhone charger ",Yes,,Yes,Pack extra cable (in case of damage),Loan 借用模式
+"Face cleanser (KRAVE Matcha Hemp cleanser) ",No,,No,Transfer to travel-size bottle (if needed),Skincare
+"Anti-Histamine ",No,,No,Pack in a pillbox or small container,Others
+"Eyebrow pencil ",No,,No,Sharpen before packing or bring a sharpener,Cosmetics
+"Driver’s license (if required) ",No,,No,Ensure it's valid; check if IDP is needed,System系統核心目標
+"Eyeliner ",No,,No,Ensure it's not dried out,Cosmetics
+"Contact lens case ",No,,No,Clean and dry before packing,Toiletries
+"Eyebrow brush ",No,,No,Clean before trip,Cosmetics
+"Power bank charger ",No,,Yes,Pack in electronics pouch,Loan 借用模式
+"Comb ",No,,No,Clean before packing,Accessories
+"Hair ties ",No,,No,Pack a few extra (in case some get lost),Accessories
+"Wet wipes ",No,,No,Seal properly to avoid drying,Toiletries
+"減少漏記/重覆/唔一致,統一資料格式，避免 Excel 亂",No,,Yes,"減少漏記/重覆/唔一致,統一資料格式，避免 Excel 亂",System系統核心目標
+"Hair mask/cream/oil ",No,,No,Pack in leak-proof bag,Toiletries
+"Earrings ",No,,No,Use a small jewelry pouch or organizer,Accessories
+Claw clips,No,,No,Place in a small ziplock to prevent damage,Accessories
+"Swimsuits (for beach)  ",No,,No,Pack in waterproof pouch,Clothes
+"SIM Card (for international travel) ",Yes,,Yes,"Make arrangements for SIM Card ",Loan 借用模式
+"Sheet masks ",No,,No,Pack in flat pouch to save space,Skincare
+快速查到物品狀態,No,,Yes,"可借/已借/維修 一眼睇到,",System系統核心目標
+"Lip stick ",No,,No,Bring 1–2 shades for versatility,Cosmetics
+"Spectacles + cleaning cloth + cleaning spray ",No,,No,Pack extra microfiber cloth,Toiletries
+Scrunchies,No,,No,Pack colors that match outfits,Accessories
+"Tops ",No,,No,Roll clothes to save space,Clothes
+"Undergarments ",No,,No,Include 1–2 extra sets,Clothes
+"Tweezers ",No,,No,Keep in checked luggage if sharp,Toiletries
+"Basic jewellery ",No,,No,Carry minimal pieces to avoid loss,Accessories
+"Socks - 1 extra pair for airport travelling ",No,,No,Keep extra pair in carry-on,Clothes
+"Supplements ",No,,No,Prepare daily supplement packs,Others
+"Face mist (travel size) - travel size ",No,,No,Keep in ziplock to avoid leaks,Skincare
+"Small packet tissues ",No,,No,Pack multiple small packs,Toiletries
+"Conditioner - travel packs ",No,,No,Pack only enough for trip duration,Toiletries
+"Sunglasses ",No,,No,Pack in a hard case to avoid scratches,Accessories
+Sanitary pads,No,,No,Pack enough for full trip,Toiletries
+"Panadol ",No,,No,Bring a few tablets in a travel pill case,Others
+"Shampoo - travel size ",No,,No,Use refillable travel bottle,Toiletries
+"Universal plug (for international travel) ",No,,Yes,Check country plug type,Loan 借用模式
+"Macbook Air charger ",Yes,,Yes,Pack in laptop sleeve or carry-on,Loan 借用模式
+兩樣都要,No,,No,(部分逐件、部分數量),Data 物品管理方式
+Serums - travel size,No,,No,Ensure bottles are under 100ml,Skincare
+"Water bottle ",No,,No,"Carry empty for airport security, refill later",Others
+"Small mirror ",No,,No,Pack in a protective case,Cosmetics
+"Macbook Air (if required) ",No,,Yes,Fully charged; backup important files,Loan 借用模式
+"Body wash - travel size? ",No,,No,Use refillable travel bottle,Toiletries
