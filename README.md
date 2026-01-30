@@ -2,15 +2,15 @@
 
 # System overview
 
-- 1. System purpose
+### 1. System purpose
     
-    The **COMP Department Inventory Borrowing System** is a departmental software system that manages:
+The **COMP Department Inventory Borrowing System** is a departmental software system that manages:
     
-    - **Inventory master data** (items, computers, and computer components)
-    - **Borrowing operations** (request, approval, assignment, pickup, return)
-    - **Traceability** (audit logs, history, and exportable reports)
+- **Inventory master data** (items, computers, and computer components)
+- **Borrowing operations** (request, approval, assignment, pickup, return)
+- **Traceability** (audit logs, history, and exportable reports)
     
-    The system’s primary objective is to ensure **inventory accuracy** (who has what, where it is, and its current status) and to provide an **accountable borrowing lifecycle** with searchable records.
+The system’s primary objective is to ensure **inventory accuracy** (who has what, where it is, and its current status) and to provide an **accountable borrowing lifecycle** with searchable records.
     
 
 ### 2. System scope at a high level
