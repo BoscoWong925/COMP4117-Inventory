@@ -61,9 +61,17 @@
 
     <div v-if="showForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto">
       <div class="bg-white rounded-lg p-6 max-w-2xl w-full my-8">
-        <h3 class="text-xl font-bold mb-4">
-          {{ editingItem ? 'Edit Item' : 'Add New Item' }}
-        </h3>
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold">
+            {{ editingItem ? 'Edit Item' : 'Add New Item' }}
+          </h3>
+          <button
+            @click="showForm = false"
+            class="cross-btn"
+          >
+            &times;
+          </button>
+        </div>
         <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
           <div>
             <label class="block text-gray-700 text-sm font-medium mb-1">Name *</label>
