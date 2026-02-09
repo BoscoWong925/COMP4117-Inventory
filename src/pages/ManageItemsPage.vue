@@ -71,9 +71,22 @@
 
     <div v-if="showForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto">
       <div class="bg-white rounded-lg p-6 max-w-2xl w-full my-8">
-        <h3 class="text-xl font-bold mb-4">
-          {{ editingItem ? 'Edit Item' : 'Add New Item' }}
-        </h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold">
+            {{ editingItem ? 'Edit Item' : 'Add New Item' }}
+          </h3>
+          <div>
+            <button
+              v-if="editingItem"
+              type="button"
+              @click="deleteWhileEditing"
+              title="Delete this item"
+              class="cross-btn"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
 
         <!-- Invoice Upload Section -->
         <div class="mb-6 p-4 border-2 border-dashed border-red-300 rounded-lg bg-red-50">
