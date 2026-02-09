@@ -66,13 +66,14 @@ export default {
     const error = ref('')
     const showDemoCredentials = ref(true)
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
       if (!username.value || !password.value) {
         error.value = 'Please enter username and password'
         return
       }
 
-      if (emit('login', username.value, password.value)) {
+      const result = await emit('login', username.value, password.value)
+      if (result) {
         error.value = ''
       } else {
         error.value = 'Invalid username or password'

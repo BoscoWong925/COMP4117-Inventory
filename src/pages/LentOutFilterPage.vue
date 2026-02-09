@@ -77,8 +77,8 @@ export default {
     const vendors = ref([])
     const years = ref([])
 
-    const loadLentOutItems = () => {
-      const lentOut = inventoryService.getLentOutItems()
+    const loadLentOutItems = async () => {
+      const lentOut = await inventoryService.getLentOutItems()
       items.value = lentOut
       vendors.value = getUniqueVendors(lentOut)
       years.value = [...new Set(lentOut.map(item => {

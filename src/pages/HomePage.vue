@@ -163,12 +163,12 @@ export default {
     const recentLogs = ref([])
     const myActiveBorrows = ref([])
 
-    const loadDashboardData = () => {
+    const loadDashboardData = async () => {
       // Load stats
-      const allItems = inventoryService.getAllItems()
-      const availableItems = inventoryService.getAvailableItems()
-      const lentOutItems = inventoryService.getLentOutItems()
-      const pendingRequests = borrowingService.getPendingRequests()
+      const allItems = await inventoryService.getAllItems()
+      const availableItems = await inventoryService.getAvailableItems()
+      const lentOutItems = await inventoryService.getLentOutItems()
+      const pendingRequests = await borrowingService.getPendingRequests()
 
       stats.value = {
         totalItems: allItems.length,
@@ -178,20 +178,21 @@ export default {
       }
 
       // Load recent logs (last 5) for admin/operator
-      const allLogs = auditService.getAllLogs()
+      const allLogs = await auditService.getAllLogs()
       allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       recentLogs.value = allLogs.slice(0, 5)
 
       // Load current user's active borrows
       const currentUser = authService.getCurrentUser()
       if (currentUser) {
-        const userRequests = borrowingService.getRequestsForUser(currentUser.id)
-        myActiveBorrows.value = userRequests
-          .filter(r => r.status === 'Approved' || r.status === 'Pending')
-          .map(r => ({
-            ...r,
-            itemName: inventoryService.getItemById(r.itemID)?.name || 'Unknown Item'
-          }))
+        const userRequests = await borrowingService.getRequestsForUser(currentUser.id)
+        const activeBorrows = userRequests.filter(r => r.status === 'Approved' || r.status === 'Pending')
+        const borrowsWithNames = []
+        for (const r of activeBorrows) {
+          const item = await inventoryService.getItemById(r.itemID)
+          borrowsWithNames.push({ ...r, itemName: item?.name || 'Unknown Item' })
+        }
+        myActiveBorrows.value = borrowsWithNames
       }
     }
 

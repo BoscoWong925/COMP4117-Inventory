@@ -176,8 +176,8 @@ export default {
     const selectedItem = ref(null)
     const linkedComponents = ref([])
 
-    const loadAvailableItems = () => {
-      const available = inventoryService.getAvailableItems()
+    const loadAvailableItems = async () => {
+      const available = await inventoryService.getAvailableItems()
       items.value = available
     }
 
@@ -202,13 +202,16 @@ export default {
       return result
     })
 
-    const showItemDetail = (item) => {
+    const showItemDetail = async (item) => {
       selectedItem.value = item
       // Load linked components if this is a mother item
       if (item.fixedComponents && item.fixedComponents.length > 0) {
-        linkedComponents.value = item.fixedComponents
-          .map(id => inventoryService.getItemById(id))
-          .filter(Boolean)
+        const components = []
+        for (const id of item.fixedComponents) {
+          const comp = await inventoryService.getItemById(id)
+          if (comp) components.push(comp)
+        }
+        linkedComponents.value = components
       } else {
         linkedComponents.value = []
       }

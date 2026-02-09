@@ -74,8 +74,8 @@ export default {
     const filter = ref('All')
     const searchText = ref('')
 
-    const loadLogs = () => {
-      const allLogs = auditService.getAllLogs()
+    const loadLogs = async () => {
+      const allLogs = await auditService.getAllLogs()
       allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       logs.value = allLogs
     }

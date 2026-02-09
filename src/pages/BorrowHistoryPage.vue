@@ -68,12 +68,14 @@ export default {
     const history = ref([])
     const filter = ref('All')
 
-    const loadHistory = () => {
-      const allRequests = borrowingService.getAllRequests()
-      history.value = allRequests.map(req => ({
-        ...req,
-        itemName: inventoryService.getItemById(req.itemID)?.name || 'Unknown Item'
-      }))
+    const loadHistory = async () => {
+      const allRequests = await borrowingService.getAllRequests()
+      const mapped = []
+      for (const req of allRequests) {
+        const item = await inventoryService.getItemById(req.itemID)
+        mapped.push({ ...req, itemName: item?.name || 'Unknown Item' })
+      }
+      history.value = mapped
     }
 
     const filteredHistory = computed(() =>

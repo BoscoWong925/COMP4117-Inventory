@@ -94,8 +94,8 @@ export default {
     const reason = ref('')
     const submitted = ref(false)
 
-    const loadAvailableItems = () => {
-      const available = inventoryService.getAvailableItems()
+    const loadAvailableItems = async () => {
+      const available = await inventoryService.getAvailableItems()
       availableItems.value = available
     }
 
@@ -106,7 +106,7 @@ export default {
       )
     )
 
-    const handleSubmitRequest = () => {
+    const handleSubmitRequest = async () => {
       if (!selectedItem.value || !reason.value) {
         alert('Please select an item and provide a reason')
         return
@@ -114,7 +114,7 @@ export default {
 
       const currentUser = authService.getCurrentUser()
       const borrowerID = currentUser?.id || 'UNKNOWN'
-      borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+      await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
       submitted.value = true
       setTimeout(() => {
         selectedItem.value = null

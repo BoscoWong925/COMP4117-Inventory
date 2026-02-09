@@ -328,8 +328,8 @@ export default {
     const invoiceFileData = ref(null) // Store invoice file data
     let ocrWorker = null
 
-    const loadItems = () => {
-      const allItems = inventoryService.getAllItems()
+    const loadItems = async () => {
+      const allItems = await inventoryService.getAllItems()
       items.value = allItems
     }
 
@@ -338,7 +338,7 @@ export default {
       editingItem.value = null
     }
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
       if (!formData.value.name || !formData.value.universityID) {
         alert('Please fill in all required fields')
         return
@@ -351,14 +351,14 @@ export default {
       }
 
       if (editingItem.value) {
-        inventoryService.updateItem(editingItem.value.id, formData.value)
+        await inventoryService.updateItem(editingItem.value.id, formData.value)
       } else {
-        inventoryService.addItem(formData.value)
+        await inventoryService.addItem(formData.value)
       }
 
       resetForm()
       showForm.value = false
-      loadItems()
+      await loadItems()
     }
 
     const handleEdit = (item) => {
@@ -406,10 +406,10 @@ export default {
       link.click()
     }
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
       if (window.confirm('Are you sure you want to delete this item?')) {
-        inventoryService.deleteItem(id)
-        loadItems()
+        await inventoryService.deleteItem(id)
+        await loadItems()
       }
     }
 
@@ -422,7 +422,7 @@ export default {
       if (!file) return
 
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target.result)
           const workbook = XLSX.read(data, { type: 'array' })
@@ -437,7 +437,7 @@ export default {
           }
 
           let imported = 0
-          jsonData.forEach(row => {
+          for (const row of jsonData) {
             // Map Excel columns to item properties
             const newItem = {
               name: row.name || row.Name || row['Item Name'] || '',
@@ -454,14 +454,14 @@ export default {
             }
 
             if (newItem.name) {
-              inventoryService.addItem(newItem)
+              await inventoryService.addItem(newItem)
               imported++
             }
-          })
+          }
 
           importMessage.value = `Successfully imported ${imported} items from Excel`
           importSuccess.value = true
-          loadItems()
+          await loadItems()
         } catch (error) {
           importMessage.value = `Error importing file: ${error.message}`
           importSuccess.value = false

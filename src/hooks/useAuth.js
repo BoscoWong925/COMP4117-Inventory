@@ -5,8 +5,8 @@ export const useAuth = () => {
   const user = ref(authService.getCurrentUser());
   const isAuthenticated = ref(!!authService.getCurrentUser());
 
-  const login = (username, password) => {
-    const loggedInUser = authService.login(username, password);
+  const login = async (username, password) => {
+    const loggedInUser = await authService.login(username, password);
     if (loggedInUser) {
       user.value = loggedInUser;
       isAuthenticated.value = true;
@@ -15,8 +15,8 @@ export const useAuth = () => {
     return false;
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     user.value = null;
     isAuthenticated.value = false;
   };

@@ -108,8 +108,8 @@ export default {
     const { user, isAuthenticated, login, logout } = useAuth()
     const currentPage = ref('home')
 
-    const handleLogin = (username, password) => {
-      return login(username, password)
+    const handleLogin = async (username, password) => {
+      return await login(username, password)
     }
 
     const currentComponent = computed(() => {

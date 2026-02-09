@@ -100,10 +100,11 @@ export default {
     const selectedItem = ref(null)
     const showConfirm = ref(false)
 
-    const loadBorrowedItems = () => {
-      const lentOut = inventoryService.getLentOutItems()
+    const loadBorrowedItems = async () => {
+      const lentOut = await inventoryService.getLentOutItems()
+      const allRequests = await borrowingService.getAllRequests()
       const withRequests = lentOut.map(item => {
-        const request = borrowingService.getAllRequests().find(r => r.itemID === item.id && r.status === 'Approved')
+        const request = allRequests.find(r => r.itemID === item.id && r.status === 'Approved')
         return { item, request }
       }).filter(({ request }) => request)
       borrowedItems.value = withRequests
@@ -121,12 +122,12 @@ export default {
       showConfirm.value = true
     }
 
-    const confirmReturn = () => {
+    const confirmReturn = async () => {
       if (selectedItem.value && selectedItem.value.request) {
-        borrowingService.returnItem(selectedItem.value.request.id)
+        await borrowingService.returnItem(selectedItem.value.request.id)
         showConfirm.value = false
         selectedItem.value = null
-        loadBorrowedItems()
+        await loadBorrowedItems()
       }
     }
 

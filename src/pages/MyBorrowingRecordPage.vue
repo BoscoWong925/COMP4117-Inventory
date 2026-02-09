@@ -71,20 +71,22 @@ export default {
   setup() {
     const records = ref([])
 
-    const loadRecords = () => {
+    const loadRecords = async () => {
       const currentUser = authService.getCurrentUser()
       const userID = currentUser?.id || 'UNKNOWN'
-      const userRequests = borrowingService.getRequestsForUser(userID)
-      records.value = userRequests.map(req => ({
-        ...req,
-        itemName: inventoryService.getItemById(req.itemID)?.name || 'Unknown Item'
-      }))
+      const userRequests = await borrowingService.getRequestsForUser(userID)
+      const mapped = []
+      for (const req of userRequests) {
+        const item = await inventoryService.getItemById(req.itemID)
+        mapped.push({ ...req, itemName: item?.name || 'Unknown Item' })
+      }
+      records.value = mapped
     }
 
-    const handleReturn = (requestID) => {
+    const handleReturn = async (requestID) => {
       if (window.confirm('Are you sure you want to return this item?')) {
-        borrowingService.returnItem(requestID)
-        loadRecords()
+        await borrowingService.returnItem(requestID)
+        await loadRecords()
       }
     }
 

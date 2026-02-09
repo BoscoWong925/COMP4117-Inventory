@@ -118,34 +118,36 @@ export default {
     const rejectReason = ref('')
     const showRejectForm = ref(null)
 
-    const loadPendingRequests = () => {
-      const pendingReqs = borrowingService.getPendingRequests()
-      requests.value = pendingReqs.map(req => ({
-        ...req,
-        itemName: inventoryService.getItemById(req.itemID)?.name || 'Unknown Item'
-      }))
+    const loadPendingRequests = async () => {
+      const pendingReqs = await borrowingService.getPendingRequests()
+      const mapped = []
+      for (const req of pendingReqs) {
+        const item = await inventoryService.getItemById(req.itemID)
+        mapped.push({ ...req, itemName: item?.name || 'Unknown Item' })
+      }
+      requests.value = mapped
     }
 
-    const handleApprove = (requestId) => {
+    const handleApprove = async (requestId) => {
       if (!returnDate.value) {
         alert('Please set a return date')
         return
       }
-      borrowingService.approveRequest(requestId, returnDate.value)
+      await borrowingService.approveRequest(requestId, returnDate.value)
       selectedRequest.value = null
       returnDate.value = ''
-      loadPendingRequests()
+      await loadPendingRequests()
     }
 
-    const handleReject = (requestId) => {
+    const handleReject = async (requestId) => {
       if (!rejectReason.value) {
         alert('Please provide a rejection reason')
         return
       }
-      borrowingService.rejectRequest(requestId, rejectReason.value)
+      await borrowingService.rejectRequest(requestId, rejectReason.value)
       showRejectForm.value = null
       rejectReason.value = ''
-      loadPendingRequests()
+      await loadPendingRequests()
     }
 
     const exportRequests = () => {
