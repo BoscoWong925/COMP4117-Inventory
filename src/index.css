@@ -1,0 +1,89 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+body {
+  @apply bg-gray-50;
+}
+
+.container-main {
+  @apply min-h-screen flex flex-col;
+}
+
+.header {
+  @apply bg-white border-b border-gray-200 shadow-sm;
+}
+
+.nav-link {
+  @apply px-3 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded cursor-pointer transition;
+}
+
+.btn {
+  @apply px-4 py-2 rounded transition font-medium;
+}
+
+/* Solid Button Styles (default) */
+.btn:not([class*="btn-outline"]) {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+/* Outline Button Styles */
+.btn-outline-primary {
+  @apply border-2 border-blue-600 text-blue-600 hover:bg-blue-50;
+}
+
+.btn-outline-secondary {
+  @apply border-2 border-gray-600 text-gray-600 hover:bg-gray-50;
+}
+
+.btn-outline-success {
+  @apply border-2 border-green-600 text-green-600 hover:bg-green-50;
+}
+
+.btn-outline-danger {
+  @apply border-2 border-red-600 text-red-600 hover:bg-red-50;
+}
+
+.btn-outline-warning {
+  @apply border-2 border-yellow-600 text-yellow-600 hover:bg-yellow-50;
+}
+
+.btn-outline-info {
+  @apply border-2 border-blue-500 text-blue-500 hover:bg-blue-50;
+}
+
+.btn-outline-light {
+  @apply border-2 border-gray-300 text-gray-700 hover:bg-gray-100;
+}
+
+.btn-outline-dark {
+  @apply border-2 border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white;
+}
+
+.btn-danger {
+  @apply px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition;
+}
+
+.cross-btn {
+  @apply inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-600 text-white text-lg font-bold hover:bg-red-700 transition;
+}
+
+.btn-success {
+  @apply px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition;
+}
+
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.form-select {
+  @apply w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer;
+}
+
+.table-striped tbody tr:nth-child(odd) {
+  @apply bg-gray-50;
+}
+
+.table-striped tbody tr:nth-child(even) {
+  @apply bg-white;
+}
