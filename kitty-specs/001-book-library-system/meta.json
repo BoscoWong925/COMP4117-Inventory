@@ -1,8 +1,0 @@
-{
-  "feature_number": "001",
-  "slug": "book-library-system",
-  "friendly_name": "Book Library System",
-  "mission": "software-dev",
-  "source_description": "US-001: User Registration, US-002: Book Search, US-003: Borrow Book, US-004: View Borrowed Books, US-005: Return Book, US-006: Admin Add Book",
-  "created_at": "2026-01-28T00:00:00Z"
-}
