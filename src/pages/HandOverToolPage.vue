@@ -15,70 +15,93 @@
       />
     </div>
 
-    <div v-if="filteredItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
+    <div v-if="groupedItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
       No items currently borrowed
     </div>
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-else class="space-y-4">
       <div
-        v-for="{ item, request } in filteredItems"
-        :key="item.id"
-        class="border border-gray-300 rounded p-4 bg-white hover:shadow-md transition"
+        v-for="group in groupedItems"
+        :key="group.parent.item.id"
+        class="border border-gray-300 rounded bg-white hover:shadow-md transition"
       >
-        <div class="mb-3">
-          <p class="text-xs text-gray-500 uppercase">Item ID</p>
-          <p class="font-bold">{{ item.id }}</p>
-          <p class="font-medium mt-1">{{ item.name }}</p>
-        </div>
+        <!-- Parent item -->
+        <div class="p-4">
+          <div class="mb-3">
+            <p class="text-xs text-gray-500 uppercase">Item ID</p>
+            <p class="font-bold">{{ group.parent.item.id }}</p>
+            <p class="font-medium mt-1">
+              {{ group.parent.item.name }}
+              <span v-if="group.children.length > 0" class="ml-2 text-xs text-blue-600 font-normal">
+                (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
+              </span>
+            </p>
+          </div>
 
-        <div class="space-y-2 mb-4 text-sm">
-          <div class="flex justify-between">
-            <span class="text-gray-600">Borrower:</span>
-            <span class="font-medium">{{ item.currentBorrower }}</span>
+          <div class="space-y-2 mb-4 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Borrower:</span>
+              <span class="font-medium">{{ group.parent.item.currentBorrower }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Status:</span>
+              <span :class="`px-2 py-1 rounded text-xs ${getStatusColor(group.parent.item.status)}`">
+                {{ group.parent.item.status }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Location:</span>
+              <span class="font-medium">{{ group.parent.item.location }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Expected Return:</span>
+              <span class="font-medium">{{ formatDate(group.parent.request.returnDate) }}</span>
+            </div>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Status:</span>
-            <span :class="`px-2 py-1 rounded text-xs ${getStatusColor(item.status)}`">
-              {{ item.status }}
-            </span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Location:</span>
-            <span class="font-medium">{{ item.location }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Expected Return:</span>
-            <span class="font-medium">{{ formatDate(request.returnDate) }}</span>
-          </div>
-        </div>
 
-        <button
-          @click="handleReturnItem({ item, request })"
-          class="btn-success w-full text-sm"
-        >
-          Mark as Returned
-        </button>
+          <!-- Child component items -->
+          <div v-if="group.children.length > 0" class="mb-4 border-t pt-3">
+            <p class="text-xs text-gray-500 font-semibold mb-2 uppercase">Linked Components</p>
+            <div v-for="child in group.children" :key="child.item.id" class="flex items-center justify-between py-1 pl-4 text-sm text-gray-600 border-l-2 border-blue-200 mb-1">
+              <span>↳ {{ child.item.name }} <span class="text-gray-400">({{ child.item.id }})</span></span>
+              <span class="text-xs text-gray-400 italic">Auto with parent</span>
+            </div>
+          </div>
+
+          <button
+            @click="handleReturnItem(group)"
+            class="btn btn-success w-full text-sm"
+          >
+            Mark{{ group.children.length > 0 ? ' All' : '' }} as Returned
+          </button>
+        </div>
       </div>
     </div>
 
-    <div v-if="showConfirm && selectedItem" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div v-if="showConfirm && selectedGroup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-lg p-6 max-w-md w-full">
         <h3 class="text-lg font-bold mb-4">Confirm Item Return</h3>
         <div class="mb-4 p-3 bg-gray-50 rounded">
-          <p class="text-sm"><strong>Item:</strong> {{ selectedItem.item.name }}</p>
-          <p class="text-sm"><strong>Borrower:</strong> {{ selectedItem.item.currentBorrower }}</p>
-          <p class="text-sm"><strong>ID:</strong> {{ selectedItem.item.id }}</p>
+          <p class="text-sm"><strong>Item:</strong> {{ selectedGroup.parent.item.name }}</p>
+          <p class="text-sm"><strong>Borrower:</strong> {{ selectedGroup.parent.item.currentBorrower }}</p>
+          <p class="text-sm"><strong>ID:</strong> {{ selectedGroup.parent.item.id }}</p>
+          <div v-if="selectedGroup.children.length > 0" class="mt-2 pt-2 border-t">
+            <p class="text-xs text-gray-500 font-semibold mb-1">+ Components to be returned:</p>
+            <p v-for="child in selectedGroup.children" :key="child.item.id" class="text-sm text-gray-600 pl-2">
+              ↳ {{ child.item.name }} ({{ child.item.id }})
+            </p>
+          </div>
         </div>
-        <p class="text-gray-600 mb-6">Mark this item as returned?</p>
+        <p class="text-gray-600 mb-6">Mark {{ selectedGroup.children.length > 0 ? 'all these items' : 'this item' }} as returned?</p>
         <div class="flex gap-2">
           <button
             @click="confirmReturn"
-            class="btn-success flex-1"
+            class="btn btn-outline-success flex-1"
           >
             Confirm Return
           </button>
           <button
-            @click="showConfirm = false; selectedItem = null"
-            class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 flex-1"
+            @click="showConfirm = false; selectedGroup = null"
+            class="btn btn-outline-secondary flex-1"
           >
             Cancel
           </button>
@@ -97,7 +120,7 @@ export default {
   setup() {
     const borrowedItems = ref([])
     const searchText = ref('')
-    const selectedItem = ref(null)
+    const selectedGroup = ref(null)
     const showConfirm = ref(false)
 
     const loadBorrowedItems = () => {
@@ -116,16 +139,52 @@ export default {
       )
     )
 
-    const handleReturnItem = (itemData) => {
-      selectedItem.value = itemData
+    // Group items: parent requests with their child component requests
+    const groupedItems = computed(() => {
+      const allItems = filteredItems.value
+      const childRequestIds = new Set()
+      // Find all child request item IDs
+      allItems.forEach(({ request }) => {
+        if (request && request.parentRequestId) {
+          childRequestIds.add(request.itemID)
+        }
+      })
+
+      const groups = []
+      allItems.forEach(({ item, request }) => {
+        if (!request) return
+        // Skip child items - they'll be nested under parent
+        if (request.parentRequestId) return
+
+        // Find children for this parent request
+        const children = allItems.filter(({ request: childReq }) =>
+          childReq && childReq.parentRequestId === request.id
+        )
+        groups.push({ parent: { item, request }, children: children.map(c => ({ item: c.item, request: c.request })) })
+      })
+
+      // Add orphan children (whose parent is not in current filtered list)
+      allItems.forEach(({ item, request }) => {
+        if (!request || !request.parentRequestId) return
+        const parentInList = allItems.find(({ request: pReq }) => pReq && pReq.id === request.parentRequestId)
+        if (!parentInList) {
+          groups.push({ parent: { item, request }, children: [] })
+        }
+      })
+
+      return groups
+    })
+
+    const handleReturnItem = (group) => {
+      selectedGroup.value = group
       showConfirm.value = true
     }
 
     const confirmReturn = () => {
-      if (selectedItem.value && selectedItem.value.request) {
-        borrowingService.returnItem(selectedItem.value.request.id)
+      if (selectedGroup.value && selectedGroup.value.parent.request) {
+        borrowingService.returnItem(selectedGroup.value.parent.request.id)
         showConfirm.value = false
-        selectedItem.value = null
+        selectedGroup.value = null
         loadBorrowedItems()
       }
     }
@@ -151,9 +210,10 @@ export default {
     return {
       borrowedItems,
       searchText,
-      selectedItem,
+      selectedGroup,
       showConfirm,
       filteredItems,
+      groupedItems,
       handleReturnItem,
       confirmReturn,
       exportItems,

@@ -36,7 +36,7 @@
     </div>
     <div v-else class="space-y-3">
       <div 
-        v-for="item in filteredItems" 
+        v-for="item in paginatedItems" 
         :key="item.id" 
         @click="showItemDetail(item)"
         class="border border-gray-300 rounded p-4 bg-white hover:shadow-md transition cursor-pointer"
@@ -79,6 +79,8 @@
           Warranty ends: {{ formatDate(item.warrantyEnd) }}
         </div>
       </div>
+
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredItems.length" :pageSize="pageSize" />
     </div>
 
     <!-- Item Detail Modal -->
@@ -163,11 +165,13 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
+import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
+  components: { PaginationControl },
   setup() {
     const items = ref([])
     const searchText = ref('')
@@ -175,6 +179,13 @@ export default {
     const locationFilter = ref('All')
     const selectedItem = ref(null)
     const linkedComponents = ref([])
+    const currentPage = ref(1)
+    const pageSize = 10
+
+    // Reset to page 1 when filters change
+    watch([searchText, categoryFilter, locationFilter], () => {
+      currentPage.value = 1
+    })
 
     const loadAvailableItems = () => {
       const available = inventoryService.getAvailableItems()
@@ -200,6 +211,11 @@ export default {
         result = result.filter(item => item.location === locationFilter.value)
       }
       return result
+    })
+
+    const paginatedItems = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return filteredItems.value.slice(start, start + pageSize)
     })
 
     const showItemDetail = (item) => {
@@ -230,6 +246,9 @@ export default {
       categories,
       locations,
       filteredItems,
+      paginatedItems,
+      currentPage,
+      pageSize,
       selectedItem,
       linkedComponents,
       showItemDetail,

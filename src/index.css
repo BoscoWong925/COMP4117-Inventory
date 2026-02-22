@@ -19,7 +19,45 @@ body {
 }
 
 .btn {
-  @apply px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition;
+  @apply px-4 py-2 rounded transition font-medium;
+}
+
+/* Solid Button Styles (default) */
+.btn:not([class*="btn-outline"]) {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+/* Outline Button Styles */
+.btn-outline-primary {
+  @apply border-2 border-blue-600 text-blue-600 hover:bg-blue-50;
+}
+
+.btn-outline-secondary {
+  @apply border-2 border-gray-600 text-gray-600 hover:bg-gray-50;
+}
+
+.btn-outline-success {
+  @apply border-2 border-green-600 text-green-600 hover:bg-green-50;
+}
+
+.btn-outline-danger {
+  @apply border-2 border-red-600 text-red-600 hover:bg-red-50;
+}
+
+.btn-outline-warning {
+  @apply border-2 border-yellow-600 text-yellow-600 hover:bg-yellow-50;
+}
+
+.btn-outline-info {
+  @apply border-2 border-blue-500 text-blue-500 hover:bg-blue-50;
+}
+
+.btn-outline-light {
+  @apply border-2 border-gray-300 text-gray-700 hover:bg-gray-100;
+}
+
+.btn-outline-dark {
+  @apply border-2 border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white;
 }
 
 .btn-danger {

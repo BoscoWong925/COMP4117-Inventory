@@ -4,12 +4,15 @@
 
     <div v-if="submitted" class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
       Request submitted successfully! Please wait for admin approval.
+      <span v-if="autoBorrowedComponents.length">
+        (Auto-borrowed {{ autoBorrowedComponents.length }} related component(s))
+      </span>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
         <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-medium mb-2">Search Available Items</label>
+          <label class="block text-gray-700 text-sm font-medium mb-2">Search Available Computer Items</label>
           <input
             type="text"
             placeholder="Search by name or ID..."
@@ -19,13 +22,13 @@
         </div>
 
         <div v-if="filteredItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
-          No available items found
+          No available computer items found
         </div>
         <div v-else class="space-y-2 max-h-96 overflow-y-auto">
           <div
             v-for="item in filteredItems"
             :key="item.id"
-            @click="selectedItem = item"
+            @click="selectItem(item)"
             :class="`p-4 border rounded cursor-pointer transition ${
               selectedItem?.id === item.id
                 ? 'border-blue-600 bg-blue-50'
@@ -37,10 +40,28 @@
                 <p class="font-medium">{{ item.name }}</p>
                 <p class="text-sm text-gray-600">ID: {{ item.id }}</p>
                 <p class="text-sm text-gray-600">Category: {{ item.category }}</p>
+                <p v-if="item.fixedComponents && item.fixedComponents.length > 0" class="text-xs text-blue-600 mt-1">
+                  {{ item.fixedComponents.length }} linked component(s) — will be auto-borrowed
+                </p>
               </div>
               <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
                 {{ item.status }}
               </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Component Viewer Modal -->
+        <div v-if="showComponentViewer && selectedItem" class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <h4 class="text-md font-bold mb-3">Components of {{ selectedItem.name }}</h4>
+          <div v-if="linkedComponents.length === 0" class="text-gray-500 text-sm">No linked components</div>
+          <div v-else class="space-y-2">
+            <div v-for="comp in linkedComponents" :key="comp.id" class="bg-white p-3 rounded border flex justify-between items-center">
+              <div>
+                <p class="font-medium text-sm">{{ comp.name }}</p>
+                <p class="text-xs text-gray-500">{{ comp.id }} · {{ comp.category }}</p>
+              </div>
+              <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(comp.status)}`">{{ comp.status }}</span>
             </div>
           </div>
         </div>
@@ -67,9 +88,40 @@
               />
             </div>
 
+            <!-- Multi-file upload for approval -->
+            <div class="mb-4">
+              <label class="block text-gray-700 text-sm font-medium mb-2">Upload Approval/Screenshots</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                @change="handleFileUpload"
+                class="form-input text-sm"
+              />
+              <div v-if="uploadedFiles.length > 0" class="mt-2 space-y-1">
+                <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center justify-between bg-white border rounded p-2 text-sm">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-gray-500">📎</span>
+                    <span class="truncate">{{ f.name }}</span>
+                    <span class="text-xs text-gray-400">({{ (f.size / 1024).toFixed(1) }} KB)</span>
+                  </div>
+                  <button @click="removeFile(idx)" class="text-red-500 hover:text-red-700 ml-2 flex-shrink-0">&times;</button>
+                </div>
+              </div>
+              <!-- Preview thumbnails -->
+              <div v-if="filePreviews.length > 0" class="mt-2 flex flex-wrap gap-2">
+                <img
+                  v-for="(preview, idx) in filePreviews"
+                  :key="'p'+idx"
+                  :src="preview"
+                  class="w-16 h-16 object-cover rounded border border-gray-200"
+                />
+              </div>
+            </div>
+
             <button
               @click="handleSubmitRequest"
-              class="btn w-full"
+              class="btn btn-outline-primary w-full"
             >
               Submit Request
             </button>
@@ -93,10 +145,18 @@ export default {
     const selectedItem = ref(null)
     const reason = ref('')
     const submitted = ref(false)
+    const linkedComponents = ref([])
+    const showComponentViewer = ref(false)
+    const uploadedFiles = ref([])
+    const filePreviews = ref([])
+    const autoBorrowedComponents = ref([])
 
     const loadAvailableItems = () => {
       const available = inventoryService.getAvailableItems()
-      availableItems.value = available
+      // Only show computer / main hardware items (not loose components that are children)
+      availableItems.value = available.filter(item =>
+        item.category === 'Computer' || item.type === 'Hardware'
+      )
     }
 
     const filteredItems = computed(() =>
@@ -106,6 +166,48 @@ export default {
       )
     )
 
+    const selectItem = (item) => {
+      selectedItem.value = item
+      // Load linked components
+      if (item.fixedComponents && item.fixedComponents.length > 0) {
+        linkedComponents.value = item.fixedComponents
+          .map(id => inventoryService.getItemById(id))
+          .filter(Boolean)
+        showComponentViewer.value = true
+      } else {
+        linkedComponents.value = []
+        showComponentViewer.value = false
+      }
+    }
+
+    const handleFileUpload = (event) => {
+      const files = Array.from(event.target.files)
+      files.forEach(file => {
+        uploadedFiles.value.push({
+          name: file.name,
+          size: file.size,
+          type: file.type
+        })
+        // Generate preview for images
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            filePreviews.value.push(e.target.result)
+          }
+          reader.readAsDataURL(file)
+        }
+      })
+      // Store in localStorage simulation
+      localStorage.setItem('requestUploadedFiles', JSON.stringify(uploadedFiles.value.map(f => f.name)))
+    }
+
+    const removeFile = (idx) => {
+      uploadedFiles.value.splice(idx, 1)
+      if (idx < filePreviews.value.length) {
+        filePreviews.value.splice(idx, 1)
+      }
+    }
+
     const handleSubmitRequest = () => {
       if (!selectedItem.value || !reason.value) {
         alert('Please select an item and provide a reason')
@@ -114,14 +216,34 @@ export default {
 
       const currentUser = authService.getCurrentUser()
       const borrowerID = currentUser?.id || 'UNKNOWN'
-      borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+
+      // Create main request
+      const mainReq = borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+
+      // Auto-borrow linked components (mock behavior)
+      autoBorrowedComponents.value = []
+      if (selectedItem.value.fixedComponents && selectedItem.value.fixedComponents.length > 0) {
+        selectedItem.value.fixedComponents.forEach(compID => {
+          const comp = inventoryService.getItemById(compID)
+          if (comp && comp.status === 'Available') {
+            borrowingService.createRequest(compID, borrowerID, `Auto-borrowed with ${selectedItem.value.name}`, mainReq.id)
+            autoBorrowedComponents.value.push(comp)
+          }
+        })
+      }
+
       submitted.value = true
       setTimeout(() => {
         selectedItem.value = null
         reason.value = ''
         submitted.value = false
+        uploadedFiles.value = []
+        filePreviews.value = []
+        autoBorrowedComponents.value = []
+        linkedComponents.value = []
+        showComponentViewer.value = false
         loadAvailableItems()
-      }, 2000)
+      }, 3000)
     }
 
     onMounted(() => {
@@ -134,7 +256,15 @@ export default {
       selectedItem,
       reason,
       submitted,
+      linkedComponents,
+      showComponentViewer,
+      uploadedFiles,
+      filePreviews,
+      autoBorrowedComponents,
       filteredItems,
+      selectItem,
+      handleFileUpload,
+      removeFile,
       handleSubmitRequest,
       getStatusColor,
     }

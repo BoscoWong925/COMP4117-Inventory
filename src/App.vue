@@ -20,6 +20,7 @@
           <template v-if="user?.role === 'admin' || user?.role === 'operator'">
             <button @click="currentPage = 'approve-requests'" class="nav-link">
               Approve Requests
+              <NotificationBadge :count="pendingCount" />
             </button>
             <button @click="currentPage = 'borrow-history'" class="nav-link">
               Borrow History
@@ -35,10 +36,6 @@
             </button>
           </template>
 
-          <button v-if="user?.role === 'operator'" @click="currentPage = 'hand-over-tool'" class="nav-link">
-            Hand-Over Tool
-          </button>
-
           <template v-if="user?.role === 'user'">
             <button @click="currentPage = 'new-borrow-request'" class="nav-link">
               New Request
@@ -50,6 +47,10 @@
               Search Items
             </button>
           </template>
+
+          <button @click="currentPage = 'guideline'" class="nav-link">
+            Guidelines
+          </button>
 
           <button
             @click="logout"
@@ -76,8 +77,9 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth } from './hooks/useAuth'
+import { borrowingService } from './utils/services'
 import LoginPage from './pages/LoginPage.vue'
 import ApproveRequestsPage from './pages/ApproveRequestsPage.vue'
 import BorrowHistoryPage from './pages/BorrowHistoryPage.vue'
@@ -88,7 +90,9 @@ import NewBorrowRequestPage from './pages/NewBorrowRequestPage.vue'
 import MyBorrowingRecordPage from './pages/MyBorrowingRecordPage.vue'
 import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
+import GuidelinePage from './pages/GuidelinePage.vue'
 import HomePage from './pages/HomePage.vue'
+import NotificationBadge from './components/NotificationBadge.vue'
 
 export default {
   components: {
@@ -102,14 +106,24 @@ export default {
     MyBorrowingRecordPage,
     SearchAvailableItemsPage,
     HandOverToolPage,
+    GuidelinePage,
     HomePage,
+    NotificationBadge,
   },
   setup() {
     const { user, isAuthenticated, login, logout } = useAuth()
     const currentPage = ref('home')
+    const pendingCount = ref(0)
+    let pollTimer = null
+
+    const refreshPendingCount = () => {
+      pendingCount.value = borrowingService.getPendingRequests().length
+    }
 
     const handleLogin = (username, password) => {
-      return login(username, password)
+      const ok = login(username, password)
+      if (ok) refreshPendingCount()
+      return ok
     }
 
     const currentComponent = computed(() => {
@@ -132,9 +146,20 @@ export default {
           return SearchAvailableItemsPage
         case 'hand-over-tool':
           return HandOverToolPage
+        case 'guideline':
+          return GuidelinePage
         default:
           return HomePage
       }
+    })
+
+    onMounted(() => {
+      refreshPendingCount()
+      pollTimer = setInterval(refreshPendingCount, 5000)
+    })
+
+    onUnmounted(() => {
+      if (pollTimer) clearInterval(pollTimer)
     })
 
     return {
@@ -142,6 +167,7 @@ export default {
       isAuthenticated,
       currentPage,
       currentComponent,
+      pendingCount,
       handleLogin,
       logout,
     }

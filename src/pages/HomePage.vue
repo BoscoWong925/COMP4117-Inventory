@@ -67,6 +67,31 @@
         </div>
       </div>
 
+      <!-- Inventory Items Grid for Admin/Operator -->
+      <div v-if="user?.role !== 'user'" class="mb-8">
+        <h3 class="text-xl font-bold mb-4">Inventory Items</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div
+            v-for="item in paginatedInventory"
+            :key="item.id"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition"
+          >
+            <p class="text-xs text-gray-400 mb-1">{{ item.id }}</p>
+            <p class="font-semibold text-gray-800 truncate">{{ item.name }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ item.category }} · {{ item.type }}</p>
+            <div class="flex items-center justify-between mt-3">
+              <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(item.status)}`">{{ item.status }}</span>
+              <span class="text-xs text-gray-400">{{ item.location }}</span>
+            </div>
+          </div>
+        </div>
+        <PaginationControl
+          v-model:currentPage="inventoryPage"
+          :totalItems="allInventory.length"
+          :pageSize="12"
+        />
+      </div>
+
       <!-- My Current Borrows for User -->
       <div v-if="user?.role === 'user'" class="bg-white border border-gray-200 rounded-lg p-6 mb-8">
         <h3 class="text-xl font-bold mb-4">My Active Borrows</h3>
@@ -147,10 +172,12 @@ import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor } from '../utils/helpers'
 import DashboardCard from '../components/DashboardCard.vue'
+import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
   components: {
     DashboardCard,
+    PaginationControl,
   },
   setup() {
     const { user } = useAuth()
@@ -162,6 +189,13 @@ export default {
     })
     const recentLogs = ref([])
     const myActiveBorrows = ref([])
+    const allInventory = ref([])
+    const inventoryPage = ref(1)
+
+    const paginatedInventory = computed(() => {
+      const start = (inventoryPage.value - 1) * 12
+      return allInventory.value.slice(start, start + 12)
+    })
 
     const loadDashboardData = () => {
       // Load stats
@@ -181,6 +215,9 @@ export default {
       const allLogs = auditService.getAllLogs()
       allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       recentLogs.value = allLogs.slice(0, 5)
+
+      // Load all inventory items for grid view
+      allInventory.value = inventoryService.getAllItems()
 
       // Load current user's active borrows
       const currentUser = authService.getCurrentUser()
@@ -204,6 +241,9 @@ export default {
       stats,
       recentLogs,
       myActiveBorrows,
+      allInventory,
+      inventoryPage,
+      paginatedInventory,
       formatDate,
       formatDateTime,
       getStatusColor,

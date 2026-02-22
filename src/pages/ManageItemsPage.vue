@@ -1,103 +1,142 @@
 <template>
   <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Manage Inventory Items</h2>
-      <div class="gap-2 flex flex-wrap">
-        <label class="btn cursor-pointer">
-          Import Excel
-          <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
-        </label>
-        <button @click="exportItems" class="btn">Export to Excel</button>
-        <button @click="resetForm(); showForm = true" class="btn">
-          Add New Item
-        </button>
+    <!-- ========== TABLE VIEW ========== -->
+    <template v-if="!showForm">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold">Manage Inventory Items</h2>
+        <div class="gap-2 flex flex-wrap">
+          <label class="btn btn-outline-primary cursor-pointer">
+            Import Excel
+            <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
+          </label>
+          <button @click="exportItems" class="btn">Export to Excel</button>
+          <button @click="openNewItemForm" class="btn btn-outline-primary">
+            Add New Item
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Import Results Message -->
-    <div v-if="importMessage" :class="`mb-4 p-4 rounded ${importSuccess ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`">
-      {{ importMessage }}
-      <button @click="importMessage = ''" class="ml-2 font-bold">&times;</button>
-    </div>
+      <!-- Import Results Message -->
+      <div v-if="importMessage" :class="`mb-4 p-4 rounded ${importSuccess ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`">
+        {{ importMessage }}
+        <button @click="importMessage = ''" class="ml-2 font-bold">&times;</button>
+      </div>
 
-    <div v-if="items.length === 0" class="bg-blue-50 p-4 rounded text-center">
-      No items in inventory
-    </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse border border-gray-300 table-striped">
-        <thead class="bg-gray-200">
-          <tr>
-            <th class="border p-2 text-left">ID</th>
-            <th class="border p-2 text-left">Name</th>
-            <th class="border p-2 text-left">Type</th>
-            <th class="border p-2 text-left">Status</th>
-            <th class="border p-2 text-left">Location</th>
-            <th class="border p-2 text-left">Supplier</th>
-            <th class="border p-2 text-left">Warranty End</th>
-            <th class="border p-2 text-center">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in items" :key="item.id">
-            <td class="border p-2">{{ item.id }}</td>
-            <td class="border p-2">{{ item.name }}</td>
-            <td class="border p-2">{{ item.type }}</td>
-            <td class="border p-2">
-              <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
-                {{ item.status }}
-              </span>
-            </td>
-            <td class="border p-2">{{ item.location }}</td>
-            <td class="border p-2">{{ item.supplier }}</td>
-            <td class="border p-2">{{ formatDate(item.warrantyEnd) }}</td>
-            <td class="border p-2 text-center">
-              <button
-                @click="handleEdit(item)"
-                class="btn text-sm"
-              >
-                Edit
-              </button>
-              <button
-                @click="handleDelete(item.id)"
-                class="btn-danger text-sm ml-2"
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <div v-if="items.length === 0" class="bg-blue-50 p-4 rounded text-center">
+        No items in inventory
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse border border-gray-300 table-striped">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="border p-2 text-left">ID</th>
+              <th class="border p-2 text-left">Name</th>
+              <th class="border p-2 text-left">Type</th>
+              <th class="border p-2 text-left">Status</th>
+              <th class="border p-2 text-left">Location</th>
+              <th class="border p-2 text-left">Supplier</th>
+              <th class="border p-2 text-left">Warranty End</th>
+              <th class="border p-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in paginatedItems" :key="item.id">
+              <td class="border p-2">{{ item.id }}</td>
+              <td class="border p-2">{{ item.name }}</td>
+              <td class="border p-2">{{ item.type }}</td>
+              <td class="border p-2">
+                <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td class="border p-2">{{ item.location }}</td>
+              <td class="border p-2">{{ item.supplier }}</td>
+              <td class="border p-2">{{ formatDate(item.warrantyEnd) }}</td>
+              <td class="border p-2 text-center">
+                <button
+                  @click="handleEdit(item)"
+                  class="btn btn-outline-success text-sm"
+                >
+                  Edit
+                </button>
+                <button
+                  @click="handleDelete(item.id)"
+                  class="btn btn-outline-danger text-sm ml-2"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <PaginationControl
+          v-model:currentPage="currentPage"
+          :totalItems="items.length"
+          :pageSize="pageSize"
+        />
+      </div>
 
-    <div v-if="showForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div class="bg-white rounded-lg p-6 max-w-2xl w-full my-8">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-xl font-bold">
-            {{ editingItem ? 'Edit Item' : 'Add New Item' }}
-          </h3>
-          <div>
+      <!-- Delete Block Modal -->
+      <DeleteBlockModal
+        :show="showDeleteBlock"
+        message="This item is currently in use (lent out) and cannot be deleted. Please return it first."
+        @close="showDeleteBlock = false"
+      />
+    </template>
+
+    <!-- ========== FULL-PAGE FORM VIEW ========== -->
+    <template v-if="showForm">
+      <div class="max-w-3xl mx-auto pt-8">
+        <div class="flex items-center justify-between mb-2">
+          <button @click="showForm = false; resetForm()" class="text-gray-500 hover:text-gray-800 text-lg px-3 py-1 rounded hover:bg-gray-100">
+            &larr; Back
+          </button>
+          <button
+            v-if="editingItem"
+            type="button"
+            @click="deleteWhileEditing"
+            title="Delete this item"
+            class="btn btn-outline-danger text-sm"
+          >
+            Delete Item
+          </button>
+        </div>
+        <h2 class="text-2xl font-bold mb-6">
+          {{ editingItem ? 'Edit Item' : 'Add New Item' }}
+        </h2>
+
+        <!-- Invoice Scanner Header -->
+        <div class="mb-6 p-4 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-lg">
+          <h4 class="text-lg font-bold text-red-700 mb-3">📄 Invoice Scanner</h4>
+          
+          <!-- Invoice Input Mode Selection -->
+          <div class="flex gap-3">
             <button
-              v-if="editingItem"
               type="button"
-              @click="deleteWhileEditing"
-              title="Delete this item"
-              class="cross-btn"
+              @click="invoiceMode = 'upload'"
+              :class="`flex-1 px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 ${invoiceMode === 'upload' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border-2 border-red-300 hover:bg-red-50'}`"
             >
-              &times;
+              📁 Upload Invoice
+            </button>
+            <button
+              type="button"
+              @click="invoiceMode = 'camera'"
+              :class="`flex-1 px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 ${invoiceMode === 'camera' ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-red-600 border-2 border-red-300 hover:bg-red-50'}`"
+            >
+              📷 Take Photo
             </button>
           </div>
         </div>
 
         <!-- Invoice Upload Section -->
-        <div class="mb-6 p-4 border-2 border-dashed border-red-300 rounded-lg bg-red-50">
-          <label class="block text-gray-700 font-semibold mb-3">📄 Invoice Upload *REQUIRED</label>
-          <p class="text-sm text-gray-600 mb-3">Upload invoice photo or PDF (required - used for OCR extraction and storage)</p>
+        <div v-if="invoiceMode === 'upload'" class="mb-6 p-6 border-2 border-red-300 rounded-lg bg-white">
+          <label class="block text-gray-700 font-semibold mb-4">Upload Invoice File</label>
           
           <div 
             @drop.prevent="handleInvoiceDrop"
             @dragover.prevent="isDraggingInvoice = true"
             @dragleave="isDraggingInvoice = false"
-            :class="`p-4 border-2 rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-red-500 bg-red-100' : 'border-red-300 bg-white'}`"
+            :class="`p-8 border-3 border-dashed rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-red-600 bg-red-100' : 'border-red-300 bg-red-50 hover:bg-red-100'}`"
           >
             <input 
               type="file" 
@@ -106,61 +145,139 @@
               accept="image/*,.pdf"
               class="hidden"
             />
-            <p class="text-gray-600 mb-2">{{ isDraggingInvoice ? '📁 Drop your invoice here' : '📷 Click or drag invoice photo/PDF here' }}</p>
-            <button 
-              type="button"
-              @click="$refs.invoiceInput.click()"
-              class="text-red-600 hover:text-red-800 text-sm font-semibold"
-            >
-              Choose File
-            </button>
+            <div @click="$refs.invoiceInput.click()">
+              <p class="text-4xl mb-3">📷</p>
+              <p class="text-gray-800 font-semibold mb-2">{{ isDraggingInvoice ? 'Drop invoice here' : 'Click to upload or drag & drop' }}</p>
+              <p class="text-sm text-gray-600 mb-4">PNG, JPG, PDF (Max 10MB)</p>
+              <div class="p-3 bg-white border-2 border-red-400 rounded-lg inline-block">
+                <button 
+                  type="button"
+                  class="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition transform hover:scale-105 shadow-md hover:shadow-lg"
+                >
+                  📁 Browse Files
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- Processing Status -->
-          <div v-if="ocrProcessing" class="mt-3">
+          <!-- Upload Preview -->
+          <div v-if="uploadedImage" class="mt-6 p-4 border-2 border-green-300 rounded-lg bg-green-50">
+            <p class="text-sm font-semibold text-green-700 mb-3">✓ Invoice Preview:</p>
+            <img :src="uploadedImage" class="w-full max-h-72 rounded border border-green-300 object-contain bg-white" />
+            <p v-if="invoiceFileData" class="text-xs text-gray-600 mt-2">{{ invoiceFileData.name }} • {{ (invoiceFileData.size / 1024).toFixed(2) }} KB</p>
+          </div>
+        </div>
+
+        <!-- Invoice Camera Section -->
+        <div v-if="invoiceMode === 'camera'" class="mb-6 p-6 border-2 border-red-300 rounded-lg bg-white">
+          <label class="block text-gray-700 font-semibold mb-4">Capture Invoice with Camera</label>
+          
+          <!-- Camera Feed with Large Display -->
+          <div class="bg-black border-4 border-red-500 rounded-lg overflow-hidden mb-4" style="aspect-ratio: 4/3; max-height: 500px;">
+            <video
+              v-if="cameraActive"
+              ref="invoiceVideoElement"
+              class="w-full h-full object-cover"
+              autoplay
+              playsinline
+            ></video>
+            <div v-else class="w-full h-full bg-gray-900 flex items-center justify-center">
+              <div class="text-center">
+                <p class="text-4xl mb-3">📷</p>
+                <p class="text-gray-400 text-lg">Camera ready</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Camera Controls with Box -->
+          <div class="mb-4 p-4 border-2 border-red-400 rounded-lg bg-red-50">
+            <p class="text-sm font-semibold text-red-700 mb-3">Camera Controls:</p>
+            <div class="flex gap-2">
+              <button
+                v-if="!cameraActive"
+                type="button"
+                @click="startInvoiceCamera"
+                class="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition transform hover:scale-105 shadow-md hover:shadow-lg"
+                :disabled="invoiceCameraStarting"
+              >
+                {{ invoiceCameraStarting ? '⏳ Starting...' : '▶️ Start Camera' }}
+              </button>
+              <button
+                v-else
+                type="button"
+                @click="stopInvoiceCamera"
+                class="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition transform hover:scale-105 shadow-md hover:shadow-lg"
+              >
+                ⏹️ Stop Camera
+              </button>
+              <button
+                v-if="cameraActive"
+                type="button"
+                @click="captureInvoicePhoto"
+                class="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition transform hover:scale-105 shadow-md hover:shadow-lg"
+                :disabled="ocrProcessing"
+              >
+                {{ ocrProcessing ? '⏳ Processing...' : '📸 Capture' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Captured Image Preview -->
+          <div v-if="uploadedImage" class="p-4 border-2 border-green-300 rounded-lg bg-green-50">
+            <p class="text-sm font-semibold text-green-700 mb-3">✓ Captured Invoice Preview:</p>
+            <img :src="uploadedImage" class="w-full max-h-72 rounded border border-green-300 object-contain bg-white" />
+          </div>
+        </div>
+
+        <!-- Processing Status -->
+        <div v-if="ocrProcessing" class="mb-6 p-6 border-2 border-blue-400 rounded-lg bg-blue-50">
+          <div class="flex items-center justify-center gap-3 mb-4">
+            <div class="animate-spin h-6 w-6 border-3 border-blue-500 border-t-transparent rounded-full"></div>
+            <span class="text-lg font-semibold text-blue-700">Processing Invoice... {{ ocrProgress }}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div class="bg-blue-500 h-3 rounded-full transition-all duration-300" :style="{ width: ocrProgress + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Success/Error Message -->
+        <div v-if="ocrMessage && !ocrProcessing" :class="`mb-6 p-4 rounded-lg border-2 font-semibold ${ocrSuccess ? 'bg-green-50 border-green-400 text-green-700' : 'bg-red-50 border-red-400 text-red-700'}`">
+          {{ ocrMessage }}
+        </div>
+
+        <!-- Invoice Preview (when editing) -->
+        <div v-if="editingItem && invoiceFileData" class="mb-6 p-4 border-2 border-blue-400 rounded-lg bg-blue-50">
+          <p class="text-sm font-semibold text-blue-700 mb-3">📎 Invoice Attached:</p>
+          <img 
+            v-if="uploadedImage" 
+            :src="uploadedImage" 
+            class="w-full max-h-64 rounded border-2 border-blue-300 object-contain bg-white mb-4" 
+          />
+          <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <div class="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full"></div>
-              <span class="text-sm text-red-600">Processing invoice... {{ ocrProgress }}%</span>
+              <span class="text-sm text-gray-700 font-medium">{{ invoiceFileData.name }}</span>
+              <span class="text-xs text-gray-500">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div class="bg-red-600 h-2 rounded-full" :style="{ width: ocrProgress + '%' }"></div>
-            </div>
-          </div>
-
-          <!-- Success/Error Message -->
-          <div v-if="ocrMessage && !ocrProcessing" :class="`mt-3 p-3 rounded text-sm ${ocrSuccess ? 'bg-green-100 border border-green-300 text-green-700' : 'bg-red-100 border border-red-300 text-red-700'}`">
-            {{ ocrMessage }}
-          </div>
-
-          <!-- Invoice Preview (when editing) -->
-          <div v-if="editingItem && invoiceFileData" class="mt-4 p-3 bg-blue-50 border border-blue-300 rounded">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="text-blue-600 font-semibold">📎 Invoice Attached:</span>
-                <span class="text-sm text-gray-700">{{ invoiceFileData.name }}</span>
-                <span class="text-xs text-gray-500">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
-              </div>
-              <div class="flex gap-2">
-                <button 
-                  type="button"
-                  @click="viewInvoice"
-                  class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                >
-                  👁️ View
-                </button>
-                <button 
-                  type="button"
-                  @click="downloadInvoice"
-                  class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                >
-                  ⬇️ Download
-                </button>
-              </div>
+            <div class="flex gap-2 p-3 bg-white border-2 border-blue-300 rounded-lg">
+              <button 
+                type="button"
+                @click="viewInvoice"
+                class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium shadow-md hover:shadow-lg"
+              >
+                👁️ View
+              </button>
+              <button 
+                type="button"
+                @click="downloadInvoice"
+                class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition font-medium shadow-md hover:shadow-lg"
+              >
+                ⬇️ Download
+              </button>
             </div>
           </div>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
+        <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 pr-2">
           <div>
             <label class="block text-gray-700 text-sm font-medium mb-1">Name *</label>
             <input
@@ -190,9 +307,12 @@
 
           <div>
             <label class="block text-gray-700 text-sm font-medium mb-1">Category</label>
-            <select v-model="formData.category" class="form-select">
-              <option v-for="c in itemCategories" :key="c" :value="c">{{ c }}</option>
-            </select>
+            <DropdownWithOther
+              v-model="formData.category"
+              :options="mutableCategories"
+              placeholder="Enter new category..."
+              @add-option="addCategory"
+            />
           </div>
 
           <div>
@@ -204,9 +324,22 @@
 
           <div>
             <label class="block text-gray-700 text-sm font-medium mb-1">Location</label>
-            <select v-model="formData.location" class="form-select">
-              <option v-for="l in locations" :key="l" :value="l">{{ l }}</option>
-            </select>
+            <DropdownWithOther
+              v-model="formData.location"
+              :options="mutableLocations"
+              placeholder="Enter new location..."
+              @add-option="addLocationOption"
+            />
+          </div>
+
+          <div>
+            <label class="block text-gray-700 text-sm font-medium mb-1">Department ID</label>
+            <input
+              type="text"
+              v-model="formData.departmentID"
+              class="form-input"
+              placeholder="e.g. COMP"
+            />
           </div>
 
           <div>
@@ -264,36 +397,65 @@
             />
           </div>
 
-          <div class="col-span-2 flex gap-2 justify-end">
-            <button type="submit" class="btn">
-              {{ editingItem ? 'Update' : 'Add' }} Item
+          <div class="col-span-2 flex gap-3 justify-end p-4 bg-gray-50 border-2 border-gray-300 rounded-lg">
+            <button type="submit" class="btn btn-outline-success px-6 py-2 shadow-md hover:shadow-lg">
+              ✓ {{ editingItem ? 'Update' : 'Add' }} Item
             </button>
             <button
               type="button"
               @click="showForm = false; resetForm()"
-              class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
+              class="btn btn-outline-secondary px-6 py-2 shadow-md hover:shadow-lg"
             >
-              Cancel
+              ✕ Cancel
             </button>
           </div>
         </form>
+
+        <!-- Delete Block Modal (also available in form view) -->
+        <DeleteBlockModal
+          :show="showDeleteBlock"
+          message="This item is currently in use (lent out) and cannot be deleted. Please return it first."
+          @close="showDeleteBlock = false"
+        />
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
+import PaginationControl from '../components/PaginationControl.vue'
+import DropdownWithOther from '../components/DropdownWithOther.vue'
+import DeleteBlockModal from '../components/DeleteBlockModal.vue'
 
 const itemTypes = ["Hardware", "Software", "Component"]
 const itemCategories = ["Computer", "Display", "Memory", "Storage", "Peripherals", "Other"]
-const locations = ["Lab A", "Lab B", "Lab C", "Office", "Storage Room", "Shelf 1", "Shelf 2", "Other"]
+const defaultLocations = ["Lab A", "Lab B", "Lab C", "Office", "Storage Room", "Shelf 1", "Shelf 2", "Other"]
 const statuses = ["Available", "In-use", "Missing", "Dispose", "Not Available", "Transferred"]
+
+// Load persisted custom locations / categories from localStorage
+const loadSavedList = (key, defaults) => {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Merge: keep all defaults + any saved custom values, ensure "Other" stays last
+      const base = defaults.filter(d => d !== 'Other')
+      const custom = parsed.filter(v => !defaults.includes(v))
+      return [...base, ...custom, 'Other']
+    }
+  } catch (e) { /* ignore */ }
+  return [...defaults]
+}
+
+const savePersistList = (key, list) => {
+  try { localStorage.setItem(key, JSON.stringify(list)) } catch (e) { /* ignore */ }
+}
 
 const defaultFormData = {
   name: '',
@@ -308,10 +470,12 @@ const defaultFormData = {
   invoiceNumber: '',
   warrantyStartDate: '',
   warrantyEnd: '',
-  invoiceFile: null // Store the invoice file (base64 or blob)
+  invoiceFile: null,
+  departmentID: 'COMP'
 }
 
 export default {
+  components: { PaginationControl, DropdownWithOther, DeleteBlockModal },
   setup() {
     const items = ref([])
     const showForm = ref(false)
@@ -320,13 +484,62 @@ export default {
     const importMessage = ref('')
     const importSuccess = ref(false)
     const invoiceInput = ref(null)
+    const invoiceVideoElement = ref(null)
+    const invoiceMode = ref('upload')
+    const cameraActive = ref(false)
+    const invoiceCameraStarting = ref(false)
     const isDraggingInvoice = ref(false)
     const ocrProcessing = ref(false)
     const ocrProgress = ref(0)
     const ocrMessage = ref('')
     const ocrSuccess = ref(false)
-    const invoiceFileData = ref(null) // Store invoice file data
+    const invoiceFileData = ref(null)
+    const currentPage = ref(1)
+    const pageSize = 10
+    const showDeleteBlock = ref(false)
+    const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
+    const mutableCategories = ref(loadSavedList('inv_custom_categories', itemCategories))
     let ocrWorker = null
+    let invoiceCameraStream = null
+
+    const paginatedItems = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return items.value.slice(start, start + pageSize)
+    })
+
+    const uploadedImage = computed(() => {
+      return invoiceFileData.value ? invoiceFileData.value.data : null
+    })
+
+    const addLocationOption = (val) => {
+      if (!mutableLocations.value.includes(val)) {
+        // Insert before "Other" (last element)
+        const idx = mutableLocations.value.indexOf('Other')
+        if (idx >= 0) {
+          mutableLocations.value.splice(idx, 0, val)
+        } else {
+          mutableLocations.value.push(val)
+        }
+        savePersistList('inv_custom_locations', mutableLocations.value)
+      }
+    }
+
+    const addCategory = (val) => {
+      if (!mutableCategories.value.includes(val)) {
+        const idx = mutableCategories.value.indexOf('Other')
+        if (idx >= 0) {
+          mutableCategories.value.splice(idx, 0, val)
+        } else {
+          mutableCategories.value.push(val)
+        }
+        savePersistList('inv_custom_categories', mutableCategories.value)
+      }
+    }
+
+    const openNewItemForm = () => {
+      resetForm()
+      showForm.value = true
+    }
 
     const loadItems = () => {
       const allItems = inventoryService.getAllItems()
@@ -407,8 +620,27 @@ export default {
     }
 
     const handleDelete = (id) => {
+      // Block deletion if item is in-use
+      const item = inventoryService.getItemById(id)
+      if (item && item.status === 'In-use') {
+        showDeleteBlock.value = true
+        return
+      }
       if (window.confirm('Are you sure you want to delete this item?')) {
         inventoryService.deleteItem(id)
+        loadItems()
+      }
+    }
+
+    const deleteWhileEditing = () => {
+      if (editingItem.value && editingItem.value.status === 'In-use') {
+        showDeleteBlock.value = true
+        return
+      }
+      if (window.confirm('Delete this item?')) {
+        inventoryService.deleteItem(editingItem.value.id)
+        showForm.value = false
+        resetForm()
         loadItems()
       }
     }
@@ -671,6 +903,80 @@ export default {
       }
     }
 
+    const startInvoiceCamera = async () => {
+      try {
+        invoiceCameraStarting.value = true
+        invoiceCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        })
+        invoiceVideoElement.value.srcObject = invoiceCameraStream
+        cameraActive.value = true
+        ocrMessage.value = '✓ Camera ready. Click "Capture" to take invoice photo.'
+        ocrSuccess.value = true
+      } catch (error) {
+        ocrMessage.value = `❌ Camera error: ${error.message}`
+        ocrSuccess.value = false
+        console.error('Camera error:', error)
+      } finally {
+        invoiceCameraStarting.value = false
+      }
+    }
+
+    const stopInvoiceCamera = () => {
+      if (invoiceCameraStream) {
+        invoiceCameraStream.getTracks().forEach(track => track.stop())
+        invoiceCameraStream = null
+      }
+      cameraActive.value = false
+      ocrMessage.value = ''
+    }
+
+    const captureInvoicePhoto = async () => {
+      if (!invoiceVideoElement.value) return
+
+      try {
+        ocrProcessing.value = true
+        ocrMessage.value = '⏳ Capturing and processing invoice...'
+
+        const canvas = document.createElement('canvas')
+        canvas.width = invoiceVideoElement.value.videoWidth
+        canvas.height = invoiceVideoElement.value.videoHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(invoiceVideoElement.value, 0, 0)
+
+        const imageData = canvas.toDataURL('image/jpeg')
+        
+        // Store the captured image
+        invoiceFileData.value = {
+          data: imageData,
+          name: `invoice_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+          size: imageData.length
+        }
+        formData.value.invoiceFile = invoiceFileData.value
+
+        ocrSuccess.value = true
+        ocrMessage.value = '✅ Invoice captured! Processing text...'
+
+        // Process the captured image - need to convert dataURL to blob
+        const blob = await (await fetch(imageData)).blob()
+        const file = new File([blob], 'invoice.jpg', { type: 'image/jpeg' })
+        await extractTextFromImage(file)
+        
+        stopInvoiceCamera()
+      } catch (error) {
+        ocrMessage.value = `❌ Error capturing invoice: ${error.message}`
+        ocrSuccess.value = false
+        console.error('Error:', error)
+      } finally {
+        ocrProcessing.value = false
+      }
+    }
+
     onMounted(() => {
       loadItems()
       // Set PDF.js worker - use local node_modules path
@@ -690,6 +996,8 @@ export default {
       if (ocrWorker) {
         ocrWorker.terminate()
       }
+      // Cleanup camera stream
+      stopInvoiceCamera()
     })
 
     return {
@@ -700,6 +1008,10 @@ export default {
       importMessage,
       importSuccess,
       invoiceInput,
+      invoiceVideoElement,
+      invoiceMode,
+      cameraActive,
+      invoiceCameraStarting,
       invoiceFileData,
       isDraggingInvoice,
       ocrProcessing,
@@ -708,8 +1020,19 @@ export default {
       ocrSuccess,
       itemTypes,
       itemCategories,
-      locations,
+      defaultLocations,
       statuses,
+      currentPage,
+      pageSize,
+      paginatedItems,
+      uploadedImage,
+      showDeleteBlock,
+      mutableLocations,
+      mutableCategories,
+      addLocationOption,
+      addCategory,
+      openNewItemForm,
+      deleteWhileEditing,
       resetForm,
       handleSubmit,
       handleEdit,
@@ -718,6 +1041,9 @@ export default {
       handleImport,
       handleInvoiceUpload,
       handleInvoiceDrop,
+      startInvoiceCamera,
+      stopInvoiceCamera,
+      captureInvoicePhoto,
       viewInvoice,
       downloadInvoice,
       formatDate,

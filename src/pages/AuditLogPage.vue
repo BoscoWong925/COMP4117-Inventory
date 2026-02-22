@@ -48,7 +48,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="log in filteredLogs" :key="log.id">
+          <tr v-for="log in paginatedLogs" :key="log.id">
             <td class="border p-2 text-sm">{{ formatDateTime(log.timestamp) }}</td>
             <td class="border p-2">{{ log.userID }}</td>
             <td class="border p-2 text-sm font-medium">{{ log.action }}</td>
@@ -59,6 +59,11 @@
           </tr>
         </tbody>
       </table>
+      <PaginationControl
+        v-model:currentPage="currentPage"
+        :totalItems="filteredLogs.length"
+        :pageSize="pageSize"
+      />
     </div>
   </div>
 </template>
@@ -67,12 +72,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { auditService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
+import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
+  components: { PaginationControl },
   setup() {
     const logs = ref([])
     const filter = ref('All')
     const searchText = ref('')
+    const currentPage = ref(1)
+    const pageSize = 10
 
     const loadLogs = () => {
       const allLogs = auditService.getAllLogs()
@@ -96,6 +105,11 @@ export default {
       return result
     })
 
+    const paginatedLogs = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return filteredLogs.value.slice(start, start + pageSize)
+    })
+
     const exportLogs = () => {
       exportToExcel(filteredLogs.value, 'audit_logs.xlsx')
     }
@@ -108,8 +122,11 @@ export default {
       logs,
       filter,
       searchText,
+      currentPage,
+      pageSize,
       actions,
       filteredLogs,
+      paginatedLogs,
       exportLogs,
       formatDateTime,
     }

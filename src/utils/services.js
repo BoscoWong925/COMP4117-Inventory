@@ -117,7 +117,7 @@ export const borrowingService = {
 
   getRequestById: (id) => db.requests.find(r => r.id === id),
 
-  createRequest: (itemID, borrowerID, reason) => {
+  createRequest: (itemID, borrowerID, reason, parentRequestId = null) => {
     const newRequest = {
       id: `REQ-${String(db.requests.length + 1).padStart(3, "0")}`,
       itemID,
@@ -129,7 +129,8 @@ export const borrowingService = {
       returnDate: null,
       returnedDate: null,
       reason,
-      notes: ""
+      notes: "",
+      parentRequestId
     };
     db.requests.push(newRequest);
     saveToStorage();
@@ -163,6 +164,21 @@ export const borrowingService = {
         }
       }
       
+      // Auto-approve child requests (components linked to this parent)
+      const childRequests = db.requests.filter(r => r.parentRequestId === requestID && r.status === "Pending");
+      childRequests.forEach(childReq => {
+        childReq.status = "Approved";
+        childReq.approvalDate = new Date().toISOString().split("T")[0];
+        childReq.approvedBy = currentUser.id;
+        childReq.returnDate = returnDate;
+        const childItem = db.items.find(i => i.id === childReq.itemID);
+        if (childItem) {
+          childItem.status = "In-use";
+          childItem.currentBorrower = childReq.borrowerID;
+        }
+        addAuditLog(currentUser.id, "BORROW_REQUEST_APPROVED", `Child request auto-approved with parent ${requestID}`, childReq.itemID);
+      });
+      
       saveToStorage();
       addAuditLog(currentUser.id, "BORROW_REQUEST_APPROVED", `Request approved`, request.itemID);
       return request;
@@ -175,6 +191,15 @@ export const borrowingService = {
     if (request) {
       request.status = "Rejected";
       request.notes = reason;
+      
+      // Auto-reject child requests (components linked to this parent)
+      const childRequests = db.requests.filter(r => r.parentRequestId === requestID && r.status === "Pending");
+      childRequests.forEach(childReq => {
+        childReq.status = "Rejected";
+        childReq.notes = `Auto-rejected with parent: ${reason}`;
+        addAuditLog(currentUser.id, "BORROW_REQUEST_REJECTED", `Child request auto-rejected with parent ${requestID}: ${reason}`, childReq.itemID);
+      });
+      
       saveToStorage();
       addAuditLog(currentUser.id, "BORROW_REQUEST_REJECTED", `Request rejected: ${reason}`, request.itemID);
       return request;
@@ -205,6 +230,19 @@ export const borrowingService = {
           });
         }
       }
+      
+      // Auto-return child requests (components linked to this parent)
+      const childRequests = db.requests.filter(r => r.parentRequestId === requestID && r.status === "Approved");
+      childRequests.forEach(childReq => {
+        childReq.status = "Returned";
+        childReq.returnedDate = new Date().toISOString().split("T")[0];
+        const childItem = db.items.find(i => i.id === childReq.itemID);
+        if (childItem) {
+          childItem.status = "Available";
+          childItem.currentBorrower = null;
+        }
+        addAuditLog(currentUser.id, "ITEM_RETURNED", `Child item auto-returned with parent ${requestID}`, childReq.itemID);
+      });
       
       saveToStorage();
       addAuditLog(currentUser.id, "ITEM_RETURNED", `Item returned`, request.itemID);
