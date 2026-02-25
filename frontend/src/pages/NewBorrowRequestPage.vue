@@ -28,40 +28,43 @@
           <div
             v-for="item in filteredItems"
             :key="item.id"
-            @click="selectItem(item)"
-            :class="`p-4 border rounded cursor-pointer transition ${
-              selectedItem?.id === item.id
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-gray-300 bg-white hover:bg-gray-50'
-            }`"
           >
-            <div class="flex justify-between items-start">
-              <div>
-                <p class="font-medium">{{ item.name }}</p>
-                <p class="text-sm text-gray-600">ID: {{ item.id }}</p>
-                <p class="text-sm text-gray-600">Category: {{ item.category }}</p>
-                <p v-if="item.fixedComponents && item.fixedComponents.length > 0" class="text-xs text-blue-600 mt-1">
-                  {{ item.fixedComponents.length }} linked component(s) — will be auto-borrowed
-                </p>
+            <div
+              @click="selectItem(item)"
+              :class="`p-4 border rounded cursor-pointer transition ${
+                selectedItem?.id === item.id
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-300 bg-white hover:bg-gray-50'
+              }`"
+            >
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="font-medium">{{ item.name }}</p>
+                  <p class="text-sm text-gray-600">ID: {{ item.id }}</p>
+                  <p class="text-sm text-gray-600">Category: {{ item.category }}</p>
+                  <p v-if="item.fixedComponents && item.fixedComponents.length > 0" class="text-xs text-blue-600 mt-1">
+                    {{ item.fixedComponents.length }} linked component(s) — will be auto-borrowed
+                  </p>
+                </div>
+                <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
+                  {{ item.status }}
+                </span>
               </div>
-              <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
-                {{ item.status }}
-              </span>
             </div>
-          </div>
-        </div>
-
-        <!-- Component Viewer Modal -->
-        <div v-if="showComponentViewer && selectedItem" class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <h4 class="text-md font-bold mb-3">Components of {{ selectedItem.name }}</h4>
-          <div v-if="linkedComponents.length === 0" class="text-gray-500 text-sm">No linked components</div>
-          <div v-else class="space-y-2">
-            <div v-for="comp in linkedComponents" :key="comp.id" class="bg-white p-3 rounded border flex justify-between items-center">
-              <div>
-                <p class="font-medium text-sm">{{ comp.name }}</p>
-                <p class="text-xs text-gray-500">{{ comp.id }} · {{ comp.category }}</p>
+            
+            <!-- Component Viewer - shown right under clicked item -->
+            <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <h4 class="text-md font-bold mb-3">Components of {{ item.name }}</h4>
+              <div v-if="linkedComponents.length === 0" class="text-gray-500 text-sm">No linked components</div>
+              <div v-else class="space-y-2">
+                <div v-for="comp in linkedComponents" :key="comp.id" class="bg-white p-3 rounded border flex justify-between items-center">
+                  <div>
+                    <p class="font-medium text-sm">{{ comp.name }}</p>
+                    <p class="text-xs text-gray-500">{{ comp.id }} · {{ comp.category }}</p>
+                  </div>
+                  <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(comp.status)}`">{{ comp.status }}</span>
+                </div>
               </div>
-              <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(comp.status)}`">{{ comp.status }}</span>
             </div>
           </div>
         </div>
