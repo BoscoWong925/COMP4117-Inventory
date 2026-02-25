@@ -1,184 +1,122 @@
 <template>
-  <div class="p-8">
-    <div class="max-w-5xl mx-auto">
-      <h2 class="text-3xl font-bold mb-6">Welcome to the Inventory System</h2>
-
-      <!-- Statistics Dashboard -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <p class="text-xs text-gray-500 uppercase mb-1">Total Items</p>
-          <p class="text-3xl font-bold text-gray-800">{{ stats.totalItems }}</p>
-        </div>
-        <div class="bg-green-50 border border-green-200 rounded-lg p-4 shadow-sm">
-          <p class="text-xs text-green-600 uppercase mb-1">Available</p>
-          <p class="text-3xl font-bold text-green-700">{{ stats.availableItems }}</p>
-        </div>
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
-          <p class="text-xs text-blue-600 uppercase mb-1">Lent Out</p>
-          <p class="text-3xl font-bold text-blue-700">{{ stats.lentOutItems }}</p>
-        </div>
-        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-sm">
-          <p class="text-xs text-yellow-600 uppercase mb-1">Pending Requests</p>
-          <p class="text-3xl font-bold text-yellow-700">{{ stats.pendingRequests }}</p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 class="text-xl font-bold mb-3">Your Role: <span class="capitalize">{{ user?.role }}</span></h3>
-          <p class="text-gray-700 mb-4">
-            <template v-if="user?.role === 'admin'">
-              You have full access to all inventory functions including item management, request approval, and audit logs.
-            </template>
-            <template v-else-if="user?.role === 'operator'">
-              You can manage items, approve requests, track items, and use the hand-over tool for status updates.
-            </template>
-            <template v-else-if="user?.role === 'user'">
-              You can browse available items, submit borrowing requests, and track your borrowing history.
-            </template>
-          </p>
-        </div>
-
-        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
-          <h3 class="text-xl font-bold mb-3">Quick Features</h3>
-          <ul class="text-gray-700 space-y-2">
-            <li>✓ Real-time inventory tracking</li>
-            <li>✓ Excel export/import for all views</li>
-            <li>✓ Complete audit trail logging</li>
-            <li>✓ Hierarchical borrowing (mothers + components)</li>
-            <li>✓ Warranty and purchase tracking</li>
-            <li>✓ Role-based access control</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Recent Activity for Admin/Operator -->
-      <div v-if="user?.role !== 'user'" class="bg-white border border-gray-200 rounded-lg p-6 mb-8">
-        <h3 class="text-xl font-bold mb-4">Recent Activity</h3>
-        <div v-if="recentLogs.length === 0" class="text-gray-500 text-center py-4">No recent activity</div>
-        <div v-else class="space-y-2">
-          <div v-for="log in recentLogs" :key="log.id" class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-            <div>
-              <span class="text-sm font-medium">{{ log.action }}</span>
-              <span class="text-sm text-gray-500 ml-2">{{ log.details }}</span>
-            </div>
-            <span class="text-xs text-gray-400">{{ formatDateTime(log.timestamp) }}</span>
+  <div class="p-6">
+    <div class="max-w-6xl mx-auto">
+      <!-- ==================== ADMIN / OPERATOR VIEW ==================== -->
+      <template v-if="user?.role !== 'user'">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Total Items</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.totalItems }}</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Available</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.availableItems }}</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Lent Out</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.lentOutItems }}</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Pending Requests</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.pendingRequests }}</p>
           </div>
         </div>
-      </div>
 
-      <!-- Inventory Items Grid for Admin/Operator -->
-      <div v-if="user?.role !== 'user'" class="mb-8">
-        <h3 class="text-xl font-bold mb-4">Inventory Items</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div
-            v-for="item in paginatedInventory"
-            :key="item.id"
-            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition"
-          >
-            <p class="text-xs text-gray-400 mb-1">{{ item.id }}</p>
-            <p class="font-semibold text-gray-800 truncate">{{ item.name }}</p>
-            <p class="text-xs text-gray-500 mt-1">{{ item.category }} · {{ item.type }}</p>
-            <div class="flex items-center justify-between mt-3">
-              <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(item.status)}`">{{ item.status }}</span>
-              <span class="text-xs text-gray-400">{{ item.location }}</span>
-            </div>
+        <!-- Recent Activity -->
+        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h3 class="text-lg font-bold mb-3">Recent Activity</h3>
+          <div v-if="recentLogs.length === 0" class="text-gray-500 text-center py-4">No recent activity</div>
+          <table v-else class="w-full border-collapse border border-gray-300 table-striped">
+            <thead class="bg-gray-200">
+              <tr>
+                <th class="border p-2 text-left text-sm">Action</th>
+                <th class="border p-2 text-left text-sm">Details</th>
+                <th class="border p-2 text-left text-sm">User</th>
+                <th class="border p-2 text-left text-sm">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in recentLogs" :key="log.id" class="bg-white">
+                <td class="border p-2 text-sm font-medium">{{ log.action }}</td>
+                <td class="border p-2 text-sm text-gray-600">{{ log.details }}</td>
+                <td class="border p-2 text-sm text-gray-500">{{ log.userID }}</td>
+                <td class="border p-2 text-xs text-gray-400 whitespace-nowrap">{{ formatDateTime(log.timestamp) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </template>
+
+      <!-- ==================== USER VIEW ==================== -->
+      <template v-else>
+        <h2 class="text-2xl font-bold mb-6">Welcome to the Inventory System</h2>
+
+        <!-- My Borrow Records -->
+        <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">My Borrow Records</h3>
+            <button @click="$emit('navigate', 'my-borrowing-record')"
+              class="btn text-sm">
+              View All Records &rarr;
+            </button>
+          </div>
+          <div v-if="myBorrows.length === 0" class="text-gray-500 text-center py-4">No borrowing records</div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full border-collapse border border-gray-300 table-striped">
+              <thead class="bg-gray-200">
+                <tr>
+                  <th class="border p-2 text-left text-sm">Request ID</th>
+                  <th class="border p-2 text-left text-sm">Item</th>
+                  <th class="border p-2 text-left text-sm">Status</th>
+                  <th class="border p-2 text-left text-sm">Request Date</th>
+                  <th class="border p-2 text-left text-sm">Due Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="borrow in myBorrows.slice(0, 5)" :key="borrow.id" class="bg-white">
+                  <td class="border p-2 text-sm">{{ borrow.id }}</td>
+                  <td class="border p-2 text-sm font-medium">{{ borrow.itemName }}</td>
+                  <td class="border p-2">
+                    <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(borrow.status)}`">{{ borrow.status }}</span>
+                  </td>
+                  <td class="border p-2 text-sm">{{ formatDateTime(borrow.requestDate) }}</td>
+                  <td class="border p-2 text-sm">{{ formatDate(borrow.returnDate) || 'N/A' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="myBorrows.length > 5" class="text-sm text-gray-500 mt-2 text-center">
+              Showing 5 of {{ myBorrows.length }} records.
+              <button @click="$emit('navigate', 'my-borrowing-record')" class="text-blue-600 hover:underline">View all</button>
+            </p>
           </div>
         </div>
-        <PaginationControl
-          v-model:currentPage="inventoryPage"
-          :totalItems="allInventory.length"
-          :pageSize="12"
-        />
-      </div>
 
-      <!-- My Current Borrows for User -->
-      <div v-if="user?.role === 'user'" class="bg-white border border-gray-200 rounded-lg p-6 mb-8">
-        <h3 class="text-xl font-bold mb-4">My Active Borrows</h3>
-        <div v-if="myActiveBorrows.length === 0" class="text-gray-500 text-center py-4">No active borrows</div>
-        <div v-else class="space-y-2">
-          <div v-for="borrow in myActiveBorrows" :key="borrow.id" class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-            <div>
-              <span class="text-sm font-medium">{{ borrow.itemName }}</span>
-              <span :class="`ml-2 px-2 py-1 rounded text-xs ${getStatusColor(borrow.status)}`">{{ borrow.status }}</span>
-            </div>
-            <span class="text-xs text-gray-500">Due: {{ formatDate(borrow.returnDate) || 'N/A' }}</span>
-          </div>
+        <!-- Navigation for user -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button @click="$emit('navigate', 'new-borrow-request')"
+            class="border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg p-4 text-sm font-medium text-blue-800 transition text-center">
+            Click here to make a borrow request
+          </button>
+          <button @click="$emit('navigate', 'search-available')"
+            class="border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg p-4 text-sm font-medium text-green-800 transition text-center">
+            Click here to search available items
+          </button>
         </div>
-      </div>
-
-      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-        <h3 class="text-lg font-bold mb-3">Demo Credentials</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p class="font-medium">Admin</p>
-            <p class="text-gray-600">admin / admin123</p>
-          </div>
-          <div>
-            <p class="font-medium">Operator</p>
-            <p class="text-gray-600">operator / operator123</p>
-          </div>
-          <div>
-            <p class="font-medium">User</p>
-            <p class="text-gray-600">user / user123</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <template v-if="user?.role !== 'user'">
-          <DashboardCard 
-            title="Approve Requests"
-            description="Review and approve/reject borrowing requests from users"
-            color="bg-purple-50"
-          />
-          <DashboardCard 
-            title="Manage Items"
-            description="Add, edit, or delete inventory items with full details"
-            color="bg-blue-50"
-          />
-          <DashboardCard 
-            title="Audit Trail"
-            description="View all system actions and changes with timestamps"
-            color="bg-indigo-50"
-          />
-        </template>
-
-        <template v-else>
-          <DashboardCard 
-            title="Search Items"
-            description="Find available items in the inventory"
-            color="bg-green-50"
-          />
-          <DashboardCard 
-            title="New Request"
-            description="Request to borrow an available item"
-            color="bg-blue-50"
-          />
-          <DashboardCard 
-            title="My Records"
-            description="Track your borrowing history and active loans"
-            color="bg-purple-50"
-          />
-        </template>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor } from '../utils/helpers'
-import DashboardCard from '../components/DashboardCard.vue'
-import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
-  components: {
-    DashboardCard,
-    PaginationControl,
-  },
+  emits: ['navigate'],
   setup() {
     const { user } = useAuth()
     const stats = ref({
@@ -188,17 +126,9 @@ export default {
       pendingRequests: 0
     })
     const recentLogs = ref([])
-    const myActiveBorrows = ref([])
-    const allInventory = ref([])
-    const inventoryPage = ref(1)
-
-    const paginatedInventory = computed(() => {
-      const start = (inventoryPage.value - 1) * 12
-      return allInventory.value.slice(start, start + 12)
-    })
+    const myBorrows = ref([])
 
     const loadDashboardData = () => {
-      // Load stats
       const allItems = inventoryService.getAllItems()
       const availableItems = inventoryService.getAvailableItems()
       const lentOutItems = inventoryService.getLentOutItems()
@@ -211,24 +141,19 @@ export default {
         pendingRequests: pendingRequests.length
       }
 
-      // Load recent logs (last 5) for admin/operator
+      // Recent logs (last 8) for admin/operator
       const allLogs = auditService.getAllLogs()
       allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      recentLogs.value = allLogs.slice(0, 5)
+      recentLogs.value = allLogs.slice(0, 8)
 
-      // Load all inventory items for grid view
-      allInventory.value = inventoryService.getAllItems()
-
-      // Load current user's active borrows
+      // Current user's borrow records (all statuses)
       const currentUser = authService.getCurrentUser()
       if (currentUser) {
         const userRequests = borrowingService.getRequestsForUser(currentUser.id)
-        myActiveBorrows.value = userRequests
-          .filter(r => r.status === 'Approved' || r.status === 'Pending')
-          .map(r => ({
-            ...r,
-            itemName: inventoryService.getItemById(r.itemID)?.name || 'Unknown Item'
-          }))
+        myBorrows.value = userRequests.map(r => ({
+          ...r,
+          itemName: inventoryService.getItemById(r.itemID)?.name || 'Unknown Item'
+        }))
       }
     }
 
@@ -240,10 +165,7 @@ export default {
       user,
       stats,
       recentLogs,
-      myActiveBorrows,
-      allInventory,
-      inventoryPage,
-      paginatedInventory,
+      myBorrows,
       formatDate,
       formatDateTime,
       getStatusColor,

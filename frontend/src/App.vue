@@ -63,7 +63,7 @@
     </header>
 
     <main class="flex-1 max-w-7xl mx-auto w-full">
-      <component :is="currentComponent" />
+      <component :is="currentComponent" @navigate="(page) => currentPage = page" />
     </main>
 
     <footer class="border-t border-gray-200 bg-white py-4 mt-8">

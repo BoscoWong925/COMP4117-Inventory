@@ -22,14 +22,24 @@
         </select>
       </div>
 
-      <div class="flex items-end">
-        <button
-          @click="vendorFilter = ''; yearFilter = ''"
-          class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 w-full"
-        >
-          Clear Filters
-        </button>
+      <div>
+        <label class="block text-gray-700 text-sm font-medium mb-2">Filter by Type</label>
+        <select v-model="typeFilter" class="form-select">
+          <option value="">All Types</option>
+          <option value="Component">Component</option>
+          <option value="Hardware">Hardware</option>
+          <option value="Software">Software</option>
+        </select>
       </div>
+    </div>
+
+    <div class="flex justify-end mb-4">
+      <button
+        @click="vendorFilter = ''; yearFilter = ''; typeFilter = ''"
+        class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
+      >
+        Clear Filters
+      </button>
     </div>
 
     <div v-if="groupedItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
@@ -41,12 +51,24 @@
           <tr>
             <th class="border p-2 text-left">ID</th>
             <th class="border p-2 text-left">Name</th>
-            <th class="border p-2 text-left">Category</th>
-            <th class="border p-2 text-left">Borrower ID</th>
-            <th class="border p-2 text-left">Borrower Name</th>
-            <th class="border p-2 text-left">Vendor</th>
-            <th class="border p-2 text-left">Location</th>
-            <th class="border p-2 text-left">Warranty End</th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('category')">
+              Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
+            </th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('currentBorrower')">
+              Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
+            </th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('borrowerName')">
+              Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
+            </th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('supplier')">
+              Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
+            </th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('location')">
+              Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
+            </th>
+            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('warrantyEnd')">
+              Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
+            </th>
             <th class="border p-2 text-center">Return</th>
           </tr>
         </thead>
@@ -93,7 +115,7 @@
       </table>
       <PaginationControl
         v-model:currentPage="currentPage"
-        :totalItems="groupedItems.length"
+        :totalItems="sortedGroups.length"
         :pageSize="pageSize"
       />
     </div>
@@ -126,7 +148,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor } from '../utils/helpers'
 import { mockUsers } from '../data/mockData'
@@ -146,6 +168,29 @@ export default {
     const returnedItem = ref(null)
     const newLocation = ref('')
     const otherLocation = ref('')
+    const typeFilter = ref('')
+    const sortField = ref('')
+    const sortDir = ref('asc')
+
+    // Reset page when any filter changes
+    watch([vendorFilter, yearFilter, typeFilter], () => {
+      currentPage.value = 1
+    })
+
+    const toggleSort = (field) => {
+      if (sortField.value === field) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+      } else {
+        sortField.value = field
+        sortDir.value = 'asc'
+      }
+      currentPage.value = 1
+    }
+
+    const getSortIcon = (field) => {
+      if (sortField.value !== field) return '⇅'
+      return sortDir.value === 'asc' ? '▲' : '▼'
+    }
 
     // Load persisted custom locations
     const loadLocations = () => {
@@ -185,6 +230,9 @@ export default {
       }
       if (yearFilter.value) {
         result = filterByYear(result, yearFilter.value)
+      }
+      if (typeFilter.value) {
+        result = result.filter(item => item.type === typeFilter.value)
       }
       return result
     })
@@ -227,9 +275,27 @@ export default {
       return groups
     })
 
+    const sortedGroups = computed(() => {
+      const groups = [...groupedItems.value]
+      if (!sortField.value) return groups
+      groups.sort((a, b) => {
+        let valA, valB
+        if (sortField.value === 'borrowerName') {
+          valA = getBorrowerName(a.parent.currentBorrower)
+          valB = getBorrowerName(b.parent.currentBorrower)
+        } else {
+          valA = a.parent[sortField.value] || ''
+          valB = b.parent[sortField.value] || ''
+        }
+        if (sortDir.value === 'asc') return valA < valB ? -1 : valA > valB ? 1 : 0
+        return valA > valB ? -1 : valA < valB ? 1 : 0
+      })
+      return groups
+    })
+
     const paginatedGroups = computed(() => {
       const start = (currentPage.value - 1) * pageSize
-      return groupedItems.value.slice(start, start + pageSize)
+      return sortedGroups.value.slice(start, start + pageSize)
     })
 
     const handleReturnItem = (item) => {
@@ -298,7 +364,13 @@ export default {
       filteredItems,
       paginatedItems,
       groupedItems,
+      sortedGroups,
       paginatedGroups,
+      toggleSort,
+      getSortIcon,
+      typeFilter,
+      sortField,
+      sortDir,
       getBorrowerName,
       handleReturnItem,
       saveLocation,
@@ -316,4 +388,14 @@ export default {
 
 <style scoped>
 @import '../index.css';
+.sort-icon {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: #6b7280;
+}
+thead th:hover .sort-icon {
+  color: #1f2937;
+}
 </style>

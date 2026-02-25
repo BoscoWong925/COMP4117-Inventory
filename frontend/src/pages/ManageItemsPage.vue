@@ -31,11 +31,21 @@
             <tr>
               <th class="border p-2 text-left">ID</th>
               <th class="border p-2 text-left">Name</th>
-              <th class="border p-2 text-left">Type</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Location</th>
-              <th class="border p-2 text-left">Supplier</th>
-              <th class="border p-2 text-left">Warranty End</th>
+              <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('type')">
+                Type <span class="sort-icon">{{ getSortIcon('type') }}</span>
+              </th>
+              <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('status')">
+                Status <span class="sort-icon">{{ getSortIcon('status') }}</span>
+              </th>
+              <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('location')">
+                Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
+              </th>
+              <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('supplier')">
+                Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
+              </th>
+              <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('warrantyEnd')">
+                Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
+              </th>
               <th class="border p-2 text-center">Actions</th>
             </tr>
           </thead>
@@ -71,7 +81,7 @@
         </table>
         <PaginationControl
           v-model:currentPage="currentPage"
-          :totalItems="items.length"
+          :totalItems="sortedItems.length"
           :pageSize="pageSize"
         />
       </div>
@@ -497,6 +507,8 @@ export default {
     const currentPage = ref(1)
     const pageSize = 10
     const showDeleteBlock = ref(false)
+    const sortField = ref('')
+    const sortDir = ref('asc')
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
     const mutableCategories = ref(loadSavedList('inv_custom_categories', itemCategories))
     let ocrWorker = null
@@ -504,8 +516,35 @@ export default {
 
     const paginatedItems = computed(() => {
       const start = (currentPage.value - 1) * pageSize
-      return items.value.slice(start, start + pageSize)
+      return sortedItems.value.slice(start, start + pageSize)
     })
+
+    const sortedItems = computed(() => {
+      const list = [...items.value]
+      if (!sortField.value) return list
+      list.sort((a, b) => {
+        const valA = a[sortField.value] || ''
+        const valB = b[sortField.value] || ''
+        if (sortDir.value === 'asc') return valA < valB ? -1 : valA > valB ? 1 : 0
+        return valA > valB ? -1 : valA < valB ? 1 : 0
+      })
+      return list
+    })
+
+    const toggleSort = (field) => {
+      if (sortField.value === field) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+      } else {
+        sortField.value = field
+        sortDir.value = 'asc'
+      }
+      currentPage.value = 1
+    }
+
+    const getSortIcon = (field) => {
+      if (sortField.value !== field) return '⇅'
+      return sortDir.value === 'asc' ? '▲' : '▼'
+    }
 
     const uploadedImage = computed(() => {
       return invoiceFileData.value ? invoiceFileData.value.data : null
@@ -1025,6 +1064,11 @@ export default {
       currentPage,
       pageSize,
       paginatedItems,
+      sortedItems,
+      toggleSort,
+      getSortIcon,
+      sortField,
+      sortDir,
       uploadedImage,
       showDeleteBlock,
       mutableLocations,
@@ -1055,4 +1099,14 @@ export default {
 
 <style scoped>
 @import '../index.css';
+.sort-icon {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: #6b7280;
+}
+thead th:hover .sort-icon {
+  color: #1f2937;
+}
 </style>

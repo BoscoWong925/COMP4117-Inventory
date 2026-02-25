@@ -532,6 +532,84 @@ export const mockBorrowingRequests = [
     returnedDate: null,
     reason: "HCI Lab experiment",
     notes: ""
+  },
+  {
+    id: "REQ-011",
+    itemID: "INV-010",
+    borrowerID: "U003",
+    status: "Approved",
+    requestDate: "2025-01-18T09:30:00Z",
+    approvalDate: "2025-01-18T14:00:00Z",
+    approvedBy: "U001",
+    returnDate: "2025-03-01",
+    returnedDate: null,
+    reason: "Printing course materials for department",
+    notes: "Return after semester ends"
+  },
+  {
+    id: "REQ-012",
+    itemID: "INV-007",
+    borrowerID: "U003",
+    status: "Approved",
+    requestDate: "2025-01-22T11:00:00Z",
+    approvalDate: "2025-01-22T15:30:00Z",
+    approvedBy: "U002",
+    returnDate: "2025-02-28",
+    returnedDate: null,
+    reason: "Web development project setup",
+    notes: "Handle with care"
+  },
+  {
+    id: "REQ-013",
+    itemID: "INV-009",
+    borrowerID: "U003",
+    status: "Pending",
+    requestDate: "2025-02-01T10:15:00Z",
+    approvalDate: null,
+    approvedBy: null,
+    returnDate: null,
+    returnedDate: null,
+    reason: "GPU computing for data analysis",
+    notes: ""
+  },
+  {
+    id: "REQ-014",
+    itemID: "INV-005",
+    borrowerID: "U003",
+    status: "Returned",
+    requestDate: "2024-12-10T08:45:00Z",
+    approvalDate: "2024-12-10T11:30:00Z",
+    approvedBy: "U002",
+    returnDate: "2025-01-10",
+    returnedDate: "2025-01-08T16:20:00Z",
+    reason: "Lab setup - Mouse needed for testing",
+    notes: "Returned in good condition"
+  },
+  {
+    id: "REQ-015",
+    itemID: "INV-003",
+    borrowerID: "U003",
+    status: "Returned",
+    requestDate: "2024-11-05T14:00:00Z",
+    approvalDate: "2024-11-06T09:00:00Z",
+    approvedBy: "U001",
+    returnDate: "2024-12-05",
+    returnedDate: "2024-12-03T10:30:00Z",
+    reason: "SSD benchmarking for research paper",
+    notes: "All good"
+  },
+  {
+    id: "REQ-016",
+    itemID: "INV-012",
+    borrowerID: "U003",
+    status: "Rejected",
+    requestDate: "2025-01-20T13:00:00Z",
+    approvalDate: "2025-01-21T09:45:00Z",
+    approvedBy: "U001",
+    returnDate: null,
+    returnedDate: null,
+    reason: "Need headphones for recording project",
+    notes: "Item reserved for audio lab"
   }
 ];
 
