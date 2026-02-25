@@ -123,7 +123,7 @@ export const borrowingService = {
       itemID,
       borrowerID,
       status: "Pending",
-      requestDate: new Date().toISOString().split("T")[0],
+      requestDate: new Date().toISOString(),
       approvalDate: null,
       approvedBy: null,
       returnDate: null,
@@ -142,7 +142,7 @@ export const borrowingService = {
     const request = db.requests.find(r => r.id === requestID);
     if (request) {
       request.status = "Approved";
-      request.approvalDate = new Date().toISOString().split("T")[0];
+      request.approvalDate = new Date().toISOString();
       request.approvedBy = currentUser.id;
       request.returnDate = returnDate;
       
@@ -168,7 +168,7 @@ export const borrowingService = {
       const childRequests = db.requests.filter(r => r.parentRequestId === requestID && r.status === "Pending");
       childRequests.forEach(childReq => {
         childReq.status = "Approved";
-        childReq.approvalDate = new Date().toISOString().split("T")[0];
+        childReq.approvalDate = new Date().toISOString();
         childReq.approvedBy = currentUser.id;
         childReq.returnDate = returnDate;
         const childItem = db.items.find(i => i.id === childReq.itemID);
@@ -211,7 +211,7 @@ export const borrowingService = {
     const request = db.requests.find(r => r.id === requestID);
     if (request) {
       request.status = "Returned";
-      request.returnedDate = new Date().toISOString().split("T")[0];
+      request.returnedDate = new Date().toISOString();
       
       // Update item status
       const item = db.items.find(i => i.id === request.itemID);
@@ -235,7 +235,7 @@ export const borrowingService = {
       const childRequests = db.requests.filter(r => r.parentRequestId === requestID && r.status === "Approved");
       childRequests.forEach(childReq => {
         childReq.status = "Returned";
-        childReq.returnedDate = new Date().toISOString().split("T")[0];
+        childReq.returnedDate = new Date().toISOString();
         const childItem = db.items.find(i => i.id === childReq.itemID);
         if (childItem) {
           childItem.status = "Available";

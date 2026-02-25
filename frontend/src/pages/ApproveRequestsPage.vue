@@ -220,7 +220,9 @@ export default {
         alert('Please set a return date')
         return
       }
-      const req = borrowingService.approveRequest(requestId, returnDate.value)
+      // Convert date string to ISO datetime string (with default time 17:00:00)
+      const returnDatetime = `${returnDate.value}T17:00:00Z`
+      const req = borrowingService.approveRequest(requestId, returnDatetime)
       if (req) {
         req.notes = approveRemark.value
         // Update item location if specified
