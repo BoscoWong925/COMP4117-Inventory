@@ -115,6 +115,9 @@ export const borrowingService = {
 
   getPendingRequests: () => db.requests.filter(r => r.status === "Pending"),
 
+  // Count only top-level pending requests (exclude child requests that were auto-created for components)
+  getTopLevelPendingRequests: () => db.requests.filter(r => r.status === "Pending" && !r.parentRequestId),
+
   getRequestById: (id) => db.requests.find(r => r.id === id),
 
   createRequest: (itemID, borrowerID, reason, parentRequestId = null) => {
@@ -292,6 +295,10 @@ const saveToStorage = () => {
   localStorage.setItem("items", JSON.stringify(db.items));
   localStorage.setItem("requests", JSON.stringify(db.requests));
   localStorage.setItem("logs", JSON.stringify(db.logs));
+};
+
+export const userService = {
+  getUserById: (id) => db.users.find(u => u.id === id) || null,
 };
 
 export const getDatabase = () => db;

@@ -5,6 +5,9 @@
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-2xl font-bold">Manage Inventory Items</h2>
         <div class="gap-2 flex flex-wrap">
+          <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
+            {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
+          </button>
           <label class="btn btn-outline-primary cursor-pointer">
             Import Excel
             <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
@@ -13,6 +16,86 @@
           <button @click="openNewItemForm" class="btn btn-outline-primary">
             Add New Item
           </button>
+        </div>
+      </div>
+
+      <!-- Search Filter Panel -->
+      <div v-if="showFilterPanel" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-sm font-semibold text-gray-700">Search &amp; Filter</h3>
+          <button @click="clearFilters" class="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Clear All</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <!-- ID (text) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Item ID</label>
+            <input v-model="searchFilters.id" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
+          </div>
+          <!-- Name (text) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Name</label>
+            <input v-model="searchFilters.name" type="text" class="form-input text-sm" placeholder="Search name..." />
+          </div>
+          <!-- Type (select) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Type</label>
+            <select v-model="searchFilters.type" class="form-select text-sm">
+              <option value="">All Types</option>
+              <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+          <!-- Category (select) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Category</label>
+            <select v-model="searchFilters.category" class="form-select text-sm">
+              <option value="">All Categories</option>
+              <option v-for="c in mutableCategories.filter(x => x !== 'Other')" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+          <!-- Status (select) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Status</label>
+            <select v-model="searchFilters.status" class="form-select text-sm">
+              <option value="">All Statuses</option>
+              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+          <!-- Location (select) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Location</label>
+            <select v-model="searchFilters.location" class="form-select text-sm">
+              <option value="">All Locations</option>
+              <option v-for="l in mutableLocations.filter(x => x !== 'Other')" :key="l" :value="l">{{ l }}</option>
+            </select>
+          </div>
+          <!-- Vendor (select) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Vendor</label>
+            <select v-model="searchFilters.vendor" class="form-select text-sm">
+              <option value="">All Vendors</option>
+              <option v-for="v in uniqueVendors" :key="v" :value="v">{{ v }}</option>
+            </select>
+          </div>
+          <!-- Supplier (text) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Supplier</label>
+            <input v-model="searchFilters.supplier" type="text" class="form-input text-sm" placeholder="Search supplier..." />
+          </div>
+          <!-- University ID (text) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">University ID</label>
+            <input v-model="searchFilters.universityID" type="text" class="form-input text-sm" placeholder="Search uni ID..." />
+          </div>
+          <!-- Warranty End (date) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Warranty End</label>
+            <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
+          </div>
+          <!-- Description (text) -->
+          <div>
+            <label class="block text-gray-600 text-xs font-medium mb-1">Description</label>
+            <input v-model="searchFilters.description" type="text" class="form-input text-sm" placeholder="Search description..." />
+          </div>
         </div>
       </div>
 
@@ -433,7 +516,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -514,13 +597,82 @@ export default {
     let ocrWorker = null
     let invoiceCameraStream = null
 
+    const showFilterPanel = ref(false)
+    const searchFilters = ref({
+      id: '', name: '', type: '', category: '', status: '',
+      location: '', vendor: '', supplier: '', universityID: '',
+      warrantyEnd: '', description: ''
+    })
+
+    const uniqueVendors = computed(() => {
+      const vendors = items.value.map(i => i.vendor || i.supplier).filter(Boolean)
+      return [...new Set(vendors)].sort()
+    })
+
+    const clearFilters = () => {
+      searchFilters.value = {
+        id: '', name: '', type: '', category: '', status: '',
+        location: '', vendor: '', supplier: '', universityID: '',
+        warrantyEnd: '', description: ''
+      }
+    }
+
+    // Watch filters to reset page
+    watch(searchFilters, () => {
+      currentPage.value = 1
+    }, { deep: true })
+
+    const filteredItems = computed(() => {
+      let result = items.value
+      const f = searchFilters.value
+      if (f.id) {
+        const q = f.id.toLowerCase()
+        result = result.filter(i => i.id.toLowerCase().includes(q))
+      }
+      if (f.name) {
+        const q = f.name.toLowerCase()
+        result = result.filter(i => i.name.toLowerCase().includes(q))
+      }
+      if (f.type) {
+        result = result.filter(i => i.type === f.type)
+      }
+      if (f.category) {
+        result = result.filter(i => i.category === f.category)
+      }
+      if (f.status) {
+        result = result.filter(i => i.status === f.status)
+      }
+      if (f.location) {
+        result = result.filter(i => i.location === f.location)
+      }
+      if (f.vendor) {
+        result = result.filter(i => (i.vendor || i.supplier) === f.vendor)
+      }
+      if (f.supplier) {
+        const q = f.supplier.toLowerCase()
+        result = result.filter(i => (i.supplier || '').toLowerCase().includes(q))
+      }
+      if (f.universityID) {
+        const q = f.universityID.toLowerCase()
+        result = result.filter(i => (i.universityID || '').toLowerCase().includes(q))
+      }
+      if (f.warrantyEnd) {
+        result = result.filter(i => i.warrantyEnd && i.warrantyEnd.startsWith(f.warrantyEnd))
+      }
+      if (f.description) {
+        const q = f.description.toLowerCase()
+        result = result.filter(i => (i.description || '').toLowerCase().includes(q))
+      }
+      return result
+    })
+
     const paginatedItems = computed(() => {
       const start = (currentPage.value - 1) * pageSize
       return sortedItems.value.slice(start, start + pageSize)
     })
 
     const sortedItems = computed(() => {
-      const list = [...items.value]
+      const list = [...filteredItems.value]
       if (!sortField.value) return list
       list.sort((a, b) => {
         const valA = a[sortField.value] || ''
@@ -1065,12 +1217,17 @@ export default {
       pageSize,
       paginatedItems,
       sortedItems,
+      filteredItems,
       toggleSort,
       getSortIcon,
       sortField,
       sortDir,
       uploadedImage,
       showDeleteBlock,
+      showFilterPanel,
+      searchFilters,
+      uniqueVendors,
+      clearFilters,
       mutableLocations,
       mutableCategories,
       addLocationOption,

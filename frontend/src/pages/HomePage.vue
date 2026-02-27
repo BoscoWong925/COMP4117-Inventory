@@ -5,27 +5,78 @@
       <template v-if="user?.role !== 'user'">
         <!-- Stats Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Total Items</p>
+          <div
+            @click="$emit('navigate', 'manage-items')"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Total Items</p>
             <p class="text-lg font-bold text-gray-800">{{ stats.totalItems }}</p>
+            <p class="text-xs text-gray-500 mt-1">Manage Items &rarr;</p>
           </div>
-          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Available</p>
+          <div
+            @click="$emit('navigate', 'search-available')"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Available</p>
             <p class="text-lg font-bold text-gray-800">{{ stats.availableItems }}</p>
+            <p class="text-xs text-gray-500 mt-1">Available Items &rarr;</p>
           </div>
-          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Lent Out</p>
+          <div
+            @click="$emit('navigate', 'lent-out-filter')"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Lent Out</p>
             <p class="text-lg font-bold text-gray-800">{{ stats.lentOutItems }}</p>
+            <p class="text-xs text-gray-500 mt-1">Lent-Out Items &rarr;</p>
           </div>
-          <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <p class="text-xl font-bold text-gray-500 uppercase mb-1">Pending Requests</p>
+          <div
+            @click="$emit('navigate', 'approve-requests')"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition relative"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Pending Requests</p>
             <p class="text-lg font-bold text-gray-800">{{ stats.pendingRequests }}</p>
+            <p class="text-xs text-gray-500 mt-1">Approve Requests &rarr;</p>
+            <span v-if="stats.pendingRequests > 0" class="absolute top-2 right-2 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">{{ stats.pendingRequests }}</span>
           </div>
         </div>
 
+        <!-- Additional Status Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <div
+            @click="$emit('navigate', 'borrow-history', { filter: 'Returned' })"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Returned</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.returnedRequests }}</p>
+            <p class="text-xs text-gray-500 mt-1">Borrow History &rsaquo; Returned &rarr;</p>
+          </div>
+          <div
+            @click="$emit('navigate', 'borrow-history', { filter: 'Approved' })"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Approved Record</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.approvedRequests }}</p>
+            <p class="text-xs text-gray-500 mt-1">Borrow History &rsaquo; Approved &rarr;</p>
+          </div>
+          <div
+            @click="$emit('navigate', 'borrow-history', { filter: 'Rejected' })"
+            class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-400 transition"
+          >
+            <p class="text-sm font-bold text-gray-500 uppercase mb-1">Rejected</p>
+            <p class="text-lg font-bold text-gray-800">{{ stats.rejectedRequests }}</p>
+            <p class="text-xs text-gray-500 mt-1">Borrow History &rsaquo; Rejected &rarr;</p>
+          </div>
+        </div>
+
+        <!-- Lending Calendar -->
+        <DashboardCalendar />
+
         <!-- Recent Activity -->
         <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h3 class="text-lg font-bold mb-3">Recent Activity</h3>
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-lg font-bold">Recent Activity</h3>
+            <button @click="$emit('navigate', 'audit-log')" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">View Full Audit Log &rarr;</button>
+          </div>
           <div v-if="recentLogs.length === 0" class="text-gray-500 text-center py-4">No recent activity</div>
           <table v-else class="w-full border-collapse border border-gray-300 table-striped">
             <thead class="bg-gray-200">
@@ -37,7 +88,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in recentLogs" :key="log.id" class="bg-white">
+              <tr v-for="log in recentLogs" :key="log.id" class="bg-white cursor-pointer hover:bg-blue-50" @click="$emit('navigate', 'audit-log')">
                 <td class="border p-2 text-sm font-medium">{{ log.action }}</td>
                 <td class="border p-2 text-sm text-gray-600">{{ log.details }}</td>
                 <td class="border p-2 text-sm text-gray-500">{{ log.userID }}</td>
@@ -114,8 +165,10 @@ import { ref, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor } from '../utils/helpers'
+import DashboardCalendar from '../components/DashboardCalendar.vue'
 
 export default {
+  components: { DashboardCalendar },
   emits: ['navigate'],
   setup() {
     const { user } = useAuth()
@@ -123,7 +176,10 @@ export default {
       totalItems: 0,
       availableItems: 0,
       lentOutItems: 0,
-      pendingRequests: 0
+      pendingRequests: 0,
+      returnedRequests: 0,
+      approvedRequests: 0,
+      rejectedRequests: 0
     })
     const recentLogs = ref([])
     const myBorrows = ref([])
@@ -132,13 +188,18 @@ export default {
       const allItems = inventoryService.getAllItems()
       const availableItems = inventoryService.getAvailableItems()
       const lentOutItems = inventoryService.getLentOutItems()
-      const pendingRequests = borrowingService.getPendingRequests()
+      const pendingRequests = borrowingService.getTopLevelPendingRequests()
+      const allRequests = borrowingService.getAllRequests()
+      const topLevelAll = allRequests.filter(r => !r.parentRequestId)
 
       stats.value = {
         totalItems: allItems.length,
         availableItems: availableItems.length,
         lentOutItems: lentOutItems.length,
-        pendingRequests: pendingRequests.length
+        pendingRequests: pendingRequests.length,
+        returnedRequests: topLevelAll.filter(r => r.status === 'Returned').length,
+        approvedRequests: topLevelAll.filter(r => r.status === 'Approved').length,
+        rejectedRequests: topLevelAll.filter(r => r.status === 'Rejected').length
       }
 
       // Recent logs (last 8) for admin/operator

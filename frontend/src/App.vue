@@ -13,42 +13,42 @@
         </div>
 
         <nav class="flex flex-wrap gap-2 border-t border-gray-200 pt-3">
-          <button @click="currentPage = 'home'" class="nav-link">
+          <button @click="handleNavigate('home')" class="nav-link">
             Dashboard
           </button>
 
           <template v-if="user?.role === 'admin' || user?.role === 'operator'">
-            <button @click="currentPage = 'approve-requests'" class="nav-link">
+            <button @click="handleNavigate('approve-requests')" class="nav-link">
               Approve Requests
               <NotificationBadge :count="pendingCount" />
             </button>
-            <button @click="currentPage = 'borrow-history'" class="nav-link">
+            <button @click="handleNavigate('borrow-history')" class="nav-link">
               Borrow History
             </button>
-            <button @click="currentPage = 'manage-items'" class="nav-link">
+            <button @click="handleNavigate('manage-items')" class="nav-link">
               Manage Items
             </button>
-            <button @click="currentPage = 'lent-out-filter'" class="nav-link">
+            <button @click="handleNavigate('lent-out-filter')" class="nav-link">
               Lent-Out Items
             </button>
-            <button @click="currentPage = 'audit-log'" class="nav-link">
+            <button @click="handleNavigate('audit-log')" class="nav-link">
               Audit Log
             </button>
           </template>
 
           <template v-if="user?.role === 'user'">
-            <button @click="currentPage = 'new-borrow-request'" class="nav-link">
+            <button @click="handleNavigate('new-borrow-request')" class="nav-link">
               New Request
             </button>
-            <button @click="currentPage = 'my-borrowing-record'" class="nav-link">
+            <button @click="handleNavigate('my-borrowing-record')" class="nav-link">
               My Records
             </button>
-            <button @click="currentPage = 'search-available'" class="nav-link">
+            <button @click="handleNavigate('search-available')" class="nav-link">
               Search Items
             </button>
           </template>
 
-          <button @click="currentPage = 'guideline'" class="nav-link">
+          <button @click="handleNavigate('guideline')" class="nav-link">
             Guidelines
           </button>
 
@@ -63,7 +63,7 @@
     </header>
 
     <main class="flex-1 max-w-7xl mx-auto w-full">
-      <component :is="currentComponent" @navigate="(page) => currentPage = page" />
+      <component :is="currentComponent" @navigate="handleNavigate" :pageParams="pageParams" />
     </main>
 
     <footer class="border-t border-gray-200 bg-white py-4 mt-8">
@@ -113,11 +113,17 @@ export default {
   setup() {
     const { user, isAuthenticated, login, logout } = useAuth()
     const currentPage = ref('home')
+    const pageParams = ref({})
     const pendingCount = ref(0)
     let pollTimer = null
 
     const refreshPendingCount = () => {
-      pendingCount.value = borrowingService.getPendingRequests().length
+      pendingCount.value = borrowingService.getTopLevelPendingRequests().length
+    }
+
+    const handleNavigate = (page, params = {}) => {
+      currentPage.value = page
+      pageParams.value = params || {}
     }
 
     const handleLogin = (username, password) => {
@@ -168,7 +174,9 @@ export default {
       currentPage,
       currentComponent,
       pendingCount,
+      pageParams,
       handleLogin,
+      handleNavigate,
       logout,
     }
   }

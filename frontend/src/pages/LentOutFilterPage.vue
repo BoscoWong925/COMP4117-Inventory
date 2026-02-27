@@ -2,44 +2,89 @@
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">Lent-Out Items &amp; Hand-Over</h2>
-      <button @click="exportFiltered" class="btn">Export to Excel</button>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      <div>
-        <label class="block text-gray-700 text-sm font-medium mb-2">Filter by Vendor</label>
-        <select v-model="vendorFilter" class="form-select">
-          <option value="">All Vendors</option>
-          <option v-for="v in vendors" :key="v" :value="v">{{ v }}</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-gray-700 text-sm font-medium mb-2">Filter by Year</label>
-        <select v-model="yearFilter" class="form-select">
-          <option value="">All Years</option>
-          <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-gray-700 text-sm font-medium mb-2">Filter by Type</label>
-        <select v-model="typeFilter" class="form-select">
-          <option value="">All Types</option>
-          <option value="Component">Component</option>
-          <option value="Hardware">Hardware</option>
-          <option value="Software">Software</option>
-        </select>
+      <div class="flex gap-2">
+        <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
+          {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
+        </button>
+        <button @click="exportFiltered" class="btn">Export to Excel</button>
       </div>
     </div>
 
-    <div class="flex justify-end mb-4">
-      <button
-        @click="vendorFilter = ''; yearFilter = ''; typeFilter = ''"
-        class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-      >
-        Clear Filters
-      </button>
+    <!-- Comprehensive Search Filter Panel -->
+    <div v-if="showFilterPanel" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-semibold text-gray-700">Search &amp; Filter</h3>
+        <button @click="clearAllFilters" class="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Clear All</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <!-- ID (text) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Item ID</label>
+          <input v-model="searchFilters.id" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
+        </div>
+        <!-- Name (text) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Name</label>
+          <input v-model="searchFilters.name" type="text" class="form-input text-sm" placeholder="Search name..." />
+        </div>
+        <!-- Category (select) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Category</label>
+          <select v-model="searchFilters.category" class="form-select text-sm">
+            <option value="">All Categories</option>
+            <option v-for="c in uniqueCategories" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <!-- Vendor (select) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Vendor</label>
+          <select v-model="searchFilters.vendor" class="form-select text-sm">
+            <option value="">All Vendors</option>
+            <option v-for="v in vendors" :key="v" :value="v">{{ v }}</option>
+          </select>
+        </div>
+        <!-- Location (select) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Location</label>
+          <select v-model="searchFilters.location" class="form-select text-sm">
+            <option value="">All Locations</option>
+            <option v-for="l in uniqueLocations" :key="l" :value="l">{{ l }}</option>
+          </select>
+        </div>
+        <!-- Type (select) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Type</label>
+          <select v-model="searchFilters.type" class="form-select text-sm">
+            <option value="">All Types</option>
+            <option value="Component">Component</option>
+            <option value="Hardware">Hardware</option>
+            <option value="Software">Software</option>
+          </select>
+        </div>
+        <!-- Borrower ID (text) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Borrower ID</label>
+          <input v-model="searchFilters.borrowerId" type="text" class="form-input text-sm" placeholder="e.g. S00123456" />
+        </div>
+        <!-- Borrower Name (text) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Borrower Name</label>
+          <input v-model="searchFilters.borrowerName" type="text" class="form-input text-sm" placeholder="Search borrower..." />
+        </div>
+        <!-- Warranty End (date) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Warranty End</label>
+          <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
+        </div>
+        <!-- Year (select - keep for convenience) -->
+        <div>
+          <label class="block text-gray-600 text-xs font-medium mb-1">Year</label>
+          <select v-model="searchFilters.year" class="form-select text-sm">
+            <option value="">All Years</option>
+            <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <div v-if="groupedItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
@@ -171,11 +216,41 @@ export default {
     const typeFilter = ref('')
     const sortField = ref('')
     const sortDir = ref('asc')
+    const showFilterPanel = ref(false)
+
+    const searchFilters = ref({
+      id: '', name: '', category: '', vendor: '', location: '',
+      type: '', borrowerId: '', borrowerName: '',
+      warrantyEnd: '', year: ''
+    })
+
+    const uniqueCategories = computed(() => {
+      return [...new Set(items.value.map(i => i.category).filter(Boolean))].sort()
+    })
+
+    const uniqueLocations = computed(() => {
+      return [...new Set(items.value.map(i => i.location).filter(Boolean))].sort()
+    })
+
+    const clearAllFilters = () => {
+      searchFilters.value = {
+        id: '', name: '', category: '', vendor: '', location: '',
+        type: '', borrowerId: '', borrowerName: '',
+        warrantyEnd: '', year: ''
+      }
+      vendorFilter.value = ''
+      yearFilter.value = ''
+      typeFilter.value = ''
+    }
 
     // Reset page when any filter changes
     watch([vendorFilter, yearFilter, typeFilter], () => {
       currentPage.value = 1
     })
+
+    watch(searchFilters, () => {
+      currentPage.value = 1
+    }, { deep: true })
 
     const toggleSort = (field) => {
       if (sortField.value === field) {
@@ -225,15 +300,49 @@ export default {
 
     const filteredItems = computed(() => {
       let result = items.value
-      if (vendorFilter.value) {
-        result = filterByVendor(result, vendorFilter.value)
+      const f = searchFilters.value
+
+      // Legacy dropdown filters (still sync with searchFilters for backwards compat)
+      if (f.vendor || vendorFilter.value) {
+        const v = f.vendor || vendorFilter.value
+        result = filterByVendor(result, v)
       }
-      if (yearFilter.value) {
-        result = filterByYear(result, yearFilter.value)
+      if (f.year || yearFilter.value) {
+        const y = f.year || yearFilter.value
+        result = filterByYear(result, y)
       }
-      if (typeFilter.value) {
-        result = result.filter(item => item.type === typeFilter.value)
+      if (f.type || typeFilter.value) {
+        const t = f.type || typeFilter.value
+        result = result.filter(item => item.type === t)
       }
+
+      // Text search filters
+      if (f.id) {
+        const q = f.id.toLowerCase()
+        result = result.filter(i => i.id.toLowerCase().includes(q))
+      }
+      if (f.name) {
+        const q = f.name.toLowerCase()
+        result = result.filter(i => i.name.toLowerCase().includes(q))
+      }
+      if (f.category) {
+        result = result.filter(i => i.category === f.category)
+      }
+      if (f.location) {
+        result = result.filter(i => i.location === f.location)
+      }
+      if (f.borrowerId) {
+        const q = f.borrowerId.toLowerCase()
+        result = result.filter(i => (i.currentBorrower || '').toLowerCase().includes(q))
+      }
+      if (f.borrowerName) {
+        const q = f.borrowerName.toLowerCase()
+        result = result.filter(i => getBorrowerName(i.currentBorrower).toLowerCase().includes(q))
+      }
+      if (f.warrantyEnd) {
+        result = result.filter(i => i.warrantyEnd && i.warrantyEnd.startsWith(f.warrantyEnd))
+      }
+
       return result
     })
 
@@ -371,6 +480,11 @@ export default {
       typeFilter,
       sortField,
       sortDir,
+      showFilterPanel,
+      searchFilters,
+      uniqueCategories,
+      uniqueLocations,
+      clearAllFilters,
       getBorrowerName,
       handleReturnItem,
       saveLocation,
