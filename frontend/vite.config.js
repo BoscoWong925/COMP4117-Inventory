@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
-  base: '/COMP4117-Inventory/',
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [vue()],
   server: {
     port: 3000,
