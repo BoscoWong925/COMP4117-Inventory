@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Lent-Out Items &amp; Hand-Over</h2>
+      <h2 class="text-2xl font-bold">Checked-out items</h2>
       <div class="flex gap-2">
         <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
           {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
@@ -11,25 +11,25 @@
     </div>
 
     <!-- Comprehensive Search Filter Panel -->
-    <div v-if="showFilterPanel" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+    <div v-if="showFilterPanel" class="filter-panel">
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-sm font-semibold text-gray-700">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Clear All</button>
+        <h3 class="filter-panel-title">Search &amp; Filter</h3>
+        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
         <!-- ID (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Item ID</label>
+          <label class="filter-label">Item ID</label>
           <input v-model="searchFilters.id" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
         </div>
         <!-- Name (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Name</label>
+          <label class="filter-label">Name</label>
           <input v-model="searchFilters.name" type="text" class="form-input text-sm" placeholder="Search name..." />
         </div>
         <!-- Category (select) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Category</label>
+          <label class="filter-label">Category</label>
           <select v-model="searchFilters.category" class="form-select text-sm">
             <option value="">All Categories</option>
             <option v-for="c in uniqueCategories" :key="c" :value="c">{{ c }}</option>
@@ -37,7 +37,7 @@
         </div>
         <!-- Vendor (select) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Vendor</label>
+          <label class="filter-label">Vendor</label>
           <select v-model="searchFilters.vendor" class="form-select text-sm">
             <option value="">All Vendors</option>
             <option v-for="v in vendors" :key="v" :value="v">{{ v }}</option>
@@ -45,7 +45,7 @@
         </div>
         <!-- Location (select) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Location</label>
+          <label class="filter-label">Location</label>
           <select v-model="searchFilters.location" class="form-select text-sm">
             <option value="">All Locations</option>
             <option v-for="l in uniqueLocations" :key="l" :value="l">{{ l }}</option>
@@ -53,7 +53,7 @@
         </div>
         <!-- Type (select) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Type</label>
+          <label class="filter-label">Type</label>
           <select v-model="searchFilters.type" class="form-select text-sm">
             <option value="">All Types</option>
             <option value="Component">Component</option>
@@ -63,22 +63,22 @@
         </div>
         <!-- Borrower ID (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Borrower ID</label>
+          <label class="filter-label">Borrower ID</label>
           <input v-model="searchFilters.borrowerId" type="text" class="form-input text-sm" placeholder="e.g. S00123456" />
         </div>
         <!-- Borrower Name (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Borrower Name</label>
+          <label class="filter-label">Borrower Name</label>
           <input v-model="searchFilters.borrowerName" type="text" class="form-input text-sm" placeholder="Search borrower..." />
         </div>
         <!-- Warranty End (date) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Warranty End</label>
+          <label class="filter-label">Warranty End</label>
           <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
         </div>
         <!-- Year (select - keep for convenience) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Year</label>
+          <label class="filter-label">Year</label>
           <select v-model="searchFilters.year" class="form-select text-sm">
             <option value="">All Years</option>
             <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
@@ -87,31 +87,31 @@
       </div>
     </div>
 
-    <div v-if="groupedItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
-      No lent-out items match your filters
+    <div v-if="groupedItems.length === 0" class="empty-state">
+      No checked-out items match your filters
     </div>
     <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse border border-gray-300 table-striped">
-        <thead class="bg-gray-200">
+      <table class="w-full border-collapse table-striped theme-table">
+        <thead>
           <tr>
             <th class="border p-2 text-left">ID</th>
             <th class="border p-2 text-left">Name</th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('category')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('category')">
               Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('currentBorrower')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('currentBorrower')">
               Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('borrowerName')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('borrowerName')">
               Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('supplier')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('supplier')">
               Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('location')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('location')">
               Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('warrantyEnd')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
               Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
             </th>
             <th class="border p-2 text-center">Return</th>
@@ -120,11 +120,11 @@
         <tbody>
           <template v-for="group in paginatedGroups" :key="group.parent.id">
             <!-- Parent / standalone item row -->
-            <tr class="bg-white">
+            <tr class="row-parent">
               <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
               <td class="border p-2 font-semibold">
                 {{ group.parent.name }}
-                <span v-if="group.children.length > 0" class="ml-2 text-xs text-blue-600 font-normal">
+                <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                   (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                 </span>
               </td>
@@ -144,16 +144,16 @@
               </td>
             </tr>
             <!-- Child component rows -->
-            <tr v-for="child in group.children" :key="child.id" class="bg-gray-50">
-              <td class="border p-2 pl-6 text-gray-500 text-sm">↳ {{ child.id }}</td>
-              <td class="border p-2 pl-6 text-gray-600 text-sm">{{ child.name }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ child.category }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ child.currentBorrower }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ getBorrowerName(child.currentBorrower) }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ child.supplier }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ child.location }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ formatDate(child.warrantyEnd) }}</td>
-              <td class="border p-2 text-center text-gray-400 text-xs">Auto with parent</td>
+            <tr v-for="child in group.children" :key="child.id" class="row-child">
+              <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
+              <td class="border p-2 pl-6 text-sm">{{ child.name }}</td>
+              <td class="border p-2 text-sm">{{ child.category }}</td>
+              <td class="border p-2 text-sm">{{ child.currentBorrower }}</td>
+              <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower) }}</td>
+              <td class="border p-2 text-sm">{{ child.supplier }}</td>
+              <td class="border p-2 text-sm">{{ child.location }}</td>
+              <td class="border p-2 text-sm">{{ formatDate(child.warrantyEnd) }}</td>
+              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
             </tr>
           </template>
         </tbody>
@@ -166,21 +166,21 @@
     </div>
 
     <!-- Update Location Popup -->
-    <div v-if="showLocationCard && returnedItem" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:9999;">
-      <div style="background:#fff;border-radius:12px;padding:24px 28px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,0.18);border:1px solid #e5e7eb;">
+    <div v-if="showLocationCard && returnedItem" class="modal-overlay">
+      <div class="modal-card" style="width:340px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-          <span style="font-size:22px;">📍</span>
+          <svg class="w-6 h-6" style="color:var(--accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span style="font-size:16px;font-weight:700;">Update Location</span>
         </div>
-        <p style="font-size:13px;color:#666;margin-bottom:16px;">"{{ returnedItem.name }}" has been returned.<br/>Where should it be placed?</p>
+        <p class="text-muted" style="font-size:13px;margin-bottom:16px;">"{{ returnedItem.name }}" has been returned.<br/>Where should it be placed?</p>
         <div style="margin-bottom:14px;">
-          <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Location</label>
+          <label class="form-label">Location</label>
           <select v-model="newLocation" class="form-select" style="width:100%;">
             <option v-for="loc in locationOptions" :key="loc" :value="loc">{{ loc }}</option>
           </select>
         </div>
         <div v-if="newLocation === 'Other'" style="margin-bottom:14px;">
-          <label style="display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;">Enter new location</label>
+          <label class="form-label">Enter new location</label>
           <input v-model="otherLocation" type="text" class="form-input" style="width:100%;" placeholder="Type location name..." @keyup.enter="saveLocation" />
         </div>
         <div style="display:flex;gap:8px;">
@@ -195,7 +195,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
-import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor } from '../utils/helpers'
+import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, daysFromNow } from '../utils/helpers'
 import { mockUsers } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -510,6 +510,8 @@ export default {
       locationOptions,
       exportFiltered,
       formatDate,
+      isOverdue,
+      daysFromNow,
     }
   }
 }

@@ -2,86 +2,142 @@
   <div class="home-page">
     <!-- ==================== ADMIN / OPERATOR VIEW ==================== -->
     <template v-if="user?.role !== 'user'">
-      <!-- Hero greeting -->
+      <!-- Page heading -->
       <div class="hero-section animate-in">
-        <h2 class="hero-title">Good {{ timeOfDay }}, <span class="hero-name">{{ user?.name }}</span></h2>
-        <p class="hero-subtitle">Here's your inventory overview</p>
+        <h2 class="hero-title">Inventory dashboard</h2>
+        <p class="hero-subtitle">{{ todayLabel }} &middot; {{ stats.totalItems }} items tracked</p>
       </div>
 
-      <!-- Bento Stats Grid -->
-      <div class="bento-grid animate-in delay-1">
-        <button
-          @click="$emit('navigate', 'manage-items')"
-          class="bento-item bento-primary"
-        >
-          <div class="bento-icon">📦</div>
-          <div class="bento-value">{{ stats.totalItems }}</div>
-          <div class="bento-label">Total Items</div>
-        </button>
-        <button
-          @click="$emit('navigate', 'search-available')"
-          class="bento-item bento-success"
-        >
-          <div class="bento-icon">✅</div>
-          <div class="bento-value">{{ stats.availableItems }}</div>
-          <div class="bento-label">Available</div>
-        </button>
-        <button
+      <!-- Attention-needed cards -->
+      <div class="attention-grid animate-in delay-1">
+        <AlertCard
+          :count="overdueItems.length"
+          label="Overdue returns"
+          severity="danger"
           @click="$emit('navigate', 'lent-out-filter')"
-          class="bento-item bento-warning"
-        >
-          <div class="bento-icon">🔄</div>
-          <div class="bento-value">{{ stats.lentOutItems }}</div>
-          <div class="bento-label">Lent Out</div>
-        </button>
-        <button
+        />
+        <AlertCard
+          :count="dueSoonItems.length"
+          label="Due within 7 days"
+          severity="warning"
+          @click="$emit('navigate', 'lent-out-filter')"
+        />
+        <AlertCard
+          :count="stats.pendingRequests"
+          label="Pending requests"
+          severity="neutral"
           @click="$emit('navigate', 'approve-requests')"
-          class="bento-item bento-danger"
-        >
-          <div class="bento-icon">⏳</div>
-          <div class="bento-value">{{ stats.pendingRequests }}</div>
-          <div class="bento-label">Pending</div>
-          <span v-if="stats.pendingRequests > 0" class="bento-badge pulse-badge">!</span>
+        />
+        <AlertCard
+          :count="warrantyExpiredItems.length"
+          label="Warranty expired"
+          severity="danger"
+          @click="$emit('navigate', 'manage-items')"
+        />
+        <AlertCard
+          :count="warrantyExpiringSoonItems.length"
+          label="Warranty expiring soon"
+          sublabel="Within 30 days"
+          severity="warning"
+          @click="$emit('navigate', 'manage-items')"
+        />
+      </div>
+
+      <!-- Summary counts -->
+      <div class="summary-row animate-in delay-2">
+        <button @click="$emit('navigate', 'manage-items')" class="summary-chip">
+          <span class="summary-count">{{ stats.totalItems }}</span>
+          <span class="summary-label">Total</span>
+        </button>
+        <button @click="$emit('navigate', 'search-available')" class="summary-chip">
+          <span class="summary-count">{{ stats.availableItems }}</span>
+          <span class="summary-label">Available</span>
+        </button>
+        <button @click="$emit('navigate', 'lent-out-filter')" class="summary-chip">
+          <span class="summary-count">{{ stats.lentOutItems }}</span>
+          <span class="summary-label">Checked out</span>
         </button>
       </div>
 
-      <!-- Status Row -->
-      <div class="status-row animate-in delay-2">
-        <button @click="$emit('navigate', 'borrow-history', { filter: 'Returned' })" class="status-chip">
-          <span class="status-dot status-dot-green"></span>
-          <span class="status-count">{{ stats.returnedRequests }}</span>
-          <span class="status-text">Returned</span>
-        </button>
-        <button @click="$emit('navigate', 'borrow-history', { filter: 'Approved' })" class="status-chip">
-          <span class="status-dot status-dot-blue"></span>
-          <span class="status-count">{{ stats.approvedRequests }}</span>
-          <span class="status-text">Approved</span>
-        </button>
-        <button @click="$emit('navigate', 'borrow-history', { filter: 'Rejected' })" class="status-chip">
-          <span class="status-dot status-dot-red"></span>
-          <span class="status-count">{{ stats.rejectedRequests }}</span>
-          <span class="status-text">Rejected</span>
-        </button>
+      <!-- Pending requests table (top 5) -->
+      <div v-if="pendingRequests.length > 0" class="section-card animate-in delay-3">
+        <div class="section-header">
+          <h3 class="section-title">Pending requests</h3>
+          <button @click="$emit('navigate', 'approve-requests')" class="section-link">View all →</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table-striped">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Borrower</th>
+                <th>Waiting</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in pendingRequests.slice(0, 5)" :key="req.id">
+                <td class="font-semibold">{{ req.itemName }}</td>
+                <td>{{ req.borrowerID }}</td>
+                <td>{{ waitingTime(req.requestDate) }}</td>
+                <td class="text-ellip">{{ req.reason || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <!-- Calendar -->
-      <div class="section-card animate-in delay-3">
-        <DashboardCalendar />
+      <!-- Overdue borrowers table (top 5) -->
+      <div v-if="overdueItems.length > 0" class="section-card animate-in delay-3">
+        <div class="section-header">
+          <h3 class="section-title">Overdue returns</h3>
+          <button @click="$emit('navigate', 'lent-out-filter')" class="section-link">View all →</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table-striped">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Borrower</th>
+                <th>Due date</th>
+                <th>Overdue by</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in overdueItems.slice(0, 5)" :key="item.id" class="row-danger">
+                <td class="font-semibold">{{ item.itemName }}</td>
+                <td>{{ item.borrowerID }}</td>
+                <td>{{ formatDate(item.returnDate) }}</td>
+                <td class="text-danger-em">{{ daysFromNow(item.returnDate) }} days</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <!-- Recent Activity -->
+      <!-- Calendar (collapsed by default) -->
+      <div class="section-card animate-in delay-4">
+        <button class="section-toggle" @click="showCalendar = !showCalendar">
+          <h3 class="section-title">Return calendar</h3>
+          <span class="toggle-arrow" :class="{ open: showCalendar }">▸</span>
+        </button>
+        <div v-if="showCalendar" style="margin-top: 0.75rem;">
+          <DashboardCalendar />
+        </div>
+      </div>
+
+      <!-- Recent Activity (filtered) -->
       <div class="section-card animate-in delay-4">
         <div class="section-header">
-          <h3 class="section-title">Recent Activity</h3>
-          <button @click="$emit('navigate', 'audit-log')" class="section-link">View All →</button>
+          <h3 class="section-title">Recent activity</h3>
+          <button @click="$emit('navigate', 'audit-log')" class="section-link">View all →</button>
         </div>
-        <div v-if="recentLogs.length === 0" class="empty-state">
-          <span class="empty-icon">📭</span>
+        <div v-if="filteredLogs.length === 0" class="empty-state">
           <p>No recent activity</p>
         </div>
         <div v-else class="activity-list">
           <div
-            v-for="(log, i) in recentLogs"
+            v-for="(log, i) in filteredLogs"
             :key="log.id || i"
             class="activity-item"
             @click="$emit('navigate', 'audit-log')"
@@ -103,30 +159,29 @@
     <!-- ==================== USER VIEW ==================== -->
     <template v-else>
       <div class="hero-section animate-in">
-        <h2 class="hero-title">Welcome, <span class="hero-name">{{ user?.name }}</span></h2>
-        <p class="hero-subtitle">What would you like to do?</p>
+        <h2 class="hero-title">My dashboard</h2>
+        <p class="hero-subtitle">{{ todayLabel }}</p>
       </div>
 
       <!-- Quick Actions -->
       <div class="quick-actions animate-in delay-1">
         <button @click="$emit('navigate', 'new-borrow-request')" class="quick-action-card action-blue">
-          <span class="quick-action-icon">➕</span>
-          <span class="quick-action-text">New Borrow Request</span>
+          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
+          <span class="quick-action-text">New borrow request</span>
         </button>
         <button @click="$emit('navigate', 'search-available')" class="quick-action-card action-green">
-          <span class="quick-action-icon">🔍</span>
-          <span class="quick-action-text">Search Items</span>
+          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <span class="quick-action-text">Search items</span>
         </button>
       </div>
 
       <!-- My Borrow Records -->
       <div class="section-card animate-in delay-2">
         <div class="section-header">
-          <h3 class="section-title">My Borrow Records</h3>
-          <button @click="$emit('navigate', 'my-borrowing-record')" class="section-link">View All →</button>
+          <h3 class="section-title">My borrow records</h3>
+          <button @click="$emit('navigate', 'my-borrowing-record')" class="section-link">View all →</button>
         </div>
         <div v-if="myBorrows.length === 0" class="empty-state">
-          <span class="empty-icon">📋</span>
           <p>No borrowing records yet</p>
         </div>
         <div v-else class="record-list">
@@ -140,7 +195,7 @@
               <p class="record-id">#{{ borrow.id }}</p>
             </div>
             <div class="record-right">
-              <span :class="['record-status', getStatusClass(borrow.status)]">{{ borrow.status }}</span>
+              <StatusBadge :status="borrow.status" type="request" />
               <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
             </div>
           </div>
@@ -158,11 +213,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
-import { formatDate, formatDateTime, getStatusColor } from '../utils/helpers'
+import { formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime, isOverdue, isDueSoon, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
 import DashboardCalendar from '../components/DashboardCalendar.vue'
+import AlertCard from '../components/AlertCard.vue'
+import StatusBadge from '../components/StatusBadge.vue'
 
 export default {
-  components: { DashboardCalendar },
+  components: { DashboardCalendar, AlertCard, StatusBadge },
   emits: ['navigate'],
   setup() {
     const { user } = useAuth()
@@ -177,21 +234,36 @@ export default {
     })
     const recentLogs = ref([])
     const myBorrows = ref([])
+    const allItems = ref([])
+    const allApprovedRequests = ref([])
+    const pendingRequests = ref([])
+    const showCalendar = ref(false)
 
-    const timeOfDay = computed(() => {
-      const h = new Date().getHours()
-      if (h < 12) return 'morning'
-      if (h < 17) return 'afternoon'
-      return 'evening'
+    const todayLabel = computed(() => {
+      return new Date().toLocaleDateString('en-HK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     })
 
-    const getStatusClass = (status) => {
-      const s = (status || '').toLowerCase()
-      if (s === 'approved' || s === 'returned') return 'status-green'
-      if (s === 'pending') return 'status-yellow'
-      if (s === 'rejected') return 'status-red'
-      return 'status-gray'
-    }
+    // Attention-needed computed lists
+    const overdueItems = computed(() =>
+      allApprovedRequests.value.filter(r => isOverdue(r.returnDate))
+    )
+    const dueSoonItems = computed(() =>
+      allApprovedRequests.value.filter(r => isDueSoon(r.returnDate, 7))
+    )
+    const warrantyExpiredItems = computed(() =>
+      allItems.value.filter(i => isWarrantyExpired(i.warrantyEndDate))
+    )
+    const warrantyExpiringSoonItems = computed(() =>
+      allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEndDate, 30))
+    )
+
+    // Filter LOGIN actions from activity
+    const filteredLogs = computed(() =>
+      recentLogs.value.filter(log => {
+        const action = (log.action || '').toUpperCase()
+        return !action.includes('LOGIN') && !action.includes('LOGOUT')
+      })
+    )
 
     const loadDashboardData = async () => {
       try {
@@ -210,12 +282,37 @@ export default {
       }
 
       try {
-        const allLogs = await auditService.getAllLogs({ pageSize: 8 })
+        const allLogs = await auditService.getAllLogs({ pageSize: 20 })
         recentLogs.value = allLogs
       } catch (e) {
         console.error('Failed to load logs:', e)
       }
 
+      // Load items for warranty checks
+      try {
+        const items = await inventoryService.getAllItems({ pageSize: 5000 })
+        allItems.value = items
+      } catch (e) {
+        console.error('Failed to load items:', e)
+      }
+
+      // Load approved requests for overdue/due-soon checks
+      try {
+        const approved = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
+        allApprovedRequests.value = approved
+      } catch (e) {
+        console.error('Failed to load approved requests:', e)
+      }
+
+      // Load pending requests for the table
+      try {
+        const pending = await borrowingService.getPendingRequests()
+        pendingRequests.value = pending
+      } catch (e) {
+        console.error('Failed to load pending requests:', e)
+      }
+
+      // Load user borrows (for user role)
       try {
         const currentUser = authService.getCurrentUser()
         if (currentUser) {
@@ -235,12 +332,21 @@ export default {
       user,
       stats,
       recentLogs,
+      filteredLogs,
       myBorrows,
-      timeOfDay,
+      allItems,
+      pendingRequests,
+      overdueItems,
+      dueSoonItems,
+      warrantyExpiredItems,
+      warrantyExpiringSoonItems,
+      showCalendar,
+      todayLabel,
       formatDate,
       formatDateTime,
       getStatusColor,
-      getStatusClass,
+      daysFromNow,
+      waitingTime,
     }
   }
 }
@@ -275,21 +381,14 @@ export default {
   .hero-title { font-size: 2rem; }
 }
 
-.hero-name {
-  background: linear-gradient(135deg, var(--accent), #a855f7);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 .hero-subtitle {
   color: var(--text-muted);
   font-size: 0.9375rem;
   margin-top: 0.25rem;
 }
 
-/* ===== Bento Grid ===== */
-.bento-grid {
+/* ===== Attention Grid ===== */
+.attention-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
@@ -297,102 +396,20 @@ export default {
 }
 
 @media (min-width: 640px) {
-  .bento-grid {
-    grid-template-columns: repeat(4, 1fr);
+  .attention-grid {
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
   }
 }
 
-.bento-item {
-  position: relative;
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-glass);
-  border-radius: 1.25rem;
-  padding: 1.25rem 1rem;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-  overflow: hidden;
-}
-
-.bento-item:active {
-  transform: scale(0.97);
-}
-
-@media (hover: hover) {
-  .bento-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 32px var(--shadow-color);
+@media (min-width: 1024px) {
+  .attention-grid {
+    grid-template-columns: repeat(5, 1fr);
   }
 }
 
-.bento-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-}
-
-.bento-primary::before { background: var(--accent); }
-.bento-success::before { background: var(--success); }
-.bento-warning::before { background: var(--warning); }
-.bento-danger::before { background: var(--danger); }
-
-.bento-icon {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.bento-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.bento-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-top: 0.375rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.bento-badge {
-  position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: var(--danger);
-  color: #fff;
-  font-size: 0.6875rem;
-  font-weight: 800;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pulse-badge {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-}
-
-/* ===== Status Row ===== */
-.status-row {
+/* ===== Summary Row ===== */
+.summary-row {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
@@ -401,7 +418,7 @@ export default {
   padding-bottom: 0.25rem;
 }
 
-.status-chip {
+.summary-chip {
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -416,28 +433,18 @@ export default {
   flex-shrink: 0;
 }
 
-.status-chip:active {
+.summary-chip:active {
   transform: scale(0.96);
   background: var(--bg-tertiary);
 }
 
-.status-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-}
-
-.status-dot-green { background: var(--success); }
-.status-dot-blue { background: var(--accent); }
-.status-dot-red { background: var(--danger); }
-
-.status-count {
+.summary-count {
   font-size: 0.875rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.status-text {
+.summary-label {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
@@ -474,18 +481,48 @@ export default {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ===== Section Toggle (calendar) ===== */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toggle-arrow {
+  font-size: 1rem;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.toggle-arrow.open {
+  transform: rotate(90deg);
+}
+
+/* ===== Table helpers ===== */
+.text-ellip {
+  max-width: 12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.text-danger-em {
+  color: var(--danger);
+  font-weight: 600;
+}
+.row-danger td {
+  background: rgba(239, 68, 68, 0.04);
+}
+
 /* ===== Empty State ===== */
 .empty-state {
   text-align: center;
   padding: 2rem 1rem;
   color: var(--text-muted);
   font-size: 0.875rem;
-}
-
-.empty-icon {
-  font-size: 2rem;
-  display: block;
-  margin-bottom: 0.5rem;
 }
 
 /* ===== Activity List ===== */
@@ -580,12 +617,12 @@ export default {
 }
 
 .action-blue {
-  background: linear-gradient(135deg, rgba(6, 153, 255, 0.15), rgba(6, 153, 255, 0.05));
+  background: rgba(6, 153, 255, 0.1);
   border: 1px solid rgba(6, 153, 255, 0.2);
 }
 
 .action-green {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+  background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
@@ -645,23 +682,6 @@ export default {
   align-items: flex-end;
   flex-shrink: 0;
 }
-
-.record-status {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-  text-transform: uppercase;
-}
-
-.status-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.status-yellow { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.status-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.status-gray { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
-
-.light-mode .status-green { color: #16a34a; }
-.light-mode .status-yellow { color: #d97706; }
-.light-mode .status-red { color: #dc2626; }
 
 .record-date {
   font-size: 0.75rem;

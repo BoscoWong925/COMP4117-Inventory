@@ -25,12 +25,12 @@
           <!-- Step Progress -->
           <div class="step-progress">
             <div class="step" :class="{ active: activeTab === 'upload', done: uploadedFile }">
-              <span class="step-dot">{{ uploadedFile ? '✓' : '1' }}</span>
+              <span class="step-dot">{{ uploadedFile ? '\u2713' : '1' }}</span>
               <span class="step-text">Upload</span>
             </div>
             <div class="step-line" :class="{ filled: uploadedFile }"></div>
             <div class="step" :class="{ active: processing, done: ocrResults }">
-              <span class="step-dot">{{ ocrResults ? '✓' : '2' }}</span>
+              <span class="step-dot">{{ ocrResults ? '\u2713' : '2' }}</span>
               <span class="step-text">Scan</span>
             </div>
             <div class="step-line" :class="{ filled: ocrResults }"></div>

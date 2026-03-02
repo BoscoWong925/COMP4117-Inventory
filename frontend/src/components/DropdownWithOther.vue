@@ -19,7 +19,7 @@
       v-if="showOtherInput && otherValue.trim()"
       @click="addOtherValue"
       type="button"
-      class="mt-1 text-xs text-blue-600 hover:underline"
+      class="mt-1 text-xs text-accent-subtle hover:underline"
     >+ Add "{{ otherValue.trim() }}"</button>
   </div>
 </template>

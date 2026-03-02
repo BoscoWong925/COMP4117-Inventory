@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">Audit Log & Trail</h2>
@@ -11,30 +11,30 @@
     </div>
 
     <!-- Filter Panel -->
-    <div v-if="showFilters" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+    <div v-if="showFilters" class="filter-panel">
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-sm font-semibold text-gray-700">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Clear All</button>
+        <h3 class="filter-panel-title">Search &amp; Filter</h3>
+        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Search</label>
+          <label class="filter-label">Search</label>
           <input v-model="searchText" type="text" class="form-input text-sm" placeholder="User, details, item ID..." />
         </div>
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">User ID</label>
+          <label class="filter-label">User ID</label>
           <input v-model="filters.userID" type="text" class="form-input text-sm" placeholder="e.g. U001, S00123456" />
         </div>
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Item ID</label>
+          <label class="filter-label">Item ID</label>
           <input v-model="filters.itemID" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
         </div>
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Date From</label>
+          <label class="filter-label">Date From</label>
           <input v-model="filters.dateFrom" type="date" class="form-input text-sm" />
         </div>
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Date To</label>
+          <label class="filter-label">Date To</label>
           <input v-model="filters.dateTo" type="date" class="form-input text-sm" />
         </div>
       </div>
@@ -45,11 +45,7 @@
       <div class="flex gap-2 flex-wrap">
         <button
           @click="selectedAction = 'All'; currentPage = 1"
-          :class="`px-3 py-1.5 rounded text-sm font-medium transition ${
-            selectedAction === 'All'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`"
+          :class="`pill ${selectedAction === 'All' ? 'pill-active' : ''}`"
         >
           All
         </button>
@@ -57,11 +53,7 @@
           v-for="cat in actionCategories"
           :key="cat.label"
           @click="selectedAction = cat.label; currentPage = 1"
-          :class="`px-3 py-1.5 rounded text-sm font-medium transition ${
-            selectedAction === cat.label
-              ? cat.activeClass
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`"
+          :class="`pill ${selectedAction === cat.label ? 'pill-active' : ''}`"
         >
           {{ cat.label }}
           <span class="ml-1 text-xs opacity-75">({{ getCategoryCount(cat) }})</span>
@@ -70,18 +62,18 @@
     </div>
 
     <!-- Results Summary -->
-    <p class="text-sm text-gray-500 mb-2">
+    <p class="results-summary">
       Showing {{ paginatedLogs.length }} of {{ filteredLogs.length }} log entries
     </p>
 
-    <div v-if="filteredLogs.length === 0" class="bg-blue-50 p-4 rounded text-center">
+    <div v-if="filteredLogs.length === 0" class="empty-state">
       No logs found
     </div>
     <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse border border-gray-300 table-striped">
-        <thead class="bg-gray-200">
+      <table class="w-full border-collapse table-striped theme-table">
+        <thead>
           <tr>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('timestamp')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('timestamp')">
               Timestamp <span class="sort-icon">{{ getSortIcon('timestamp') }}</span>
             </th>
             <th class="border p-2 text-left">User</th>
@@ -101,7 +93,7 @@
                 {{ formatAction(log.action) }}
               </span>
             </td>
-            <td class="border p-2 text-sm text-gray-600">{{ log.details }}</td>
+            <td class="border p-2 text-sm text-secondary">{{ log.details }}</td>
             <td class="border p-2 text-sm">{{ log.affectedItemID || '-' }}</td>
             <td class="border p-2 text-sm">{{ log.oldValue || '-' }}</td>
             <td class="border p-2 text-sm">{{ log.newValue || '-' }}</td>
@@ -143,10 +135,10 @@ export default {
 
     // Action categories for grouping
     const actionCategories = [
-      { label: 'Login / Logout', actions: ['LOGIN', 'LOGOUT'], activeClass: 'bg-gray-600 text-white' },
-      { label: 'Borrow Requests', actions: ['BORROW_REQUEST_CREATED', 'BORROW_REQUEST_APPROVED', 'BORROW_REQUEST_REJECTED'], activeClass: 'bg-blue-600 text-white' },
-      { label: 'Item Returns', actions: ['ITEM_RETURNED'], activeClass: 'bg-green-600 text-white' },
-      { label: 'Item Changes', actions: ['ITEM_ADDED', 'ITEM_DELETED', 'ITEM_STATUS_CHANGE', 'INVENTORY_ITEM_ADDED'], activeClass: 'bg-purple-600 text-white' }
+      { label: 'Login / Logout', actions: ['LOGIN', 'LOGOUT'], activeClass: 'pill-active' },
+      { label: 'Borrow Requests', actions: ['BORROW_REQUEST_CREATED', 'BORROW_REQUEST_APPROVED', 'BORROW_REQUEST_REJECTED'], activeClass: 'pill-active' },
+      { label: 'Item Returns', actions: ['ITEM_RETURNED'], activeClass: 'pill-active' },
+      { label: 'Item Changes', actions: ['ITEM_ADDED', 'ITEM_DELETED', 'ITEM_STATUS_CHANGE', 'INVENTORY_ITEM_ADDED'], activeClass: 'pill-active' }
     ]
 
     // Reset page on any filter change
@@ -177,7 +169,10 @@ export default {
       let result = [...logs.value]
 
       // Action category filter
-      if (selectedAction.value !== 'All') {
+      if (selectedAction.value === 'All') {
+        // Hide login/logout in the default "All" view — use the dedicated tab to see them
+        result = result.filter(l => l.action !== 'LOGIN' && l.action !== 'LOGOUT')
+      } else {
         const cat = actionCategories.find(c => c.label === selectedAction.value)
         if (cat) {
           result = result.filter(l => cat.actions.includes(l.action))
@@ -266,18 +261,18 @@ export default {
 
     const getActionColor = (action) => {
       const map = {
-        'LOGIN': 'bg-gray-100 text-gray-800',
-        'LOGOUT': 'bg-gray-100 text-gray-600',
-        'BORROW_REQUEST_CREATED': 'bg-blue-100 text-blue-800',
-        'BORROW_REQUEST_APPROVED': 'bg-green-100 text-green-800',
-        'BORROW_REQUEST_REJECTED': 'bg-red-100 text-red-800',
-        'ITEM_RETURNED': 'bg-teal-100 text-teal-800',
-        'ITEM_ADDED': 'bg-purple-100 text-purple-800',
-        'ITEM_DELETED': 'bg-red-100 text-red-800',
-        'ITEM_STATUS_CHANGE': 'bg-yellow-100 text-yellow-800',
-        'INVENTORY_ITEM_ADDED': 'bg-purple-100 text-purple-800'
+        'LOGIN': 'action-badge action-badge-neutral',
+        'LOGOUT': 'action-badge action-badge-neutral',
+        'BORROW_REQUEST_CREATED': 'action-badge action-badge-info',
+        'BORROW_REQUEST_APPROVED': 'action-badge action-badge-success',
+        'BORROW_REQUEST_REJECTED': 'action-badge action-badge-danger',
+        'ITEM_RETURNED': 'action-badge action-badge-accent',
+        'ITEM_ADDED': 'action-badge action-badge-accent',
+        'ITEM_DELETED': 'action-badge action-badge-danger',
+        'ITEM_STATUS_CHANGE': 'action-badge action-badge-warning',
+        'INVENTORY_ITEM_ADDED': 'action-badge action-badge-accent'
       }
-      return map[action] || 'bg-gray-100 text-gray-800'
+      return map[action] || 'action-badge action-badge-neutral'
     }
 
     const exportLogs = () => {

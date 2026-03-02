@@ -9,21 +9,25 @@
 
     <!-- Theme toggle -->
     <button @click="$emit('toggle-theme')" class="theme-toggle-login">
-      {{ darkMode ? '☀️' : '🌙' }}
+      <svg v-if="darkMode" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
 
     <div class="login-container">
       <div class="login-card">
         <!-- Logo + Title -->
         <div class="login-header">
-          <div class="login-logo">📦</div>
+          <div class="login-logo">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
           <h1 class="login-title">Inventory</h1>
           <p class="login-subtitle">COMP Department</p>
         </div>
 
         <!-- Error -->
         <div v-if="error" class="login-error animate-in">
-          <span>⚠️</span> {{ error }}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          {{ error }}
         </div>
 
         <!-- Form -->
@@ -31,7 +35,7 @@
           <div class="input-group">
             <label class="input-label">Username</label>
             <div class="input-wrapper">
-              <span class="input-icon">👤</span>
+              <span class="input-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
               <input
                 type="text"
                 v-model="username"
@@ -45,7 +49,7 @@
           <div class="input-group">
             <label class="input-label">Password</label>
             <div class="input-wrapper">
-              <span class="input-icon">🔒</span>
+              <span class="input-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
               <input
                 :type="showPassword ? 'text' : 'password'"
                 v-model="password"
@@ -54,7 +58,8 @@
                 autocomplete="current-password"
               />
               <button type="button" @click="showPassword = !showPassword" class="input-eye">
-                {{ showPassword ? '🙈' : '👁️' }}
+                <svg v-if="showPassword" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
           </div>
@@ -68,7 +73,7 @@
         <!-- Demo Credentials -->
         <div v-if="showDemoCredentials" class="demo-section">
           <button @click="showDemoExpanded = !showDemoExpanded" class="demo-toggle">
-            <span>🔑 Demo Credentials</span>
+            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Demo Credentials</span>
             <span class="demo-chevron" :style="{transform: showDemoExpanded ? 'rotate(180deg)' : ''}">▾</span>
           </button>
           <div v-if="showDemoExpanded" class="demo-list animate-in">
@@ -181,19 +186,19 @@ export default {
 
 .login-orb-1 {
   width: 300px; height: 300px;
-  background: #0699ff;
+  background: #A6B1E1;
   top: -80px; left: -60px;
   animation-delay: 0s;
 }
 .login-orb-2 {
   width: 250px; height: 250px;
-  background: #a855f7;
+  background: #424874;
   bottom: -60px; right: -40px;
   animation-delay: 2s;
 }
 .login-orb-3 {
   width: 200px; height: 200px;
-  background: #06b6d4;
+  background: #DCD6F7;
   top: 50%; left: 60%;
   animation-delay: 4s;
 }
@@ -216,7 +221,7 @@ export default {
   border: 1px solid var(--border-color);
   background: var(--bg-glass);
   backdrop-filter: blur(12px);
-  font-size: 1.25rem;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -257,9 +262,11 @@ export default {
 }
 
 .login-logo {
-  font-size: 3rem;
   margin-bottom: 0.5rem;
+  color: var(--accent);
   animation: logoPulse 3s ease-in-out infinite;
+  display: flex;
+  justify-content: center;
 }
 
 @keyframes logoPulse {
@@ -336,8 +343,10 @@ export default {
 
 .input-icon {
   padding: 0 0.75rem;
-  font-size: 1rem;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
 }
 
 .login-input {
@@ -357,10 +366,12 @@ export default {
 
 .input-eye {
   padding: 0.5rem 0.75rem;
-  font-size: 1rem;
   background: none;
   border: none;
   cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -372,7 +383,7 @@ export default {
   font-size: 1rem;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #0699ff, #0080ff);
+  background: linear-gradient(135deg, #A6B1E1, #424874);
   border: none;
   border-radius: 0.75rem;
   cursor: pointer;
@@ -384,7 +395,7 @@ export default {
 }
 
 .login-btn:hover {
-  box-shadow: 0 0 24px rgba(6, 153, 255, 0.4);
+  box-shadow: 0 0 24px rgba(166, 177, 225, 0.4);
   filter: brightness(1.08);
 }
 

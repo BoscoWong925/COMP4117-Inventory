@@ -1,21 +1,22 @@
 <template>
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Approve Borrowing Requests</h2>
+      <h2 class="text-2xl font-bold">Borrow requests</h2>
       <button @click="exportRequests" class="btn">Export to Excel</button>
     </div>
 
-    <div v-if="groupedRequests.length === 0" class="bg-blue-50 p-4 rounded text-center">
+    <div v-if="groupedRequests.length === 0" class="empty-state">
       No pending requests
     </div>
     <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse border border-gray-300 table-striped">
-        <thead class="bg-gray-200">
+      <table class="w-full border-collapse table-striped theme-table">
+        <thead>
           <tr>
             <th class="border p-2 text-left">Request ID</th>
             <th class="border p-2 text-left">Item Name</th>
             <th class="border p-2 text-left">Borrower</th>
             <th class="border p-2 text-left">Request Date</th>
+            <th class="border p-2 text-left">Waiting</th>
             <th class="border p-2 text-left">Reason</th>
             <th class="border p-2 text-center">Actions</th>
           </tr>
@@ -23,16 +24,17 @@
         <tbody>
           <template v-for="group in paginatedRequests" :key="group.parent.id">
             <!-- Parent / standalone request row -->
-            <tr class="bg-white">
+            <tr class="row-parent">
               <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
               <td class="border p-2 font-semibold">
                 {{ group.parent.itemName }}
-                <span v-if="group.children.length > 0" class="ml-2 text-xs text-blue-600 font-normal">
+                <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                   (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                 </span>
               </td>
               <td class="border p-2">{{ group.parent.borrowerID }}</td>
               <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
+              <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
               <td class="border p-2">{{ group.parent.reason }}</td>
               <td class="border p-2 text-center whitespace-nowrap">
                 <button
@@ -50,13 +52,14 @@
               </td>
             </tr>
             <!-- Child component rows (indented) -->
-            <tr v-for="child in group.children" :key="child.id" class="bg-gray-50">
-              <td class="border p-2 pl-6 text-gray-500 text-sm">↳ {{ child.id }}</td>
-              <td class="border p-2 pl-6 text-gray-600 text-sm">{{ child.itemName }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ child.borrowerID }}</td>
-              <td class="border p-2 text-gray-500 text-sm">{{ formatDate(child.requestDate) }}</td>
-              <td class="border p-2 text-gray-500 text-sm italic">{{ child.reason }}</td>
-              <td class="border p-2 text-center text-gray-400 text-xs">
+            <tr v-for="child in group.children" :key="child.id" class="row-child">
+              <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
+              <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
+              <td class="border p-2 text-sm">{{ child.borrowerID }}</td>
+              <td class="border p-2 text-sm">{{ formatDate(child.requestDate) }}</td>
+              <td class="border p-2 text-sm">{{ waitingTime(child.requestDate) }}</td>
+              <td class="border p-2 text-sm italic">{{ child.reason }}</td>
+              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">
                 Auto with parent
               </td>
             </tr>
@@ -72,10 +75,10 @@
 
     <!-- Approve Modal -->
     <div v-if="selectedRequest" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-bold mb-4">Approve Request</h3>
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Approve Request</h3>
         <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-medium mb-2">Return Date</label>
+          <label class="modal-label">Return Date</label>
           <input
             type="date"
             v-model="returnDate"
@@ -83,7 +86,7 @@
           />
         </div>
         <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-medium mb-2">Location</label>
+          <label class="modal-label">Location</label>
           <DropdownWithOther
             v-model="approveLocation"
             :options="locationOptions"
@@ -117,10 +120,10 @@
 
     <!-- Reject Modal -->
     <div v-if="showRejectForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-bold mb-4">Reject Request</h3>
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Reject Request</h3>
         <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-medium mb-2">Reason</label>
+          <label class="modal-label">Reason</label>
           <textarea
             v-model="rejectReason"
             class="form-input"
@@ -150,7 +153,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
-import { formatDate, exportToExcel } from '../utils/helpers'
+import { formatDate, exportToExcel, waitingTime } from '../utils/helpers'
 import { locations as defaultLocations } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
@@ -294,6 +297,7 @@ export default {
       handleReject,
       exportRequests,
       formatDate,
+      waitingTime,
     }
   }
 }

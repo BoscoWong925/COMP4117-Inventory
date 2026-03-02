@@ -1,23 +1,23 @@
 <template>
-  <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+  <div class="theme-card rounded-lg p-6 mb-6">
     <div class="flex justify-between items-center mb-4">
       <h3 class="text-lg font-bold">Lending Calendar</h3>
       <div class="flex items-center gap-2">
-        <button @click="prevMonth" class="px-2 py-1 rounded hover:bg-gray-100 text-gray-600">&larr;</button>
-        <span class="font-semibold text-gray-700 min-w-[160px] text-center">{{ monthLabel }}</span>
-        <button @click="nextMonth" class="px-2 py-1 rounded hover:bg-gray-100 text-gray-600">&rarr;</button>
+        <button @click="prevMonth" class="px-2 py-1 rounded text-secondary" style="hover:background:var(--row-hover)">&larr;</button>
+        <span class="font-semibold text-secondary min-w-[160px] text-center">{{ monthLabel }}</span>
+        <button @click="nextMonth" class="px-2 py-1 rounded text-secondary" style="hover:background:var(--row-hover)">&rarr;</button>
       </div>
     </div>
 
     <!-- Legend -->
-    <div class="flex gap-4 mb-3 text-xs text-gray-500">
+    <div class="flex gap-4 mb-3 text-xs text-muted">
       <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span> Return Due
+        <span class="w-3 h-3 rounded-full inline-block" style="background:var(--danger)"></span> Return Due
       </span>
     </div>
 
     <!-- Day headers -->
-    <div class="grid grid-cols-7 text-center text-xs font-semibold text-gray-500 mb-1">
+    <div class="grid grid-cols-7 text-center text-xs font-semibold text-muted mb-1">
       <div v-for="d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="d">{{ d }}</div>
     </div>
 
@@ -27,36 +27,40 @@
         v-for="(cell, idx) in calendarCells"
         :key="idx"
         :class="[
-          'min-h-[64px] p-1 text-xs border border-gray-100 rounded relative',
-          cell.isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-300',
-          cell.isToday ? 'ring-2 ring-blue-400' : '',
-          cell.events.length > 0 ? 'cursor-pointer hover:bg-blue-50' : ''
+          'min-h-[64px] p-1 text-xs rounded relative',
+          cell.isCurrentMonth ? '' : 'opacity-40',
+          cell.isToday ? 'ring-2' : '',
+          cell.events.length > 0 ? 'cursor-pointer' : ''
         ]"
+        :style="`border:1px solid var(--filter-border);background:${cell.isCurrentMonth ? 'var(--modal-bg)' : 'var(--filter-bg)'};${cell.isToday ? 'box-shadow:0 0 0 2px var(--accent)' : ''}`"
         @click="cell.events.length > 0 && toggleDetail(cell)"
+        @mouseenter="cell.events.length > 0 && ($event.target.style.background='var(--row-hover)')"
+        @mouseleave="cell.events.length > 0 && ($event.target.style.background=cell.isCurrentMonth ? 'var(--modal-bg)' : 'var(--filter-bg)')"
       >
         <span class="font-medium">{{ cell.day }}</span>
         <div class="flex flex-wrap gap-0.5 mt-0.5">
           <span
             v-for="(evt, i) in cell.events.slice(0, 3)"
             :key="i"
-            class="w-2 h-2 rounded-full inline-block bg-red-400"
+            class="w-2 h-2 rounded-full inline-block"
+            style="background:var(--danger)"
             :title="evt.label"
           ></span>
-          <span v-if="cell.events.length > 3" class="text-[9px] text-gray-400">+{{ cell.events.length - 3 }}</span>
+          <span v-if="cell.events.length > 3" class="text-[9px] text-muted">+{{ cell.events.length - 3 }}</span>
         </div>
       </div>
     </div>
 
     <!-- Event detail panel -->
-    <div v-if="selectedCell && selectedCell.events.length > 0" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+    <div v-if="selectedCell && selectedCell.events.length > 0" class="mt-3 p-3 rounded-lg" style="background:var(--filter-bg);border:1px solid var(--filter-border)">
       <div class="flex justify-between items-center mb-2">
-        <h4 class="text-sm font-semibold text-gray-700">{{ formatCellDate(selectedCell) }}</h4>
-        <button @click="selectedCell = null" class="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+        <h4 class="text-sm font-semibold text-secondary">{{ formatCellDate(selectedCell) }}</h4>
+        <button @click="selectedCell = null" class="text-muted hover:text-secondary text-lg">&times;</button>
       </div>
       <ul class="space-y-1">
         <li v-for="(evt, i) in selectedCell.events" :key="i" class="flex items-center gap-2 text-xs">
-          <span class="w-2 h-2 rounded-full inline-block flex-shrink-0 bg-red-400"></span>
-          <span class="text-red-700 font-medium">{{ evt.label }}</span>
+          <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" style="background:var(--danger)"></span>
+          <span class="font-medium" style="color:var(--danger-dark)">{{ evt.label }}</span>
         </li>
       </ul>
     </div>

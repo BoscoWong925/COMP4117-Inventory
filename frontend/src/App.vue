@@ -1,17 +1,16 @@
 <template>
   <div :class="['app-shell', darkMode ? '' : 'light-mode']" v-if="isAuthenticated">
-    <!-- ===== Top Header (glass) ===== -->
+    <!-- ===== Top Header with Nav Tabs ===== -->
     <header class="top-bar">
-      <div class="top-bar-inner">
-        <div class="top-bar-left">
-          <button @click="handleNavigate('home')" class="logo-btn">
-            <span class="logo-icon">📦</span>
-            <span class="logo-text">Inventory</span>
-          </button>
-        </div>
-        <div class="top-bar-right">
-          <button @click="darkMode = !darkMode" class="icon-btn" :title="darkMode ? 'Light Mode' : 'Dark Mode'">
-            {{ darkMode ? '☀️' : '🌙' }}
+      <div class="top-bar-brand">
+        <button @click="handleNavigate('home')" class="logo-btn">
+          <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <span class="logo-text">Inventory</span>
+        </button>
+        <div class="top-bar-actions">
+          <button @click="darkMode = !darkMode" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
+            <svg v-if="darkMode" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
           <div class="user-chip" @click="showUserMenu = !showUserMenu">
             <div class="avatar">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
@@ -19,80 +18,42 @@
           </div>
         </div>
       </div>
-
-      <!-- User dropdown -->
-      <div v-if="showUserMenu" class="user-dropdown animate-scale-in" @click.self="showUserMenu = false">
-        <div class="dropdown-card">
-          <div class="dropdown-header">
-            <div class="avatar avatar-lg">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
-            <div>
-              <p class="dropdown-name">{{ user?.name }}</p>
-              <p class="dropdown-role">{{ user?.role }}</p>
-            </div>
-          </div>
-          <div class="dropdown-divider"></div>
-          <button @click="logout; showUserMenu = false" class="dropdown-item dropdown-item-danger">
-            <span>🚪</span> Logout
-          </button>
-        </div>
-      </div>
+      <nav class="top-nav">
+        <button
+          v-for="item in navItems"
+          :key="item.page"
+          @click="handleNavigate(item.page)"
+          :class="['top-nav-tab', currentPage === item.page ? 'top-nav-active' : '']"
+        >
+          <span class="top-nav-icon" v-html="item.icon"></span>
+          <span class="top-nav-label">{{ item.label }}</span>
+          <NotificationBadge v-if="item.page === 'approve-requests'" :count="pendingCount" />
+        </button>
+      </nav>
     </header>
 
-    <!-- ===== Desktop Side Nav (hidden on mobile) ===== -->
-    <!-- ===== Mobile Drawer ===== -->
-    <div v-if="mobileMenuOpen" class="drawer-overlay" @click="mobileMenuOpen = false">
-      <nav class="drawer" @click.stop>
-        <div class="drawer-header">
-          <span class="logo-icon">📦</span>
-          <span class="drawer-title">Menu</span>
-          <button @click="mobileMenuOpen = false" class="icon-btn">✕</button>
+    <!-- User dropdown -->
+    <div v-if="showUserMenu" class="user-dropdown animate-scale-in" @click.self="showUserMenu = false">
+      <div class="dropdown-card">
+        <div class="dropdown-header">
+          <div class="avatar avatar-lg">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
+          <div>
+            <p class="dropdown-name">{{ user?.name }}</p>
+            <p class="dropdown-role">{{ user?.role }}</p>
+          </div>
         </div>
-        <div class="drawer-body">
-          <button
-            v-for="item in navItems"
-            :key="item.page"
-            @click="handleNavigate(item.page); mobileMenuOpen = false"
-            :class="['drawer-link', currentPage === item.page ? 'drawer-link-active' : '']"
-          >
-            <span class="drawer-link-icon">{{ item.icon }}</span>
-            <span class="drawer-link-text">{{ item.label }}</span>
-            <NotificationBadge v-if="item.page === 'approve-requests'" :count="pendingCount" />
-          </button>
-        </div>
-        <div class="drawer-footer">
-          <button @click="logout" class="drawer-link drawer-link-danger">
-            <span class="drawer-link-icon">🚪</span>
-            <span class="drawer-link-text">Logout</span>
-          </button>
-        </div>
-      </nav>
+        <div class="dropdown-divider"></div>
+        <button @click="logout; showUserMenu = false" class="dropdown-item dropdown-item-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
     </div>
 
     <!-- ===== Main Content ===== -->
     <main class="main-content">
       <component :is="currentComponent" @navigate="handleNavigate" :pageParams="pageParams" />
     </main>
-
-    <!-- ===== Mobile Bottom Nav ===== -->
-    <nav class="bottom-nav">
-      <button
-        v-for="item in bottomNavItems"
-        :key="item.page"
-        @click="handleNavigate(item.page)"
-        :class="['bottom-nav-btn', currentPage === item.page ? 'bottom-nav-active' : '']"
-      >
-        <span class="bottom-nav-icon">{{ item.icon }}</span>
-        <span class="bottom-nav-label">{{ item.label }}</span>
-        <span v-if="item.page === 'approve-requests' && pendingCount > 0" class="bottom-nav-badge">
-          {{ pendingCount > 9 ? '9+' : pendingCount }}
-        </span>
-      </button>
-      <!-- More / Menu button -->
-      <button @click="mobileMenuOpen = true" class="bottom-nav-btn">
-        <span class="bottom-nav-icon">☰</span>
-        <span class="bottom-nav-label">More</span>
-      </button>
-    </nav>
   </div>
 
   <LoginPage v-else :onLogin="handleLogin" :darkMode="darkMode" @toggle-theme="darkMode = !darkMode" />
@@ -116,6 +77,22 @@ import GuidelinePage from './pages/GuidelinePage.vue'
 import HomePage from './pages/HomePage.vue'
 import NotificationBadge from './components/NotificationBadge.vue'
 
+// SVG icon factory (Lucide-style)
+const svgIcon = (d) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
+
+const NAV_ICONS = {
+  home: svgIcon('<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'),
+  requests: svgIcon('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="m9 14 2 2 4-4"/>'),
+  history: svgIcon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  items: svgIcon('<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'),
+  checkedOut: svgIcon('<path d="M7 7h10v10"/><path d="M7 17 17 7"/>'),
+  auditLog: svgIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>'),
+  newRequest: svgIcon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'),
+  myRecords: svgIcon('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>'),
+  search: svgIcon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+  guidelines: svgIcon('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+}
+
 export default {
   components: {
     LoginPage,
@@ -138,51 +115,32 @@ export default {
     const pageParams = ref({})
     const pendingCount = ref(0)
     const darkMode = ref(true)
-    const mobileMenuOpen = ref(false)
     const showUserMenu = ref(false)
     let pollTimer = null
 
     // Navigation items based on role
     const navItems = computed(() => {
       const items = [
-        { page: 'home', label: 'Dashboard', icon: '🏠' },
+        { page: 'home', label: 'Dashboard', icon: NAV_ICONS.home },
       ]
       if (user.value?.role === 'admin' || user.value?.role === 'operator') {
         items.push(
-          { page: 'approve-requests', label: 'Approve Requests', icon: '✅' },
-          { page: 'borrow-history', label: 'Borrow History', icon: '📋' },
-          { page: 'manage-items', label: 'Manage Items', icon: '📦' },
-          { page: 'lent-out-filter', label: 'Lent-Out Items', icon: '🔄' },
-          { page: 'audit-log', label: 'Audit Log', icon: '📝' },
+          { page: 'approve-requests', label: 'Requests', icon: NAV_ICONS.requests },
+          { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+          { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
+          { page: 'lent-out-filter', label: 'Checked out', icon: NAV_ICONS.checkedOut },
+          { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
         )
       }
       if (user.value?.role === 'user') {
         items.push(
-          { page: 'new-borrow-request', label: 'New Request', icon: '➕' },
-          { page: 'my-borrowing-record', label: 'My Records', icon: '📋' },
-          { page: 'search-available', label: 'Search Items', icon: '🔍' },
+          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
+          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
+          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
         )
       }
-      items.push({ page: 'guideline', label: 'Guidelines', icon: '📖' })
+      items.push({ page: 'guideline', label: 'Guidelines', icon: NAV_ICONS.guidelines })
       return items
-    })
-
-    // Bottom nav shows first 3-4 key items
-    const bottomNavItems = computed(() => {
-      if (user.value?.role === 'admin' || user.value?.role === 'operator') {
-        return [
-          { page: 'home', label: 'Home', icon: '🏠' },
-          { page: 'approve-requests', label: 'Approve', icon: '✅' },
-          { page: 'manage-items', label: 'Items', icon: '📦' },
-          { page: 'lent-out-filter', label: 'Lent Out', icon: '🔄' },
-        ]
-      }
-      return [
-        { page: 'home', label: 'Home', icon: '🏠' },
-        { page: 'new-borrow-request', label: 'Request', icon: '➕' },
-        { page: 'my-borrowing-record', label: 'Records', icon: '📋' },
-        { page: 'search-available', label: 'Search', icon: '🔍' },
-      ]
     })
 
     const refreshPendingCount = async () => {
@@ -255,10 +213,8 @@ export default {
       pendingCount,
       pageParams,
       darkMode,
-      mobileMenuOpen,
       showUserMenu,
       navItems,
-      bottomNavItems,
       handleLogin,
       handleNavigate,
       logout,
@@ -291,18 +247,13 @@ export default {
   border-bottom: 1px solid var(--border-glass);
 }
 
-.top-bar-inner {
+.top-bar-brand {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.625rem 1rem;
+  padding: 0.5rem 1rem;
   max-width: 80rem;
   margin: 0 auto;
-}
-
-.top-bar-left {
-  display: flex;
-  align-items: center;
 }
 
 .logo-btn {
@@ -316,8 +267,8 @@ export default {
   -webkit-tap-highlight-color: transparent;
 }
 
-.logo-icon {
-  font-size: 1.5rem;
+.logo-svg {
+  color: var(--accent);
 }
 
 .logo-text {
@@ -327,15 +278,15 @@ export default {
   letter-spacing: -0.02em;
 }
 
-.top-bar-right {
+.top-bar-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .icon-btn {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -343,7 +294,6 @@ export default {
   border: none;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 1.1rem;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
@@ -353,6 +303,69 @@ export default {
   transform: scale(0.92);
 }
 
+.icon-btn svg {
+  display: block;
+}
+
+/* ===== Nav Tabs ===== */
+.top-nav {
+  display: flex;
+  gap: 0.125rem;
+  padding: 0 1rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.top-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.top-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.top-nav-tab:hover {
+  color: var(--text-primary);
+}
+
+.top-nav-active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+.top-nav-icon {
+  display: flex;
+  align-items: center;
+}
+
+.top-nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.top-nav-label {
+  line-height: 1;
+}
+
+/* ===== User Chip ===== */
 .user-chip {
   display: flex;
   align-items: center;
@@ -373,7 +386,7 @@ export default {
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #0080ff);
+  background: linear-gradient(135deg, #A6B1E1, #424874);
   color: #fff;
   font-size: 0.875rem;
   font-weight: 700;
@@ -464,90 +477,8 @@ export default {
   color: var(--danger);
 }
 
-/* ===== Mobile Drawer ===== */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.5);
-  animation: fadeIn 0.2s ease-out;
-}
-
-.drawer {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: min(85vw, 20rem);
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  animation: slideInRight 0.25s ease-out;
-}
-
-@keyframes slideInRight {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-.drawer-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.drawer-title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  flex: 1;
-}
-
-.drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem;
-  -webkit-overflow-scrolling: touch;
-}
-
-.drawer-footer {
-  border-top: 1px solid var(--border-color);
-  padding: 0.5rem;
-}
-
-.drawer-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  border: none;
-  background: none;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.drawer-link:active, .drawer-link-active {
-  background: var(--accent-glow);
-  color: var(--accent);
-}
-
-.drawer-link-danger {
-  color: var(--danger);
-}
-
-.drawer-link-icon {
-  font-size: 1.25rem;
-  width: 1.5rem;
-  text-align: center;
+.dropdown-item svg {
+  flex-shrink: 0;
 }
 
 /* ===== Main Content ===== */
@@ -556,88 +487,7 @@ export default {
   max-width: 80rem;
   width: 100%;
   margin: 0 auto;
-  padding-bottom: 5rem; /* space for bottom nav */
-}
-
-@media (min-width: 640px) {
-  .main-content {
-    padding-bottom: 1rem;
-  }
-}
-
-/* ===== Bottom Nav ===== */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 35;
-  display: flex;
-  background: var(--bg-glass-heavy);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-top: 1px solid var(--border-glass);
-  padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
-}
-
-@media (min-width: 640px) {
-  .bottom-nav {
-    display: none;
-  }
-}
-
-.bottom-nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  padding: 0.5rem 0.25rem 0.375rem;
-  border: none;
-  background: none;
-  cursor: pointer;
-  position: relative;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 0.15s;
-  color: var(--text-muted);
-  min-height: 3rem;
-}
-
-.bottom-nav-btn:active {
-  color: var(--accent);
-}
-
-.bottom-nav-active {
-  color: var(--accent);
-}
-
-.bottom-nav-icon {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.bottom-nav-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.bottom-nav-badge {
-  position: absolute;
-  top: 0.125rem;
-  right: calc(50% - 1.25rem);
-  min-width: 1rem;
-  height: 1rem;
-  padding: 0 0.25rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--danger);
-  border-radius: 9999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  padding-bottom: 1rem;
 }
 
 /* ===== Animation helpers ===== */

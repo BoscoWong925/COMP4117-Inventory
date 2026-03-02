@@ -2,7 +2,7 @@
   <div class="p-6">
     <h2 class="text-2xl font-bold mb-4">New Borrow Request</h2>
 
-    <div v-if="submitted" class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
+    <div v-if="submitted" class="mb-4 p-4 alert-success">
       Request submitted successfully! Please wait for admin approval.
       <span v-if="autoBorrowedComponents.length">
         (Auto-borrowed {{ autoBorrowedComponents.length }} related component(s))
@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
         <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-medium mb-2">Search Available Computer Items</label>
+          <label class="form-label">Search Available Computer Items</label>
           <input
             type="text"
             placeholder="Search by name or ID..."
@@ -21,7 +21,7 @@
           />
         </div>
 
-        <div v-if="filteredItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
+        <div v-if="filteredItems.length === 0" class="empty-state">
           No available computer items found
         </div>
         <div v-else class="space-y-2 max-h-96 overflow-y-auto">
@@ -33,16 +33,16 @@
               @click="selectItem(item)"
               :class="`p-4 border rounded cursor-pointer transition ${
                 selectedItem?.id === item.id
-                  ? 'border-blue-600 bg-blue-50'
-                  : 'border-gray-300 bg-white hover:bg-gray-50'
+                  ? 'theme-card-selected'
+                  : 'theme-card'
               }`"
             >
               <div class="flex justify-between items-start">
                 <div>
                   <p class="font-medium">{{ item.name }}</p>
-                  <p class="text-sm text-gray-600">ID: {{ item.id }}</p>
-                  <p class="text-sm text-gray-600">Category: {{ item.category }}</p>
-                  <p v-if="item.fixedComponents && item.fixedComponents.length > 0" class="text-xs text-blue-600 mt-1">
+                  <p class="text-sm text-secondary">ID: {{ item.id }}</p>
+                  <p class="text-sm text-secondary">Category: {{ item.category }}</p>
+                  <p v-if="item.fixedComponents && item.fixedComponents.length > 0" class="text-xs text-accent-subtle mt-1">
                     {{ item.fixedComponents.length }} linked component(s) — will be auto-borrowed
                   </p>
                 </div>
@@ -53,14 +53,14 @@
             </div>
             
             <!-- Component Viewer - shown right under clicked item -->
-            <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 theme-section border border-[color:var(--border-color)] rounded-lg">
               <h4 class="text-md font-bold mb-3">Components of {{ item.name }}</h4>
-              <div v-if="linkedComponents.length === 0" class="text-gray-500 text-sm">No linked components</div>
+              <div v-if="linkedComponents.length === 0" class="text-muted text-sm">No linked components</div>
               <div v-else class="space-y-2">
-                <div v-for="comp in linkedComponents" :key="comp.id" class="bg-white p-3 rounded border flex justify-between items-center">
+                <div v-for="comp in linkedComponents" :key="comp.id" class="theme-card p-3 flex justify-between items-center">
                   <div>
                     <p class="font-medium text-sm">{{ comp.name }}</p>
-                    <p class="text-xs text-gray-500">{{ comp.id }} · {{ comp.category }}</p>
+                    <p class="field-label">{{ comp.id }} · {{ comp.category }}</p>
                   </div>
                   <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(comp.status)}`">{{ comp.status }}</span>
                 </div>
@@ -71,18 +71,18 @@
       </div>
 
       <div class="lg:col-span-1">
-        <div class="bg-gray-50 p-4 rounded border border-gray-300">
+        <div class="theme-section p-4 border border-[color:var(--border-color)]">
           <h3 class="text-lg font-bold mb-4">Request Details</h3>
           <template v-if="selectedItem">
-            <div class="mb-4 p-4 bg-white rounded border border-gray-300">
+            <div class="mb-4 p-4 theme-card">
               <p class="font-medium mb-2">{{ selectedItem.name }}</p>
-              <p class="text-sm text-gray-600 mb-2">ID: {{ selectedItem.id }}</p>
-              <p class="text-sm text-gray-600 mb-2">Type: {{ selectedItem.type }}</p>
-              <p class="text-sm text-gray-600">Location: {{ selectedItem.location }}</p>
+              <p class="text-sm text-secondary mb-2">ID: {{ selectedItem.id }}</p>
+              <p class="text-sm text-secondary mb-2">Type: {{ selectedItem.type }}</p>
+              <p class="text-sm text-secondary">Location: {{ selectedItem.location }}</p>
             </div>
 
             <div class="mb-4">
-              <label class="block text-gray-700 text-sm font-medium mb-2">Reason for Borrowing</label>
+              <label class="form-label">Reason for Borrowing</label>
               <textarea
                 v-model="reason"
                 class="form-input"
@@ -93,7 +93,7 @@
 
             <!-- Multi-file upload for approval -->
             <div class="mb-4">
-              <label class="block text-gray-700 text-sm font-medium mb-2">Upload Approval/Screenshots</label>
+              <label class="form-label">Upload Approval/Screenshots</label>
               <input
                 type="file"
                 multiple
@@ -102,13 +102,13 @@
                 class="form-input text-sm"
               />
               <div v-if="uploadedFiles.length > 0" class="mt-2 space-y-1">
-                <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center justify-between bg-white border rounded p-2 text-sm">
+                <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center justify-between theme-card p-2 text-sm">
                   <div class="flex items-center gap-2 min-w-0">
-                    <span class="text-gray-500">📎</span>
+                    <svg class="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
                     <span class="truncate">{{ f.name }}</span>
-                    <span class="text-xs text-gray-400">({{ (f.size / 1024).toFixed(1) }} KB)</span>
+                    <span class="text-xs text-muted">({{ (f.size / 1024).toFixed(1) }} KB)</span>
                   </div>
-                  <button @click="removeFile(idx)" class="text-red-500 hover:text-red-700 ml-2 flex-shrink-0">&times;</button>
+                  <button @click="removeFile(idx)" class="btn-remove ml-2 flex-shrink-0">&times;</button>
                 </div>
               </div>
               <!-- Preview thumbnails -->
@@ -117,7 +117,7 @@
                   v-for="(preview, idx) in filePreviews"
                   :key="'p'+idx"
                   :src="preview"
-                  class="w-16 h-16 object-cover rounded border border-gray-200"
+                  class="w-16 h-16 object-cover rounded border border-[color:var(--border-color)]"
                 />
               </div>
             </div>
@@ -129,7 +129,7 @@
               Submit Request
             </button>
           </template>
-          <p v-else class="text-gray-500 text-center">Select an item to request</p>
+          <p v-else class="text-muted text-center">Select an item to request</p>
         </div>
       </div>
     </div>

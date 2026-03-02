@@ -6,7 +6,7 @@
     </div>
 
     <div class="mb-4">
-      <label class="block text-gray-700 text-sm font-medium mb-2">Search Items</label>
+      <label class="form-label">Search Items</label>
       <input
         type="text"
         placeholder="Search by item name or ID..."
@@ -15,23 +15,23 @@
       />
     </div>
 
-    <div v-if="groupedItems.length === 0" class="bg-blue-50 p-4 rounded text-center">
+    <div v-if="groupedItems.length === 0" class="empty-state">
       No items currently borrowed
     </div>
     <div v-else class="space-y-4">
       <div
         v-for="group in groupedItems"
         :key="group.parent.item.id"
-        class="border border-gray-300 rounded bg-white hover:shadow-md transition"
+        class="theme-card"
       >
         <!-- Parent item -->
         <div class="p-4">
           <div class="mb-3">
-            <p class="text-xs text-gray-500 uppercase">Item ID</p>
+            <p class="field-label">Item ID</p>
             <p class="font-bold">{{ group.parent.item.id }}</p>
             <p class="font-medium mt-1">
               {{ group.parent.item.name }}
-              <span v-if="group.children.length > 0" class="ml-2 text-xs text-blue-600 font-normal">
+              <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                 (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
               </span>
             </p>
@@ -39,31 +39,31 @@
 
           <div class="space-y-2 mb-4 text-sm">
             <div class="flex justify-between">
-              <span class="text-gray-600">Borrower:</span>
+              <span class="text-secondary">Borrower:</span>
               <span class="font-medium">{{ group.parent.item.currentBorrower }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">Status:</span>
+              <span class="text-secondary">Status:</span>
               <span :class="`px-2 py-1 rounded text-xs ${getStatusColor(group.parent.item.status)}`">
                 {{ group.parent.item.status }}
               </span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">Location:</span>
+              <span class="text-secondary">Location:</span>
               <span class="font-medium">{{ group.parent.item.location }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">Expected Return:</span>
+              <span class="text-secondary">Expected Return:</span>
               <span class="font-medium">{{ formatDate(group.parent.request.returnDate) }}</span>
             </div>
           </div>
 
           <!-- Child component items -->
           <div v-if="group.children.length > 0" class="mb-4 border-t pt-3">
-            <p class="text-xs text-gray-500 font-semibold mb-2 uppercase">Linked Components</p>
-            <div v-for="child in group.children" :key="child.item.id" class="flex items-center justify-between py-1 pl-4 text-sm text-gray-600 border-l-2 border-blue-200 mb-1">
-              <span>↳ {{ child.item.name }} <span class="text-gray-400">({{ child.item.id }})</span></span>
-              <span class="text-xs text-gray-400 italic">Auto with parent</span>
+            <p class="field-label font-semibold mb-2">Linked Components</p>
+            <div v-for="child in group.children" :key="child.item.id" class="flex items-center justify-between py-1 pl-4 text-sm text-secondary child-indicator mb-1">
+              <span>↳ {{ child.item.name }} <span class="text-muted">({{ child.item.id }})</span></span>
+              <span class="text-xs text-muted italic">Auto with parent</span>
             </div>
           </div>
 
@@ -77,21 +77,21 @@
       </div>
     </div>
 
-    <div v-if="showConfirm && selectedGroup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-bold mb-4">Confirm Item Return</h3>
-        <div class="mb-4 p-3 bg-gray-50 rounded">
+    <div v-if="showConfirm && selectedGroup" class="fixed inset-0 modal-overlay flex items-center justify-center p-4">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Confirm Item Return</h3>
+        <div class="mb-4 p-3 theme-section">
           <p class="text-sm"><strong>Item:</strong> {{ selectedGroup.parent.item.name }}</p>
           <p class="text-sm"><strong>Borrower:</strong> {{ selectedGroup.parent.item.currentBorrower }}</p>
           <p class="text-sm"><strong>ID:</strong> {{ selectedGroup.parent.item.id }}</p>
           <div v-if="selectedGroup.children.length > 0" class="mt-2 pt-2 border-t">
-            <p class="text-xs text-gray-500 font-semibold mb-1">+ Components to be returned:</p>
-            <p v-for="child in selectedGroup.children" :key="child.item.id" class="text-sm text-gray-600 pl-2">
+            <p class="field-label font-semibold mb-1">+ Components to be returned:</p>
+            <p v-for="child in selectedGroup.children" :key="child.item.id" class="text-sm text-secondary pl-2">
               ↳ {{ child.item.name }} ({{ child.item.id }})
             </p>
           </div>
         </div>
-        <p class="text-gray-600 mb-6">Mark {{ selectedGroup.children.length > 0 ? 'all these items' : 'this item' }} as returned?</p>
+        <p class="text-secondary mb-6">Mark {{ selectedGroup.children.length > 0 ? 'all these items' : 'this item' }} as returned?</p>
         <div class="flex gap-2">
           <button
             @click="confirmReturn"

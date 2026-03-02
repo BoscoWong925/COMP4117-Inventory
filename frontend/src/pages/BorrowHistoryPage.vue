@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">Borrowing History</h2>
@@ -11,30 +11,30 @@
     </div>
 
     <!-- Search Filter Panel -->
-    <div v-if="showFilters" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+    <div v-if="showFilters" class="filter-panel">
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-sm font-semibold text-gray-700">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Clear All</button>
+        <h3 class="filter-panel-title">Search &amp; Filter</h3>
+        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
         <!-- Request ID (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Request ID</label>
+          <label class="filter-label">Request ID</label>
           <input v-model="filters.requestId" type="text" class="form-input text-sm" placeholder="e.g. REQ-001" />
         </div>
         <!-- Item Name (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Item Name</label>
+          <label class="filter-label">Item Name</label>
           <input v-model="filters.itemName" type="text" class="form-input text-sm" placeholder="Search item..." />
         </div>
         <!-- Borrower (text) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Borrower</label>
+          <label class="filter-label">Borrower</label>
           <input v-model="filters.borrower" type="text" class="form-input text-sm" placeholder="Name or ID..." />
         </div>
         <!-- Status (select) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Status</label>
+          <label class="filter-label">Status</label>
           <select v-model="filters.status" class="form-select text-sm">
             <option value="">All Statuses</option>
             <option v-for="s in ['Approved', 'Returned', 'Pending', 'Rejected']" :key="s" :value="s">{{ s }}</option>
@@ -42,22 +42,22 @@
         </div>
         <!-- Request Date (date) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Request Date</label>
+          <label class="filter-label">Request Date</label>
           <input v-model="filters.requestDate" type="date" class="form-input text-sm" />
         </div>
         <!-- Approval Date (date) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Approval Date</label>
+          <label class="filter-label">Approval Date</label>
           <input v-model="filters.approvalDate" type="date" class="form-input text-sm" />
         </div>
         <!-- Return Date (date) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Return Date</label>
+          <label class="filter-label">Return Date</label>
           <input v-model="filters.returnDate" type="date" class="form-input text-sm" />
         </div>
         <!-- Returned Date (date) -->
         <div>
-          <label class="block text-gray-600 text-xs font-medium mb-1">Returned Date</label>
+          <label class="filter-label">Returned Date</label>
           <input v-model="filters.returnedDate" type="date" class="form-input text-sm" />
         </div>
       </div>
@@ -70,38 +70,34 @@
           v-for="status in ['All', 'Approved', 'Returned', 'Pending', 'Rejected']"
           :key="status"
           @click="filters.status = status === 'All' ? '' : status; currentPage = 1"
-          :class="`px-4 py-2 rounded ${
-            (filters.status === '' && status === 'All') || filters.status === status
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`"
+          :class="`pill ${(filters.status === '' && status === 'All') || filters.status === status ? 'pill-active' : ''}`"
         >
           {{ status }}
         </button>
       </div>
     </div>
 
-    <div v-if="sortedHistory.length === 0" class="bg-blue-50 p-4 rounded text-center">
+    <div v-if="sortedHistory.length === 0" class="empty-state">
       No records found
     </div>
     <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse border border-gray-300 table-striped">
-        <thead class="bg-gray-200">
+      <table class="w-full border-collapse table-striped theme-table">
+        <thead>
           <tr>
             <th class="border p-2 text-left">Request ID</th>
             <th class="border p-2 text-left">Item</th>
             <th class="border p-2 text-left">Borrower</th>
             <th class="border p-2 text-left">Status</th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('requestDate')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('requestDate')">
               Request Date <span class="sort-icon">{{ getSortIcon('requestDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('approvalDate')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('approvalDate')">
               Approval Date <span class="sort-icon">{{ getSortIcon('approvalDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('returnDate')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('returnDate')">
               Return Date <span class="sort-icon">{{ getSortIcon('returnDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none hover:bg-gray-300" @click="toggleSort('returnedDate')">
+            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('returnedDate')">
               Returned <span class="sort-icon">{{ getSortIcon('returnedDate') }}</span>
             </th>
           </tr>
