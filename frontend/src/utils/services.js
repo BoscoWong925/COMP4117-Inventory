@@ -1,5 +1,5 @@
-// API Base URL - configure this to match your backend
-const API_BASE = 'http://localhost:5000/api';
+// API Base URL - uses env var in production, falls back to localhost for dev
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api';
 
 // ===== HTTP Helper =====
 const getToken = () => sessionStorage.getItem('token');

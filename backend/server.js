@@ -25,9 +25,19 @@ connectDB();
 // Security middleware
 app.use(helmet());
 
-// CORS - allow frontend origin
+// CORS - allow frontend origins (local dev + GitHub Pages production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://localhost:5001',
+];
+// Add production frontend URLs from env
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:5001'],
+  origin: allowedOrigins,
   credentials: true
 }));
 
