@@ -43,7 +43,7 @@
           </div>
         </div>
         <div class="dropdown-divider"></div>
-        <button @click="logout; showUserMenu = false" class="dropdown-item dropdown-item-danger">
+        <button @click="handleLogout" class="dropdown-item dropdown-item-danger">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
         </button>
@@ -207,6 +207,13 @@ export default {
       }
     })
 
+    const handleLogout = async () => {
+      showUserMenu.value = false
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+      await logout()
+      currentPage.value = 'home'
+    }
+
     onUnmounted(() => {
       if (pollTimer) clearInterval(pollTimer)
     })
@@ -223,7 +230,7 @@ export default {
       navItems,
       handleLogin,
       handleNavigate,
-      logout,
+      handleLogout,
     }
   }
 }

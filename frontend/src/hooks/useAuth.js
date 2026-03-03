@@ -15,8 +15,8 @@ export const useAuth = () => {
     return false;
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     user.value = null;
     isAuthenticated.value = false;
   };
