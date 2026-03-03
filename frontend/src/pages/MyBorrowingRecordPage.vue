@@ -2,7 +2,6 @@
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">My Borrowing Record</h2>
-      <button @click="exportRecords" class="btn">Export to Excel</button>
     </div>
 
     <div v-if="records.length === 0" class="empty-state">
@@ -32,6 +31,9 @@
                 <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(group.parent.status)}`">
                   {{ group.parent.status }}
                 </span>
+                <span v-if="isRecordOverdue(group.parent)" class="ml-2 px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-300 animate-pulse">
+                  OVERDUE
+                </span>
               </div>
               <div>
                 <p class="field-label">Request Date</p>
@@ -49,9 +51,16 @@
                 <p class="font-medium">{{ formatDateTime(group.parent.returnDate) || '-' }}</p>
               </div>
               <div>
+                <p class="field-label">Declared Return</p>
+                <p class="font-medium">{{ formatDateTime(group.parent.declaredReturnDate) || '-' }}</p>
+              </div>
+              <div>
                 <p class="field-label">Returned</p>
                 <p class="font-medium">{{ formatDateTime(group.parent.returnedDate) || '-' }}</p>
               </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
               <div>
                 <p class="field-label">Reason</p>
                 <p class="font-medium text-sm">{{ group.parent.reason }}</p>
@@ -73,26 +82,55 @@
               </div>
             </div>
 
-            <button
-              v-if="group.parent.status === 'Approved' && !group.parent.returnedDate"
-              @click="handleReturn(group.parent.id)"
-              class="btn btn-outline-success text-sm"
-            >
-              Return{{ group.children.length > 0 ? ' All' : ' Item' }}
-            </button>
+            <div class="flex gap-2 flex-wrap">
+              <button
+                v-if="group.parent.status === 'Approved' && !group.parent.returnedDate"
+                @click="openDeclareReturn(group.parent)"
+                class="btn btn-outline-primary text-sm"
+              >
+                Declare Return Date
+              </button>
+            </div>
+
           </div>
         </div>
       </template>
 
       <PaginationControl v-model:currentPage="currentPage" :totalItems="groupedRecords.length" :pageSize="pageSize" />
     </div>
+
+
+    <!-- Declare Return Date Modal -->
+    <div v-if="declareReturnTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Declare Return Date</h3>
+        <p class="text-sm text-muted mb-3">
+          Select when you plan to return <strong>{{ declareReturnTarget.itemName }}</strong>.
+          <span v-if="declareReturnTarget.returnDate">Must be on or before {{ formatDate(declareReturnTarget.returnDate) }}.</span>
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Return Date</label>
+          <input
+            type="date"
+            v-model="declareReturnDateValue"
+            :max="declareReturnMaxDate"
+            class="form-input"
+          />
+        </div>
+        <div v-if="declareReturnError" class="text-sm mb-3" style="color:var(--danger)">{{ declareReturnError }}</div>
+        <div class="flex gap-2">
+          <button @click="confirmDeclareReturn" class="btn btn-outline-success flex-1">Confirm</button>
+          <button @click="declareReturnTarget = null; declareReturnDateValue = ''; declareReturnError = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { ref, computed, onMounted } from 'vue'
-import { borrowingService, inventoryService, authService } from '../utils/services'
-import { formatDate, formatDateTime, getStatusColor, exportToExcel } from '../utils/helpers'
+import { borrowingService, authService } from '../utils/services'
+import { formatDate, formatDateTime, getStatusColor, isOverdue } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
@@ -101,6 +139,50 @@ export default {
     const records = ref([])
     const currentPage = ref(1)
     const pageSize = 10
+    const declareReturnTarget = ref(null)
+    const declareReturnDateValue = ref('')
+    const declareReturnError = ref('')
+
+    const isRecordOverdue = (record) => {
+      return (record.status === 'Approved' || record.status === 'approved') && !record.returnedDate && isOverdue(record.returnDate)
+    }
+
+    const declareReturnMaxDate = computed(() => {
+      if (!declareReturnTarget.value?.returnDate) return ''
+      return new Date(declareReturnTarget.value.returnDate).toISOString().split('T')[0]
+    })
+
+    const openDeclareReturn = (record) => {
+      declareReturnTarget.value = record
+      declareReturnDateValue.value = record.declaredReturnDate
+        ? new Date(record.declaredReturnDate).toISOString().split('T')[0]
+        : ''
+      declareReturnError.value = ''
+    }
+
+    const confirmDeclareReturn = async () => {
+      if (!declareReturnDateValue.value) {
+        declareReturnError.value = 'Please select a return date'
+        return
+      }
+      const declared = new Date(declareReturnDateValue.value)
+      if (declareReturnTarget.value.returnDate && declared > new Date(declareReturnTarget.value.returnDate)) {
+        declareReturnError.value = 'Return date cannot be later than the set return date'
+        return
+      }
+      try {
+        await borrowingService.declareReturnDate(
+          declareReturnTarget.value.id,
+          `${declareReturnDateValue.value}T17:00:00Z`
+        )
+        declareReturnTarget.value = null
+        declareReturnDateValue.value = ''
+        declareReturnError.value = ''
+        loadRecords()
+      } catch (e) {
+        declareReturnError.value = e.message || 'Failed to declare return date'
+      }
+    }
 
     // Group records: parent records with their child component records
     const groupedRecords = computed(() => {
@@ -143,26 +225,6 @@ export default {
       }
     }
 
-    const handleReturn = async (requestID) => {
-      const group = groupedRecords.value.find(g => g.parent.id === requestID)
-      const childCount = group ? group.children.length : 0
-      const msg = childCount > 0
-        ? `Are you sure you want to return this item and its ${childCount} component(s)?`
-        : 'Are you sure you want to return this item?'
-      if (window.confirm(msg)) {
-        try {
-          await borrowingService.returnItem(requestID)
-        } catch (e) {
-          console.error('Failed to return item:', e)
-        }
-        loadRecords()
-      }
-    }
-
-    const exportRecords = () => {
-      exportToExcel(records.value, 'my_borrowing_record.xlsx')
-    }
-
     onMounted(() => {
       loadRecords()
     })
@@ -171,13 +233,18 @@ export default {
       records,
       groupedRecords,
       paginatedGroups,
-      handleReturn,
-      exportRecords,
+      declareReturnTarget,
+      declareReturnDateValue,
+      declareReturnError,
+      declareReturnMaxDate,
+      openDeclareReturn,
+      confirmDeclareReturn,
       currentPage,
       pageSize,
       formatDate,
       formatDateTime,
       getStatusColor,
+      isRecordOverdue,
     }
   }
 }

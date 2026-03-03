@@ -57,12 +57,38 @@
   </div>
 
   <LoginPage v-else :onLogin="handleLogin" :darkMode="darkMode" @toggle-theme="darkMode = !darkMode" />
+
+  <!-- Overdue Warning Modal -->
+  <div v-if="showOverdueWarning" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" @click.self="showOverdueWarning = false">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+      <div class="bg-red-600 px-6 py-4 flex items-center gap-3">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <h3 class="text-white text-lg font-bold">Overdue Items Warning</h3>
+      </div>
+      <div class="px-6 py-4">
+        <p class="text-red-600 dark:text-red-400 font-medium mb-3">You have {{ overdueItems.length }} overdue item(s) that must be returned immediately:</p>
+        <ul class="space-y-2 max-h-60 overflow-y-auto">
+          <li v-for="item in overdueItems" :key="item._id" class="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <div>
+              <span class="font-semibold text-gray-800 dark:text-gray-200">{{ item.itemID || 'N/A' }}</span>
+              <span class="text-sm text-red-500 ml-2">({{ item.itemName || 'Unknown Item' }})</span>
+            </div>
+            <span class="text-sm text-red-600 dark:text-red-400 font-medium">Due: {{ formatDate(item.returnDate) }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+        <button @click="showOverdueWarning = false" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors">I Understand</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth } from './hooks/useAuth'
 import { borrowingService } from './utils/services'
+import { isOverdue, formatDate } from './utils/helpers'
 import LoginPage from './pages/LoginPage.vue'
 import ApproveRequestsPage from './pages/ApproveRequestsPage.vue'
 import BorrowHistoryPage from './pages/BorrowHistoryPage.vue'
@@ -73,7 +99,6 @@ import NewBorrowRequestPage from './pages/NewBorrowRequestPage.vue'
 import MyBorrowingRecordPage from './pages/MyBorrowingRecordPage.vue'
 import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
-import GuidelinePage from './pages/GuidelinePage.vue'
 import HomePage from './pages/HomePage.vue'
 import ApiStatusPage from './pages/ApiStatusPage.vue'
 import NotificationBadge from './components/NotificationBadge.vue'
@@ -107,7 +132,6 @@ export default {
     MyBorrowingRecordPage,
     SearchAvailableItemsPage,
     HandOverToolPage,
-    GuidelinePage,
     HomePage,
     ApiStatusPage,
     NotificationBadge,
@@ -119,6 +143,8 @@ export default {
     const pendingCount = ref(0)
     const darkMode = ref(true)
     const showUserMenu = ref(false)
+    const showOverdueWarning = ref(false)
+    const overdueItems = ref([])
     let pollTimer = null
 
     // Navigation items based on role
@@ -143,7 +169,6 @@ export default {
           { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
         )
       }
-      items.push({ page: 'guideline', label: 'Guidelines', icon: NAV_ICONS.guidelines })
       return items
     })
 
@@ -167,6 +192,19 @@ export default {
       if (ok) {
         refreshPendingCount()
         if (!pollTimer) pollTimer = setInterval(refreshPendingCount, 5000)
+        // Check for overdue borrows for user role
+        if (user.value?.role === 'user') {
+          try {
+            const requests = await borrowingService.getRequestsForUser(user.value.username)
+            const overdue = requests.filter(r => (r.status === 'approved' || r.status === 'Approved') && isOverdue(r.returnDate))
+            if (overdue.length > 0) {
+              overdueItems.value = overdue
+              showOverdueWarning.value = true
+            }
+          } catch (e) {
+            console.error('Failed to check overdue items:', e)
+          }
+        }
       }
       return ok
     }
@@ -191,8 +229,6 @@ export default {
           return SearchAvailableItemsPage
         case 'hand-over-tool':
           return HandOverToolPage
-        case 'guideline':
-          return GuidelinePage
         case 'api-status':
           return ApiStatusPage
         default:
@@ -231,6 +267,9 @@ export default {
       handleLogin,
       handleNavigate,
       handleLogout,
+      showOverdueWarning,
+      overdueItems,
+      formatDate,
     }
   }
 }

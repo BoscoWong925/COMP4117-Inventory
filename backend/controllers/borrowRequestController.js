@@ -485,6 +485,60 @@ exports.returnRequest = catchAsync(async (req, res, next) => {
 });
 
 /**
+ * PUT /api/borrow-requests/:id/declare-return
+ * User declares intended return date (cannot be later than the set returnDate).
+ */
+exports.declareReturnDate = catchAsync(async (req, res, next) => {
+  const { declaredReturnDate } = req.body;
+
+  const request = await BorrowRequest.findOne({ requestId: req.params.id });
+  if (!request) {
+    return next(ApiError.notFound(`Request ${req.params.id} not found`));
+  }
+
+  if (request.status !== 'Approved') {
+    return next(ApiError.badRequest('Can only declare return date for approved requests'));
+  }
+
+  // Users can only declare for their own requests
+  if (req.user.role === 'user' && request.borrowerID !== req.user.userId) {
+    return next(ApiError.forbidden('You can only declare return date for your own requests'));
+  }
+
+  if (!declaredReturnDate) {
+    return next(ApiError.badRequest('declaredReturnDate is required'));
+  }
+
+  const declared = new Date(declaredReturnDate);
+  if (request.returnDate && declared > new Date(request.returnDate)) {
+    return next(ApiError.badRequest('Declared return date cannot be later than the set return date'));
+  }
+
+  request.declaredReturnDate = declared;
+  await request.save();
+
+  // Also set for child requests
+  const childRequests = await BorrowRequest.find({
+    parentRequestId: req.params.id,
+    status: 'Approved'
+  });
+  for (const childReq of childRequests) {
+    childReq.declaredReturnDate = declared;
+    await childReq.save();
+  }
+
+  await addAuditLog(req.user.userId, 'RETURN_DATE_DECLARED',
+    `Return date declared: ${declared.toISOString().split('T')[0]} for request ${req.params.id}`, request.itemID);
+
+  const populated = await populateRequests([request]);
+
+  res.status(200).json({
+    success: true,
+    request: populated[0]
+  });
+});
+
+/**
  * POST /api/borrow-requests/:id/attachments
  * Upload attachments to an existing request.
  */

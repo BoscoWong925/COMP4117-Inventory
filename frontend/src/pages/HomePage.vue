@@ -4,8 +4,16 @@
     <template v-if="user?.role !== 'user'">
       <!-- Page heading -->
       <div class="hero-section animate-in">
-        <h2 class="hero-title">Inventory dashboard</h2>
-        <p class="hero-subtitle">{{ todayLabel }} &middot; {{ stats.totalItems }} items tracked</p>
+        <div class="hero-row">
+          <div>
+            <h2 class="hero-title">Inventory dashboard</h2>
+            <p class="hero-subtitle">{{ todayLabel }}</p>
+          </div>
+          <div class="items-tracked-box">
+            <span class="items-tracked-count">{{ stats.totalItems }}</span>
+            <span class="items-tracked-label">Items Tracked</span>
+          </div>
+        </div>
       </div>
 
       <!-- Tabbed attention section -->
@@ -27,7 +35,7 @@
         <div v-if="(activeTab === 'all' || activeTab === 'overdue') && overdueItems.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-danger">Overdue returns</h3>
-            <button @click="$emit('navigate', 'lent-out-filter')" class="section-link">View all →</button>
+            <button @click="$emit('navigate', 'lent-out-filter', { filter: 'overdue' })" class="section-link">View all →</button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -55,7 +63,7 @@
         <div v-if="(activeTab === 'all' || activeTab === 'overdue') && dueSoonItems.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-warning">Due within 7 days</h3>
-            <button @click="$emit('navigate', 'lent-out-filter')" class="section-link">View all →</button>
+            <button @click="$emit('navigate', 'lent-out-filter', { filter: 'due-soon' })" class="section-link">View all →</button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -99,7 +107,12 @@
               <tbody>
                 <tr v-for="req in pendingRequests.slice(0, 5)" :key="req.id">
                   <td class="font-semibold">{{ req.itemName }}</td>
-                  <td>{{ req.borrowerID }}</td>
+                  <td>{{ req.borrowerID }}
+                    <span v-if="overdueBorrowerIDs.has(req.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
+                      <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                      <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                    </span>
+                  </td>
                   <td>{{ waitingTime(req.requestDate) }}</td>
                   <td class="text-ellip">{{ req.reason || '—' }}</td>
                   <td v-if="pendingRequests.length <= 5" class="text-center whitespace-nowrap">
@@ -116,7 +129,7 @@
         <div v-if="(activeTab === 'all' || activeTab === 'warranty') && warrantyExpiredItems.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-danger">Warranty expired</h3>
-            <button @click="$emit('navigate', 'manage-items')" class="section-link">View all →</button>
+            <button @click="$emit('navigate', 'manage-items', { filter: 'warranty-expired' })" class="section-link">View all →</button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -142,7 +155,7 @@
         <div v-if="(activeTab === 'all' || activeTab === 'warranty') && warrantyExpiringSoonItems.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-warning"><svg class="section-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 1zM5.05 3.636a.75.75 0 011.06 0l1.061 1.06a.75.75 0 11-1.06 1.061L5.05 4.697a.75.75 0 010-1.06zm9.9 0a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 01-1.061-1.06l1.06-1.061a.75.75 0 011.061 0zM10 7a3 3 0 100 6 3 3 0 000-6zm-6.25 3a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5H3a.75.75 0 01.75.75zm14.5 0a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5H17a.75.75 0 01.75.75zm-11.086 4.95a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 01-1.061-1.06l1.06-1.061a.75.75 0 011.061 0zm7.672 0a.75.75 0 011.06 0l1.061 1.06a.75.75 0 11-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM10 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15z" clip-rule="evenodd"/></svg>Warranty expiring soon</h3>
-            <button @click="$emit('navigate', 'manage-items')" class="section-link">View all →</button>
+            <button @click="$emit('navigate', 'manage-items', { filter: 'warranty-expiring-soon' })" class="section-link">View all →</button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -166,7 +179,7 @@
 
         <!-- Empty state for active tab -->
         <div v-if="activeTabEmpty" class="empty-state">
-          <p>No items need attention 🎉</p>
+          <p>No items need attention</p>
         </div>
       </div>
 
@@ -227,34 +240,7 @@
         </div>
       </div>
 
-      <!-- Recent Activity (filtered) -->
-      <div class="section-card animate-in delay-4">
-        <div class="section-header">
-          <h3 class="section-title">Recent activity</h3>
-          <button @click="$emit('navigate', 'audit-log')" class="section-link">View all →</button>
-        </div>
-        <div v-if="filteredLogs.length === 0" class="empty-state">
-          <p>No recent activity</p>
-        </div>
-        <div v-else class="activity-list">
-          <div
-            v-for="(log, i) in filteredLogs"
-            :key="log.id || i"
-            class="activity-item"
-            @click="$emit('navigate', 'audit-log')"
-          >
-            <div class="activity-dot"></div>
-            <div class="activity-content">
-              <p class="activity-action">{{ log.action }}</p>
-              <p class="activity-detail">{{ log.details }}</p>
-            </div>
-            <div class="activity-meta">
-              <span class="activity-user">{{ log.userID }}</span>
-              <span class="activity-time">{{ formatDateTime(log.timestamp) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Recent Activity section removed -->
     </template>
 
     <!-- ==================== USER VIEW ==================== -->
@@ -370,6 +356,17 @@ export default {
     const warrantyExpiringSoonItems = computed(() =>
       allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30))
     )
+
+    // Borrowers with overdue items (for red mark on pending requests)
+    const overdueBorrowerIDs = computed(() => {
+      const ids = new Set()
+      allApprovedRequests.value.forEach(r => {
+        if (isOverdue(r.returnDate) && r.borrowerID) {
+          ids.add(r.borrowerID)
+        }
+      })
+      return ids
+    })
 
     // Tab definitions with counts
     const attentionTabs = computed(() => [
@@ -539,6 +536,7 @@ export default {
       getStatusColor,
       daysFromNow,
       waitingTime,
+      overdueBorrowerIDs,
     }
   }
 }
@@ -977,4 +975,45 @@ export default {
 .delay-2 { animation-delay: 0.12s; }
 .delay-3 { animation-delay: 0.18s; }
 .delay-4 { animation-delay: 0.24s; }
+
+/* ===== Hero Row with Items Tracked Box ===== */
+.hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.items-tracked-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 1.125rem 2rem;
+  min-width: 140px;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  backdrop-filter: blur(8px);
+  transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.items-tracked-count {
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+}
+
+.items-tracked-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 </style>

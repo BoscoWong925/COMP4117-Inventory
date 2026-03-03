@@ -2,7 +2,6 @@
   <div class="p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">Search Available Items</h2>
-      <button @click="exportItems" class="btn">Export to Excel</button>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">

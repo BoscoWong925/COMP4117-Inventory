@@ -32,7 +32,12 @@
                   (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                 </span>
               </td>
-              <td class="border p-2">{{ group.parent.borrowerID }}</td>
+              <td class="border p-2">{{ group.parent.borrowerID }}
+                <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
+                  <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                  <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                </span>
+              </td>
               <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
               <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
               <td class="border p-2">{{ group.parent.reason }}</td>
@@ -153,7 +158,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
-import { formatDate, exportToExcel, waitingTime } from '../utils/helpers'
+import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
 import { locations as defaultLocations } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
@@ -163,6 +168,7 @@ export default {
   components: { PaginationControl, DropdownWithOther, RemarkBox },
   setup() {
     const requests = ref([])
+    const allApprovedRequests = ref([])
     const selectedRequest = ref(null)
     const returnDate = ref('')
     const rejectReason = ref('')
@@ -172,6 +178,17 @@ export default {
     const locationOptions = ref([...defaultLocations])
     const approveLocation = ref(defaultLocations[0])
     const approveRemark = ref('')
+
+    // Borrowers with overdue items
+    const overdueBorrowerIDs = computed(() => {
+      const ids = new Set()
+      allApprovedRequests.value.forEach(r => {
+        if (isOverdue(r.returnDate) && r.borrowerID) {
+          ids.add(r.borrowerID)
+        }
+      })
+      return ids
+    })
 
     // Group requests: parent requests with their children nested underneath
     const groupedRequests = computed(() => {
@@ -216,6 +233,13 @@ export default {
         requests.value = pendingReqs
       } catch (e) {
         console.error('Failed to load pending requests:', e)
+      }
+      // Load approved requests for overdue check
+      try {
+        const approved = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
+        allApprovedRequests.value = approved
+      } catch (e) {
+        console.error('Failed to load approved requests:', e)
       }
     }
 
@@ -298,6 +322,7 @@ export default {
       exportRequests,
       formatDate,
       waitingTime,
+      overdueBorrowerIDs,
     }
   }
 }

@@ -19,6 +19,14 @@
         </div>
       </div>
 
+      <!-- Status Filter Banner -->
+      <div v-if="activeStatusFilter" class="mb-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-center justify-between">
+        <span class="text-yellow-800 font-medium">
+          Showing: {{ activeStatusFilter === 'warranty-expired' ? 'Warranty Expired' : 'Warranty Expiring Soon' }} items
+        </span>
+        <button @click="activeStatusFilter = ''" class="text-yellow-600 hover:text-yellow-800 underline text-sm">Clear Filter</button>
+      </div>
+
       <!-- Search Filter Panel -->
       <div v-if="showFilterPanel" class="filter-panel">
         <div class="flex justify-between items-center mb-3">
@@ -527,7 +535,7 @@ import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService } from '../utils/services'
-import { formatDate, getStatusColor, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
+import { formatDate, getStatusColor, exportToExcel, ITEM_STATUSES, normalizeItemStatus, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
@@ -575,7 +583,10 @@ const defaultFormData = {
 
 export default {
   components: { PaginationControl, DropdownWithOther, DeleteBlockModal },
-  setup() {
+  props: {
+    pageParams: { type: Object, default: () => ({}) }
+  },
+  setup(props) {
     const items = ref([])
     const showForm = ref(false)
     const editingItem = ref(null)
@@ -604,6 +615,7 @@ export default {
     let invoiceCameraStream = null
 
     const showFilterPanel = ref(false)
+    const activeStatusFilter = ref('')
     const searchFilters = ref({
       id: '', name: '', type: '', category: '', status: '',
       location: '', vendor: '', supplier: '', universityID: '',
@@ -631,6 +643,16 @@ export default {
     const filteredItems = computed(() => {
       let result = items.value
       const f = searchFilters.value
+
+      // Apply warranty status filter from dashboard navigation
+      if (activeStatusFilter.value) {
+        if (activeStatusFilter.value === 'warranty-expired') {
+          result = result.filter(i => isWarrantyExpired(i.warrantyEnd))
+        } else if (activeStatusFilter.value === 'warranty-expiring-soon') {
+          result = result.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30))
+        }
+      }
+
       if (f.id) {
         const q = f.id.toLowerCase()
         result = result.filter(i => i.id.toLowerCase().includes(q))
@@ -1275,6 +1297,10 @@ export default {
     }
 
     onMounted(() => {
+      // Apply auto-filter from dashboard navigation
+      if (props.pageParams?.filter) {
+        activeStatusFilter.value = props.pageParams.filter
+      }
       loadItems()
       // Set PDF.js worker - use local node_modules path
       try {
@@ -1356,6 +1382,7 @@ export default {
       formatDate,
       getStatusColor,
       normalizeItemStatus,
+      activeStatusFilter,
     }
   }
 }

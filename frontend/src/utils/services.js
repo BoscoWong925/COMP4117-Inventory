@@ -268,6 +268,14 @@ export const borrowingService = {
       body: JSON.stringify(body)
     });
     return data.request;
+  },
+
+  declareReturnDate: async (requestID, declaredReturnDate) => {
+    const data = await apiRequest(`/borrow-requests/${requestID}/declare-return`, {
+      method: 'PUT',
+      body: JSON.stringify({ declaredReturnDate })
+    });
+    return data.request;
   }
 };
 

@@ -42,6 +42,10 @@ const borrowRequestSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  declaredReturnDate: {
+    type: Date,
+    default: null
+  },
   reason: {
     type: String,
     default: '',

@@ -10,6 +10,14 @@
       </div>
     </div>
 
+    <!-- Active status filter banner -->
+    <div v-if="activeStatusFilter" class="mb-4 p-3 rounded-lg flex items-center justify-between" style="background:var(--filter-bg);border:1px solid var(--filter-border)">
+      <span class="text-sm font-semibold">
+        Showing: <span :style="`color:${activeStatusFilter === 'overdue' ? 'var(--danger)' : 'var(--warning)'}`">{{ activeStatusFilter === 'overdue' ? 'Overdue returns' : 'Due within 7 days' }}</span>
+      </span>
+      <button @click="activeStatusFilter = ''" class="text-sm font-medium" style="color:var(--accent)">Clear filter ×</button>
+    </div>
+
     <!-- Comprehensive Search Filter Panel -->
     <div v-if="showFilterPanel" class="filter-panel">
       <div class="flex justify-between items-center mb-3">
@@ -195,13 +203,16 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
-import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, daysFromNow } from '../utils/helpers'
+import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, isDueSoon, daysFromNow } from '../utils/helpers'
 import { mockUsers } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
   components: { PaginationControl },
-  setup() {
+  props: {
+    pageParams: { type: Object, default: () => ({}) }
+  },
+  setup(props) {
     const items = ref([])
     const allRequests = ref([])
     const vendorFilter = ref('')
@@ -218,6 +229,7 @@ export default {
     const sortField = ref('')
     const sortDir = ref('asc')
     const showFilterPanel = ref(false)
+    const activeStatusFilter = ref('')
 
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
@@ -307,6 +319,24 @@ export default {
     const filteredItems = computed(() => {
       let result = items.value
       const f = searchFilters.value
+
+      // Apply status filter (overdue / due-soon) from dashboard navigation
+      if (activeStatusFilter.value) {
+        const reqs = allRequests.value
+        if (activeStatusFilter.value === 'overdue') {
+          const overdueItemIds = new Set(
+            reqs.filter(r => r.status === 'Approved' && isOverdue(r.returnDate))
+              .map(r => r.itemID)
+          )
+          result = result.filter(i => overdueItemIds.has(i.id))
+        } else if (activeStatusFilter.value === 'due-soon') {
+          const dueSoonItemIds = new Set(
+            reqs.filter(r => r.status === 'Approved' && isDueSoon(r.returnDate, 7))
+              .map(r => r.itemID)
+          )
+          result = result.filter(i => dueSoonItemIds.has(i.id))
+        }
+      }
 
       // Legacy dropdown filters (still sync with searchFilters for backwards compat)
       if (f.vendor || vendorFilter.value) {
@@ -474,6 +504,10 @@ export default {
     }
 
     onMounted(() => {
+      // Apply auto-filter from dashboard navigation
+      if (props.pageParams?.filter) {
+        activeStatusFilter.value = props.pageParams.filter
+      }
       loadLentOutItems()
     })
 
@@ -500,6 +534,7 @@ export default {
       uniqueCategories,
       uniqueLocations,
       clearAllFilters,
+      activeStatusFilter,
       getBorrowerName,
       handleReturnItem,
       saveLocation,
