@@ -75,6 +75,7 @@ import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
 import GuidelinePage from './pages/GuidelinePage.vue'
 import HomePage from './pages/HomePage.vue'
+import ApiStatusPage from './pages/ApiStatusPage.vue'
 import NotificationBadge from './components/NotificationBadge.vue'
 
 // SVG icon factory (Lucide-style)
@@ -91,6 +92,7 @@ const NAV_ICONS = {
   myRecords: svgIcon('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>'),
   search: svgIcon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
   guidelines: svgIcon('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+  apiStatus: svgIcon('<circle cx="12" cy="12" r="1"/><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9" fill="none"/>'),
 }
 
 export default {
@@ -107,6 +109,7 @@ export default {
     HandOverToolPage,
     GuidelinePage,
     HomePage,
+    ApiStatusPage,
     NotificationBadge,
   },
   setup() {
@@ -130,6 +133,7 @@ export default {
           { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
           { page: 'lent-out-filter', label: 'Checked out', icon: NAV_ICONS.checkedOut },
           { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
+          { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
         )
       }
       if (user.value?.role === 'user') {
@@ -189,6 +193,8 @@ export default {
           return HandOverToolPage
         case 'guideline':
           return GuidelinePage
+        case 'api-status':
+          return ApiStatusPage
         default:
           return HomePage
       }
