@@ -251,10 +251,10 @@ export default {
       allApprovedRequests.value.filter(r => isDueSoon(r.returnDate, 7))
     )
     const warrantyExpiredItems = computed(() =>
-      allItems.value.filter(i => isWarrantyExpired(i.warrantyEndDate))
+      allItems.value.filter(i => isWarrantyExpired(i.warrantyEnd))
     )
     const warrantyExpiringSoonItems = computed(() =>
-      allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEndDate, 30))
+      allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30))
     )
 
     // Filter LOGIN actions from activity
