@@ -71,4 +71,13 @@ userSchema.methods.toJSON = function() {
   return obj;
 };
 
+// Indexes for common queries and sorting (Azure Cosmos DB compatibility)
+userSchema.index({ userId: 1 });
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
+userSchema.index({ createdAt: -1 });
+userSchema.index({ name: 'text', email: 'text', username: 'text' }); // Text search
+
 module.exports = mongoose.model('User', userSchema);

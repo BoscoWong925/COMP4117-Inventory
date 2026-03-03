@@ -3,7 +3,44 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { authenticate, authorize } = require('../middleware/auth');
 
+/**
+ * All routes require authentication
+ */
 router.use(authenticate);
-router.get('/:id', authorize('admin', 'operator'), userController.getUserById);
+
+/**
+ * GET /api/users - List all users (admin/operator)
+ */
+router.get('/', authorize('admin', 'operator'), userController.getAllUsers);
+
+/**
+ * POST /api/users - Create new user (admin only)
+ */
+router.post('/', authorize('admin'), userController.createUser);
+
+/**
+ * GET /api/users/search/:query - Search users (admin/operator)
+ */
+router.get('/search/:query', authorize('admin', 'operator'), userController.searchUsers);
+
+/**
+ * GET /api/users/:id - Get user by ID (admin/operator or self)
+ */
+router.get('/:id', userController.getUserById);
+
+/**
+ * PUT /api/users/:id - Update user (admin or self for profile)
+ */
+router.put('/:id', userController.updateUser);
+
+/**
+ * DELETE /api/users/:id - Delete user (admin only)
+ */
+router.delete('/:id', authorize('admin'), userController.deleteUser);
+
+/**
+ * PUT /api/users/:id/status - Toggle user active status (admin only)
+ */
+router.put('/:id/status', authorize('admin'), userController.toggleUserStatus);
 
 module.exports = router;
