@@ -740,7 +740,7 @@ export default {
 
     const loadItems = async () => {
       try {
-        const allItems = await inventoryService.getAllItems()
+        const allItems = await inventoryService.getAllItems({ pageSize: 9999 })
         items.value = allItems
       } catch (e) {
         console.error('Failed to load items:', e)
@@ -758,29 +758,74 @@ export default {
         return
       }
 
-      // Check if invoice is required (only for new items)
-      if (!editingItem.value && !formData.value.invoiceFile) {
-        alert('Invoice file is required. Please upload an invoice photo or PDF.')
-        return
-      }
+      // Invoice file is optional — admin can add items manually without an invoice
 
       try {
         if (editingItem.value) {
-          await inventoryService.updateItem(editingItem.value.id, formData.value)
+          // Build a clean payload with only the editable fields for the backend
+          const updatePayload = {
+            name: formData.value.name,
+            universityID: formData.value.universityID,
+            type: formData.value.type,
+            category: formData.value.category,
+            status: formData.value.status,
+            location: formData.value.location,
+            description: formData.value.description,
+            motherID: formData.value.motherID,
+            supplier: formData.value.supplier,
+            invoiceNumber: formData.value.invoiceNumber,
+            warrantyStartDate: formData.value.warrantyStartDate,
+            warrantyEnd: formData.value.warrantyEnd,
+            departmentID: formData.value.departmentID,
+          }
+
+          // Determine if there is a new invoice File object to upload
+          const invoiceFile = (formData.value.invoiceFile && formData.value.invoiceFile instanceof File)
+            ? formData.value.invoiceFile
+            : null
+
+          const updatedItem = await inventoryService.updateItem(editingItem.value.id, updatePayload, invoiceFile)
+
+          // Immediately update the local items list so the UI reflects changes
+          if (updatedItem) {
+            const idx = items.value.findIndex(i => i.id === editingItem.value.id)
+            if (idx !== -1) {
+              items.value.splice(idx, 1, updatedItem)
+            }
+          }
         } else {
           await inventoryService.addItem(formData.value)
+          // Reload full list to pick up the new item with server-generated ID
+          await loadItems()
         }
       } catch (e) {
         console.error('Failed to submit item:', e)
+        alert('Failed to save item: ' + e.message)
+        return
       }
 
       resetForm()
       showForm.value = false
-      loadItems()
     }
 
     const handleEdit = (item) => {
-      formData.value = { ...item }
+      // Copy only editable fields to formData, avoiding MongoDB internal fields
+      formData.value = {
+        name: item.name || '',
+        universityID: item.universityID || '',
+        type: item.type || 'Hardware',
+        category: item.category || 'Computer',
+        status: item.status || 'Available',
+        location: item.location || 'Lab A',
+        description: item.description || '',
+        motherID: item.motherID || '',
+        supplier: item.supplier || '',
+        invoiceNumber: item.invoiceNumber || '',
+        warrantyStartDate: item.warrantyStartDate || '',
+        warrantyEnd: item.warrantyEnd || '',
+        departmentID: item.departmentID || 'COMP',
+        invoiceFile: null,
+      }
       editingItem.value = item
       
       // Load stored invoice file if it exists
