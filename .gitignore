@@ -5,7 +5,7 @@ dist/
 *.local
 
 # Environment variables (contains DB credentials, JWT secret)
-.env
+# .env
 
 # Uploaded files
 backend/uploads/
