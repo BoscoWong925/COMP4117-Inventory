@@ -42,6 +42,11 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(ApiError.unauthorized('Invalid credentials'));
   }
 
+  // Check if user account is active
+  if (user.isActive === false) {
+    return next(ApiError.unauthorized('Account is deactivated. Please contact an administrator.'));
+  }
+
   const token = generateToken(user);
 
   await addAuditLog(user.userId, 'LOGIN', `User ${user.name} logged in`, null);
@@ -56,7 +61,8 @@ exports.login = catchAsync(async (req, res, next) => {
       email: user.email,
       role: user.role,
       department: user.department,
-      username: user.username
+      username: user.username,
+      isActive: user.isActive
     }
   });
 });
@@ -88,7 +94,8 @@ exports.getMe = catchAsync(async (req, res) => {
       email: user.email,
       role: user.role,
       department: user.department,
-      username: user.username
+      username: user.username,
+      isActive: user.isActive
     }
   });
 });

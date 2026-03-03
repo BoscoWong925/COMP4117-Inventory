@@ -1,5 +1,5 @@
 // API Base URL - uses env var in production, falls back to localhost for dev
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') + '/api';
 
 // ===== HTTP Helper =====
 const getToken = () => sessionStorage.getItem('token');
@@ -36,21 +36,16 @@ let currentUser = null;
 
 export const authService = {
   login: async (username, password) => {
-    try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password })
-      });
-      if (data.success && data.token) {
-        sessionStorage.setItem('token', data.token);
-        currentUser = data.user;
-        return currentUser;
-      }
-      return null;
-    } catch (error) {
-      console.error('Login error:', error.message);
-      return null;
+    const data = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    if (data.success && data.token) {
+      sessionStorage.setItem('token', data.token);
+      currentUser = data.user;
+      return currentUser;
     }
+    return null;
   },
 
   logout: async () => {

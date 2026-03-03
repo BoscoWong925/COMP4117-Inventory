@@ -42,14 +42,14 @@ const seedInMemoryDB = async () => {
 
   // ===== USERS =====
   const users = [
-    { userId: 'U001', username: 'admin', password: 'admin123', name: 'Admin User', email: 'admin@university.edu', role: 'admin', department: 'COMP' },
-    { userId: 'U002', username: 'operator', password: 'operator123', name: 'Operator User', email: 'operator@university.edu', role: 'operator', department: 'COMP' },
-    { userId: 'U003', username: 'user', password: 'user123', name: 'Regular User', email: 'user@university.edu', role: 'user', department: 'COMP' },
-    { userId: 'S00123456', username: 'john.smith', password: 'password123', name: 'John Smith', email: 'john.smith@student.university.edu', role: 'user', department: 'COMP' },
-    { userId: 'S00234567', username: 'sarah.johnson', password: 'password123', name: 'Sarah Johnson', email: 'sarah.johnson@student.university.edu', role: 'user', department: 'COMP' },
-    { userId: 'S00345678', username: 'mike.chen', password: 'password123', name: 'Mike Chen', email: 'mike.chen@student.university.edu', role: 'user', department: 'COMP' },
-    { userId: 'S00456789', username: 'emma.davis', password: 'password123', name: 'Emma Davis', email: 'emma.davis@student.university.edu', role: 'user', department: 'COMP' },
-    { userId: 'S00567890', username: 'alex.wilson', password: 'password123', name: 'Alex Wilson', email: 'alex.wilson@student.university.edu', role: 'user', department: 'COMP' }
+    { userId: 'U001', username: 'admin', password: 'admin123', name: 'Admin User', email: 'admin@university.edu', role: 'admin', department: 'COMP', isActive: true },
+    { userId: 'U002', username: 'operator', password: 'operator123', name: 'Operator User', email: 'operator@university.edu', role: 'operator', department: 'COMP', isActive: true },
+    { userId: 'U003', username: 'user', password: 'user123', name: 'Regular User', email: 'user@university.edu', role: 'user', department: 'COMP', isActive: true },
+    { userId: 'S00123456', username: 'john.smith', password: 'password123', name: 'John Smith', email: 'john.smith@student.university.edu', role: 'user', department: 'COMP', isActive: true },
+    { userId: 'S00234567', username: 'sarah.johnson', password: 'password123', name: 'Sarah Johnson', email: 'sarah.johnson@student.university.edu', role: 'user', department: 'COMP', isActive: true },
+    { userId: 'S00345678', username: 'mike.chen', password: 'password123', name: 'Mike Chen', email: 'mike.chen@student.university.edu', role: 'user', department: 'COMP', isActive: true },
+    { userId: 'S00456789', username: 'emma.davis', password: 'password123', name: 'Emma Davis', email: 'emma.davis@student.university.edu', role: 'user', department: 'COMP', isActive: true },
+    { userId: 'S00567890', username: 'alex.wilson', password: 'password123', name: 'Alex Wilson', email: 'alex.wilson@student.university.edu', role: 'user', department: 'COMP', isActive: false }
   ];
 
   for (const userData of users) {

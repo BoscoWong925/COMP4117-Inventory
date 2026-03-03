@@ -130,7 +130,7 @@ export default {
           error.value = 'Invalid username or password'
         }
       } catch (e) {
-        error.value = 'Login failed. Please try again.'
+        error.value = e.message || 'Login failed. Please try again.'
       } finally {
         loading.value = false
       }
