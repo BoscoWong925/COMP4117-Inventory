@@ -1,3 +1,6 @@
+Azure:
+https://comp4117-inventory.azurewebsites.net/
+
 # COMP4117 Inventory System
 
 A web-based inventory management system for university COMP department with role-based access control, borrowing workflows, and audit logging.
