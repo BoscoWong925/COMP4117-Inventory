@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+.vite/
+*.local
+
+# Environment variables (contains DB credentials, JWT secret)
+# .env
+
+# Uploaded files
+backend/uploads/
