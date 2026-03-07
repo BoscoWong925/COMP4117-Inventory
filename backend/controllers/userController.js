@@ -13,6 +13,7 @@ const formatUserResponse = (user) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  subRole: user.subRole || 'student',
   department: user.department,
   isActive: user.isActive,
   createdAt: user.createdAt,
@@ -95,6 +96,7 @@ exports.createUser = catchAsync(async (req, res, next) => {
     name,
     email: email.toLowerCase(),
     role,
+    subRole: req.body.subRole || (role === 'user' ? 'student' : undefined),
     department,
     isActive: true
   });
@@ -158,6 +160,14 @@ exports.updateUser = catchAsync(async (req, res, next) => {
   if (email) user.email = email.toLowerCase();
   if (department) user.department = department;
   if (role && req.user.role === 'admin') user.role = role;
+  if (req.body.subRole && req.user.role === 'admin') user.subRole = req.body.subRole;
+
+  // Password change (admin can change anyone's, users can change their own)
+  if (req.body.password) {
+    if (req.user.role === 'admin' || req.user.userId === userId) {
+      user.password = req.body.password;
+    }
+  }
 
   await user.save();
 
@@ -259,5 +269,20 @@ exports.searchUsers = catchAsync(async (req, res) => {
     success: true,
     users: users.map(formatUserResponse),
     count: users.length
+  });
+});
+
+/**
+ * GET /api/users/teachers
+ * Get all teacher users (for owner dropdowns).
+ */
+exports.getTeachers = catchAsync(async (req, res) => {
+  const teachers = await User.find({ role: 'user', subRole: 'teacher', isActive: true })
+    .select('-password')
+    .sort({ name: 1 });
+
+  res.status(200).json({
+    success: true,
+    users: teachers.map(formatUserResponse)
   });
 });

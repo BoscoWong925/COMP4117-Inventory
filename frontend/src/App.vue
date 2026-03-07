@@ -101,6 +101,9 @@ import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
 import HomePage from './pages/HomePage.vue'
 import ApiStatusPage from './pages/ApiStatusPage.vue'
+import MyItemsPage from './pages/MyItemsPage.vue'
+import ManageAccountsPage from './pages/ManageAccountsPage.vue'
+import TeacherRequestsPage from './pages/TeacherRequestsPage.vue'
 import NotificationBadge from './components/NotificationBadge.vue'
 
 // SVG icon factory (Lucide-style)
@@ -118,6 +121,9 @@ const NAV_ICONS = {
   search: svgIcon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
   guidelines: svgIcon('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
   apiStatus: svgIcon('<circle cx="12" cy="12" r="1"/><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9" fill="none"/>'),
+  myItems: svgIcon('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'),
+  accounts: svgIcon('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  teacherRequests: svgIcon('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="m9 14 2 2 4-4"/>'),
 }
 
 export default {
@@ -134,6 +140,9 @@ export default {
     HandOverToolPage,
     HomePage,
     ApiStatusPage,
+    MyItemsPage,
+    ManageAccountsPage,
+    TeacherRequestsPage,
     NotificationBadge,
   },
   setup() {
@@ -152,7 +161,17 @@ export default {
       const items = [
         { page: 'home', label: 'Dashboard', icon: NAV_ICONS.home },
       ]
-      if (user.value?.role === 'admin' || user.value?.role === 'operator') {
+      if (user.value?.role === 'admin') {
+        items.push(
+          { page: 'approve-requests', label: 'Requests', icon: NAV_ICONS.requests },
+          { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+          { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
+          { page: 'lent-out-filter', label: 'Checked out', icon: NAV_ICONS.checkedOut },
+          { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
+          { page: 'manage-accounts', label: 'Accounts', icon: NAV_ICONS.accounts },
+          { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
+        )
+      } else if (user.value?.role === 'operator') {
         items.push(
           { page: 'approve-requests', label: 'Requests', icon: NAV_ICONS.requests },
           { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
@@ -161,12 +180,20 @@ export default {
           { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
           { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
         )
-      }
-      if (user.value?.role === 'user') {
+      } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         items.push(
           { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
           { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
           { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
+          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
+          { page: 'teacher-requests', label: 'Item requests', icon: NAV_ICONS.teacherRequests },
+        )
+      } else if (user.value?.role === 'user') {
+        items.push(
+          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
+          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
+          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
+          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
         )
       }
       return items
@@ -229,6 +256,12 @@ export default {
           return SearchAvailableItemsPage
         case 'hand-over-tool':
           return HandOverToolPage
+        case 'my-items':
+          return MyItemsPage
+        case 'manage-accounts':
+          return ManageAccountsPage
+        case 'teacher-requests':
+          return TeacherRequestsPage
         case 'api-status':
           return ApiStatusPage
         default:

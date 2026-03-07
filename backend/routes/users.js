@@ -14,9 +14,14 @@ router.use(authenticate);
 router.get('/', authorize('admin', 'operator'), userController.getAllUsers);
 
 /**
- * POST /api/users - Create new user (admin only)
+ * POST /api/users - Create new user (admin only — can create operator, teacher, student)
  */
 router.post('/', authorize('admin'), userController.createUser);
+
+/**
+ * GET /api/users/teachers - Get all teachers (for owner selection)
+ */
+router.get('/teachers', userController.getTeachers);
 
 /**
  * GET /api/users/search/:query - Search users (admin/operator)

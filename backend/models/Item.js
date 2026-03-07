@@ -125,6 +125,15 @@ const itemSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  owner: {
+    type: String,
+    default: 'department',
+    trim: true
+  },
+  canBorrow: {
+    type: Boolean,
+    default: true
+  },
   invoiceFile: {
     filename: String,
     mimetype: String,
@@ -153,5 +162,7 @@ itemSchema.index({ warrantyEnd: 1 });
 itemSchema.index({ lastUpdate: -1 });
 itemSchema.index({ vendor: 1 });
 itemSchema.index({ supplier: 1 });
+itemSchema.index({ owner: 1 });
+itemSchema.index({ canBorrow: 1 });
 
 module.exports = mongoose.model('Item', itemSchema);

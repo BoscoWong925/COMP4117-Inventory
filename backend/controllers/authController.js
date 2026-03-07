@@ -60,6 +60,7 @@ exports.login = catchAsync(async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      subRole: user.subRole || 'student',
       department: user.department,
       username: user.username,
       isActive: user.isActive
@@ -93,6 +94,7 @@ exports.getMe = catchAsync(async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      subRole: user.subRole || 'student',
       department: user.department,
       username: user.username,
       isActive: user.isActive

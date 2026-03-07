@@ -75,21 +75,28 @@ exports.getAllItems = catchAsync(async (req, res) => {
  * Get only available items (for regular users).
  */
 exports.getAvailableItems = catchAsync(async (req, res) => {
-  const { search, category, location, page = 1, pageSize = 10 } = req.query;
+  const { search, category, location, owner, page = 1, pageSize = 10 } = req.query;
 
-  const filter = { status: 'Available' };
+  const filter = { status: 'Available', canBorrow: true };
+
+  // Exclude child items (items with motherID that are not the mother themselves)
+  // Only mother items or standalone items can be borrowed
+  filter.$and = [{ $or: [{ motherID: null }, { motherID: '' }, { fixedComponents: { $exists: true, $not: { $size: 0 } } }] }];
 
   if (category) filter.category = category;
   if (location) filter.location = location;
+  if (owner) filter.owner = owner;
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');
-    filter.$or = [
-      { itemId: searchRegex },
-      { name: searchRegex },
-      { universityID: searchRegex },
-      { description: searchRegex }
-    ];
+    filter.$and.push({
+      $or: [
+        { itemId: searchRegex },
+        { name: searchRegex },
+        { universityID: searchRegex },
+        { description: searchRegex }
+      ]
+    });
   }
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
@@ -210,6 +217,23 @@ exports.createItem = catchAsync(async (req, res) => {
     itemId,
     lastUpdate: new Date().toISOString().split('T')[0]
   };
+
+  // Handle owner field - default to 'department'
+  if (!itemData.owner) {
+    itemData.owner = 'department';
+  }
+
+  // Handle canBorrow field - default to true
+  if (itemData.canBorrow === undefined) {
+    itemData.canBorrow = true;
+  } else {
+    itemData.canBorrow = itemData.canBorrow === 'true' || itemData.canBorrow === true;
+  }
+
+  // If item has a motherID and is a child, it cannot be borrowed independently
+  if (itemData.motherID && !itemData.fixedComponents?.length) {
+    itemData.canBorrow = false;
+  }
 
   // Handle fixedComponents — parse if string
   if (typeof itemData.fixedComponents === 'string') {
@@ -412,4 +436,52 @@ exports.getInvoice = catchAsync(async (req, res, next) => {
   }
 
   res.download(filePath, item.invoiceFile.filename);
+});
+
+/**
+ * GET /api/items/by-owner/:ownerId
+ * Get items owned by a specific user or department.
+ */
+exports.getItemsByOwner = catchAsync(async (req, res) => {
+  const { search, page = 1, pageSize = 100 } = req.query;
+  const ownerId = req.params.ownerId;
+
+  const filter = { owner: ownerId };
+
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    filter.$or = [
+      { itemId: searchRegex },
+      { name: searchRegex },
+      { universityID: searchRegex },
+      { description: searchRegex }
+    ];
+  }
+
+  const skip = (parseInt(page) - 1) * parseInt(pageSize);
+  const total = await Item.countDocuments(filter);
+  const items = await Item.find(filter)
+    .sort({ itemId: 1 })
+    .skip(skip)
+    .limit(parseInt(pageSize));
+
+  res.status(200).json({
+    success: true,
+    items,
+    total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize)
+  });
+});
+
+/**
+ * GET /api/items/owners
+ * Get list of distinct item owners.
+ */
+exports.getItemOwners = catchAsync(async (req, res) => {
+  const owners = await Item.distinct('owner');
+  res.status(200).json({
+    success: true,
+    owners
+  });
 });

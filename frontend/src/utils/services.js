@@ -115,6 +115,16 @@ export const inventoryService = {
     return (data.items || []).map(item => ({ ...item, id: item.itemId }));
   },
 
+  getItemsByOwner: async (ownerId) => {
+    const data = await apiRequest(`/items/by-owner/${encodeURIComponent(ownerId)}?pageSize=100`);
+    return (data.items || []).map(item => ({ ...item, id: item.itemId }));
+  },
+
+  getItemOwners: async () => {
+    const data = await apiRequest('/items/owners');
+    return data.owners || [];
+  },
+
   getItemsByVendor: async (vendor) => {
     const data = await apiRequest(`/items?supplier=${encodeURIComponent(vendor)}&pageSize=100`);
     return (data.items || []).map(item => ({ ...item, id: item.itemId }));
@@ -276,6 +286,17 @@ export const borrowingService = {
       body: JSON.stringify({ declaredReturnDate })
     });
     return data.request;
+  },
+
+  getTeacherPendingRequests: async () => {
+    const data = await apiRequest('/borrow-requests/teacher-pending');
+    return data.requests || [];
+  },
+
+  getTeacherRequestHistory: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const data = await apiRequest(`/borrow-requests/teacher-history?${query}`);
+    return data.requests || [];
   }
 };
 
@@ -317,6 +338,14 @@ export const auditService = {
     const query = new URLSearchParams(params).toString();
     const data = await apiRequest(`/audit-logs?${query}`);
     return data.logs || [];
+  },
+
+  deleteLogs: async (logIds) => {
+    const data = await apiRequest('/audit-logs', {
+      method: 'DELETE',
+      body: JSON.stringify({ logIds })
+    });
+    return data;
   }
 };
 
@@ -329,6 +358,51 @@ export const userService = {
     } catch {
       return null;
     }
+  },
+
+  getAllUsers: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const data = await apiRequest(`/users?${query}`);
+    return { users: data.users || [], total: data.total || 0 };
+  },
+
+  createUser: async (userData) => {
+    const data = await apiRequest('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+    return data.user;
+  },
+
+  updateUser: async (id, updateData) => {
+    const data = await apiRequest(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData)
+    });
+    return data.user;
+  },
+
+  deleteUser: async (id) => {
+    const data = await apiRequest(`/users/${id}`, { method: 'DELETE' });
+    return data.success;
+  },
+
+  toggleUserStatus: async (id, isActive) => {
+    const data = await apiRequest(`/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ isActive })
+    });
+    return data.user;
+  },
+
+  getTeachers: async () => {
+    const data = await apiRequest('/users/teachers');
+    return data.users || [];
+  },
+
+  searchUsers: async (query) => {
+    const data = await apiRequest(`/users/search/${encodeURIComponent(query)}`);
+    return data.users || [];
   }
 };
 

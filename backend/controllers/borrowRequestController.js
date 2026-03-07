@@ -295,6 +295,14 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
     return next(ApiError.badRequest(`Request is already ${request.status}`));
   }
 
+  // Teachers can only approve requests for items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    const item = await Item.findOne({ itemId: request.itemID });
+    if (!item || item.owner !== req.user.userId) {
+      return next(ApiError.forbidden('You can only approve requests for items you own'));
+    }
+  }
+
   // Update parent request
   request.status = 'Approved';
   request.approvalDate = new Date();
@@ -364,6 +372,14 @@ exports.rejectRequest = catchAsync(async (req, res, next) => {
 
   if (request.status !== 'Pending') {
     return next(ApiError.badRequest(`Request is already ${request.status}`));
+  }
+
+  // Teachers can only reject requests for items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    const item = await Item.findOne({ itemId: request.itemID });
+    if (!item || item.owner !== req.user.userId) {
+      return next(ApiError.forbidden('You can only reject requests for items you own'));
+    }
   }
 
   request.status = 'Rejected';
@@ -565,5 +581,75 @@ exports.uploadAttachments = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     files: newAttachments
+  });
+});
+
+/**
+ * GET /api/borrow-requests/teacher-pending
+ * Get pending requests for items owned by the current teacher.
+ */
+exports.getTeacherPendingRequests = catchAsync(async (req, res) => {
+  // Find items owned by this teacher
+  const ownedItems = await Item.find({ owner: req.user.userId });
+  const ownedItemIds = ownedItems.map(i => i.itemId);
+
+  if (ownedItemIds.length === 0) {
+    return res.status(200).json({ success: true, requests: [], total: 0 });
+  }
+
+  const requests = await BorrowRequest.find({
+    itemID: { $in: ownedItemIds },
+    status: 'Pending'
+  }).sort({ requestDate: -1 });
+
+  const populated = await populateRequests(requests);
+
+  res.status(200).json({
+    success: true,
+    requests: populated,
+    total: requests.length
+  });
+});
+
+/**
+ * GET /api/borrow-requests/teacher-history
+ * Get request history (approved/rejected/returned) for items owned by the current teacher.
+ */
+exports.getTeacherRequestHistory = catchAsync(async (req, res) => {
+  const { status, page = 1, pageSize = 10, sortBy = 'requestDate', sortDir = 'desc' } = req.query;
+
+  // Find items owned by this teacher
+  const ownedItems = await Item.find({ owner: req.user.userId });
+  const ownedItemIds = ownedItems.map(i => i.itemId);
+
+  if (ownedItemIds.length === 0) {
+    return res.status(200).json({ success: true, requests: [], total: 0, page: 1, pageSize: parseInt(pageSize) });
+  }
+
+  const filter = { itemID: { $in: ownedItemIds } };
+  if (status) {
+    filter.status = status;
+  } else {
+    filter.status = { $in: ['Approved', 'Rejected', 'Returned'] };
+  }
+
+  const sort = {};
+  sort[sortBy] = sortDir === 'desc' ? -1 : 1;
+
+  const skip = (parseInt(page) - 1) * parseInt(pageSize);
+  const total = await BorrowRequest.countDocuments(filter);
+  const requests = await BorrowRequest.find(filter)
+    .sort(sort)
+    .skip(skip)
+    .limit(parseInt(pageSize));
+
+  const populated = await populateRequests(requests);
+
+  res.status(200).json({
+    success: true,
+    requests: populated,
+    total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize)
   });
 });

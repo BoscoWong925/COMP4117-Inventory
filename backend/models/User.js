@@ -39,6 +39,11 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'operator', 'user'],
     default: 'user'
   },
+  subRole: {
+    type: String,
+    enum: ['teacher', 'student'],
+    default: 'student'
+  },
   department: {
     type: String,
     required: true,

@@ -10,17 +10,19 @@ router.use(authenticate);
 // Static routes (defined before parameterized routes)
 router.get('/pending', authorize('admin', 'operator'), borrowRequestController.getPendingRequests);
 router.get('/my', borrowRequestController.getMyRequests);
+router.get('/teacher-pending', borrowRequestController.getTeacherPendingRequests);
+router.get('/teacher-history', borrowRequestController.getTeacherRequestHistory);
 
 // Admin/operator: get all requests
 router.get('/', authorize('admin', 'operator'), borrowRequestController.getAllRequests);
 
-// User: create request (with optional file attachments)
-router.post('/', authorize('user'), upload.array('attachments', 10), borrowRequestController.createRequest);
+// Any authenticated user can create request (teacher and student)
+router.post('/', upload.array('attachments', 10), borrowRequestController.createRequest);
 
 // Parameterized routes
 router.get('/:id', borrowRequestController.getRequestById);
-router.put('/:id/approve', authorize('admin', 'operator'), borrowRequestController.approveRequest);
-router.put('/:id/reject', authorize('admin', 'operator'), borrowRequestController.rejectRequest);
+router.put('/:id/approve', borrowRequestController.approveRequest);
+router.put('/:id/reject', borrowRequestController.rejectRequest);
 router.put('/:id/declare-return', borrowRequestController.declareReturnDate);
 router.put('/:id/return', borrowRequestController.returnRequest);
 router.post('/:id/attachments', upload.array('attachments', 10), borrowRequestController.uploadAttachments);
