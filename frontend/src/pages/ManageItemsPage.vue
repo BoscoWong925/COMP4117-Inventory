@@ -104,6 +104,26 @@
             <label class="filter-label">Description</label>
             <input v-model="searchFilters.description" type="text" class="form-input text-sm" placeholder="Search description..." />
           </div>
+          <!-- Attachment Filter -->
+          <div>
+            <label class="filter-label">Attachment</label>
+            <select v-model="searchFilters.attachment" class="form-select text-sm">
+              <option value="">All</option>
+              <option value="has_photo">Has Photo</option>
+              <option value="has_pdf">Has PDF</option>
+              <option value="none">No Attachments</option>
+            </select>
+          </div>
+          <!-- Items Per Page -->
+          <div>
+            <label class="filter-label">Items Per Page</label>
+            <select v-model="selectedPageSize" class="form-select text-sm">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -172,8 +192,8 @@
         </table>
         <PaginationControl
           v-model:currentPage="currentPage"
-          :totalItems="sortedItems.length"
-          :pageSize="pageSize"
+          :totalItems="totalItems"
+          :pageSize="selectedPageSize"
         />
       </div>
 
@@ -535,6 +555,7 @@ import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService } from '../utils/services'
+import { apiRequest } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel, ITEM_STATUSES, normalizeItemStatus, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
@@ -606,6 +627,8 @@ export default {
     const invoiceFileData = ref(null)
     const currentPage = ref(1)
     const pageSize = 10
+    const selectedPageSize = ref(10)
+    const totalItems = ref(0)
     const showDeleteBlock = ref(false)
     const sortField = ref('')
     const sortDir = ref('asc')
@@ -619,7 +642,7 @@ export default {
     const searchFilters = ref({
       id: '', name: '', type: '', category: '', status: '',
       location: '', vendor: '', supplier: '', universityID: '',
-      warrantyEnd: '', description: ''
+      warrantyEnd: '', description: '', attachment: ''
     })
 
     const uniqueVendors = computed(() => {
@@ -631,14 +654,31 @@ export default {
       searchFilters.value = {
         id: '', name: '', type: '', category: '', status: '',
         location: '', vendor: '', supplier: '', universityID: '',
-        warrantyEnd: '', description: ''
+        warrantyEnd: '', description: '', attachment: ''
       }
     }
 
     // Watch filters to reset page
     watch(searchFilters, () => {
       currentPage.value = 1
+      loadItems()
     }, { deep: true })
+
+    // Watch pageSize change
+    watch(selectedPageSize, () => {
+      currentPage.value = 1
+      loadItems()
+    })
+
+    // Watch page change
+    watch(currentPage, () => {
+      loadItems()
+    })
+
+    // Watch sort changes
+    watch([sortField, sortDir], () => {
+      loadItems()
+    })
 
     const filteredItems = computed(() => {
       let result = items.value
@@ -695,8 +735,8 @@ export default {
     })
 
     const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return sortedItems.value.slice(start, start + pageSize)
+      // With backend pagination, items are already the current page
+      return sortedItems.value
     })
 
     const sortedItems = computed(() => {
@@ -762,8 +802,29 @@ export default {
 
     const loadItems = async () => {
       try {
-        const allItems = await inventoryService.getAllItems({ pageSize: 9999 })
-        items.value = allItems
+        const params = {
+          page: currentPage.value,
+          pageSize: selectedPageSize.value,
+        }
+        const f = searchFilters.value
+        if (f.id) params.search = f.id
+        if (f.name && !f.id) params.search = f.name
+        if (f.type) params.type = f.type
+        if (f.category) params.category = f.category
+        if (f.status) params.status = f.status
+        if (f.location) params.location = f.location
+        if (f.vendor) params.vendor = f.vendor
+        if (f.supplier) params.supplier = f.supplier
+        if (f.warrantyEnd) params.warrantyEnd = f.warrantyEnd
+        if (f.attachment) params.attachment = f.attachment
+        if (sortField.value) {
+          params.sortBy = sortField.value
+          params.sortDir = sortDir.value
+        }
+        const query = new URLSearchParams(params).toString()
+        const data = await apiRequest(`/items?${query}`)
+        items.value = (data.items || []).map(item => ({ ...item, id: item.itemId }))
+        totalItems.value = data.total || 0
       } catch (e) {
         console.error('Failed to load items:', e)
       }
@@ -1347,6 +1408,8 @@ export default {
       statuses,
       currentPage,
       pageSize,
+      selectedPageSize,
+      totalItems,
       paginatedItems,
       sortedItems,
       filteredItems,

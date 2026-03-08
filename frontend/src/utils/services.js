@@ -4,7 +4,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') 
 // ===== HTTP Helper =====
 const getToken = () => sessionStorage.getItem('token');
 
-const apiRequest = async (endpoint, options = {}) => {
+export const apiRequest = async (endpoint, options = {}) => {
   const token = getToken();
   const headers = { ...options.headers };
 
@@ -344,6 +344,14 @@ export const auditService = {
     const data = await apiRequest('/audit-logs', {
       method: 'DELETE',
       body: JSON.stringify({ logIds })
+    });
+    return data;
+  },
+
+  deleteLogsByTimeRange: async (timeRange) => {
+    const data = await apiRequest('/audit-logs/by-time', {
+      method: 'DELETE',
+      body: JSON.stringify({ timeRange })
     });
     return data;
   }

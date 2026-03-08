@@ -27,7 +27,7 @@ exports.getAllItems = catchAsync(async (req, res) => {
   const {
     status, type, category, location, vendor, supplier,
     search, warrantyEnd, page = 1, pageSize = 10,
-    sortBy = 'itemId', sortDir = 'asc'
+    sortBy = 'itemId', sortDir = 'asc', attachment
   } = req.query;
 
   const filter = {};
@@ -39,6 +39,16 @@ exports.getAllItems = catchAsync(async (req, res) => {
   if (vendor) filter.vendor = vendor;
   if (supplier) filter.supplier = supplier;
   if (warrantyEnd) filter.warrantyEnd = { $lte: warrantyEnd };
+
+  // Attachment / media filter
+  if (attachment === 'has_photo') {
+    filter['invoiceFile.mimetype'] = { $regex: /^image\//i };
+  } else if (attachment === 'has_pdf') {
+    filter['invoiceFile.mimetype'] = 'application/pdf';
+  } else if (attachment === 'none') {
+    // Match items where invoiceFile.filename is missing, null, or empty
+    filter['invoiceFile.filename'] = { $in: [null, ''] };
+  }
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');

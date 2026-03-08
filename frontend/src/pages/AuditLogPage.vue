@@ -7,8 +7,67 @@
           {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
         </button>
         <button @click="exportLogs" class="btn">Export to Excel</button>
+        <button v-if="isAdmin" @click="showDeleteModal = true" class="btn btn-outline-danger">Delete</button>
       </div>
     </div>
+
+    <!-- ===== Chrome-style Delete Modal ===== -->
+    <teleport to="body">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,0.5)">
+        <div class="rounded-xl shadow-2xl w-full max-w-md mx-4" style="background:var(--modal-bg);border:1px solid var(--filter-border)">
+          <!-- Header -->
+          <div class="px-6 pt-6 pb-2">
+            <h3 class="text-lg font-semibold" style="color:var(--text-primary)">Clear audit log data</h3>
+          </div>
+          <!-- Time Range -->
+          <div class="px-6 py-3">
+            <label class="text-sm font-medium mb-2 block" style="color:var(--text-secondary)">Time range</label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="opt in deleteTimeOptions"
+                :key="opt.value"
+                @click="deleteTimeRange = opt.value"
+                class="px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
+                :style="deleteTimeRange === opt.value
+                  ? 'background:var(--accent);color:#fff;border-color:var(--accent)'
+                  : 'background:var(--filter-bg);border-color:var(--filter-border);color:var(--text-primary)'"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+          <!-- Summary -->
+          <div class="px-6 py-3">
+            <p class="text-sm" style="color:var(--text-secondary)">
+              This will permanently delete all audit log entries
+              <strong>{{ deleteTimeRange === 'all' ? '' : 'from the ' }}{{ deleteTimeOptions.find(o => o.value === deleteTimeRange)?.label.toLowerCase() }}</strong>.
+            </p>
+          </div>
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 px-6 py-4" style="border-top:1px solid var(--filter-border)">
+            <button
+              @click="showDeleteModal = false"
+              class="px-4 py-2 rounded-lg text-sm font-medium border transition-colors"
+              style="border-color:var(--filter-border);color:var(--text-primary)"
+              @mouseenter="$event.target.style.background='var(--row-hover)'"
+              @mouseleave="$event.target.style.background=''"
+            >
+              Cancel
+            </button>
+            <button
+              @click="confirmDeleteLogs"
+              :disabled="deleteInProgress"
+              class="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+              style="background:var(--danger)"
+              @mouseenter="!deleteInProgress && ($event.target.style.background='var(--danger-dark)')"
+              @mouseleave="$event.target.style.background='var(--danger)'"
+            >
+              {{ deleteInProgress ? 'Deleting...' : 'Delete data' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <!-- Filter Panel -->
     <div v-if="showFilters" class="filter-panel">
@@ -112,6 +171,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { auditService } from '../utils/services'
+import { authService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -132,6 +192,24 @@ export default {
     const sortDir = ref('desc')
     const currentPage = ref(1)
     const pageSize = 15
+
+    const isAdmin = computed(() => {
+      const user = authService.getCurrentUser()
+      return user && user.role === 'admin'
+    })
+
+    // Delete modal state
+    const showDeleteModal = ref(false)
+    const deleteInProgress = ref(false)
+    const deleteTimeRange = ref('1hour')
+    const deleteTimeOptions = [
+      { label: 'Past 15 minutes', value: '15min' },
+      { label: 'Past 1 hour', value: '1hour' },
+      { label: 'Past 24 hours', value: '24hours' },
+      { label: 'Past 7 days', value: '7days' },
+      { label: 'Past 4 weeks', value: '4weeks' },
+      { label: 'All time', value: 'all' }
+    ]
 
     // Action categories for grouping
     const actionCategories = [
@@ -288,6 +366,21 @@ export default {
       exportToExcel(exportData, 'audit_logs.xlsx')
     }
 
+    const confirmDeleteLogs = async () => {
+      deleteInProgress.value = true
+      try {
+        const result = await auditService.deleteLogsByTimeRange(deleteTimeRange.value)
+        showDeleteModal.value = false
+        alert(`Successfully deleted ${result.deletedCount} log entries.`)
+        await loadLogs()
+      } catch (e) {
+        console.error('Failed to delete logs:', e)
+        alert('Failed to delete logs: ' + e.message)
+      } finally {
+        deleteInProgress.value = false
+      }
+    }
+
     onMounted(() => {
       loadLogs()
     })
@@ -311,6 +404,12 @@ export default {
       getActionColor,
       exportLogs,
       formatDateTime,
+      showDeleteModal,
+      deleteInProgress,
+      deleteTimeRange,
+      deleteTimeOptions,
+      confirmDeleteLogs,
+      isAdmin,
     }
   }
 }
