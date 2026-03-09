@@ -220,8 +220,10 @@ export default {
     const handleLogin = async (username, password) => {
       const ok = await login(username, password)
       if (ok) {
-        refreshPendingCount()
-        if (!pollTimer) pollTimer = setInterval(refreshPendingCount, 5000)
+        if (user.value?.role !== 'user') {
+          refreshPendingCount()
+          if (!pollTimer) pollTimer = setInterval(refreshPendingCount, 5000)
+        }
         // Check for overdue borrows for user role
         if (user.value?.role === 'user') {
           try {

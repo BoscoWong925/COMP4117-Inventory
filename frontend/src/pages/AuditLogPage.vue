@@ -100,10 +100,11 @@
 
     <!-- Results Summary -->
     <p class="results-summary">
-      Showing {{ paginatedLogs.length }} of {{ filteredLogs.length }} log entries
+      Showing {{ logs.length }} of {{ totalLogs }} log entries
+      <span v-if="loading" class="ml-2 text-xs opacity-60">(loading...)</span>
     </p>
 
-    <div v-if="filteredLogs.length === 0" class="empty-state">
+    <div v-if="logs.length === 0 && !loading" class="empty-state">
       No logs found
     </div>
     <div v-else class="overflow-x-auto">
@@ -145,7 +146,7 @@
       </table>
       <PaginationControl
         v-model:currentPage="currentPage"
-        :totalItems="filteredLogs.length"
+        :totalItems="totalLogs"
         :pageSize="pageSize"
       />
     </div>
@@ -174,6 +175,8 @@ export default {
   components: { PaginationControl },
   setup() {
     const logs = ref([])
+    const totalLogs = ref(0)
+    const loading = ref(false)
     const selectedAction = ref('All')
     const searchText = ref('')
     const showFilters = ref(false)
@@ -256,17 +259,63 @@ export default {
       { label: 'Item Changes', actions: ['ITEM_ADDED', 'ITEM_DELETED', 'ITEM_STATUS_CHANGE', 'INVENTORY_ITEM_ADDED'], activeClass: 'pill-active' }
     ]
 
-    // Reset page on any filter change
-    watch([searchText, selectedAction, selectedTimeRange, filters], () => {
-      currentPage.value = 1
-    }, { deep: true })
+    // Debounce timer for text inputs
+    let debounceTimer = null
 
+    // Load logs from database with all current filters
     const loadLogs = async () => {
+      loading.value = true
       try {
-        const allLogs = await auditService.getAllLogs()
-        logs.value = allLogs
+        const params = {
+          page: currentPage.value,
+          pageSize: pageSize,
+          sortField: sortField.value,
+          sortDir: sortDir.value
+        }
+
+        // Time range filter
+        if (selectedTimeRange.value !== 'all') {
+          params.timeRange = selectedTimeRange.value
+        }
+
+        // Action category filter
+        if (selectedAction.value !== 'All') {
+          const cat = actionCategories.find(c => c.label === selectedAction.value)
+          if (cat) {
+            params.actions = cat.actions.join(',')
+          }
+        }
+
+        // Text search
+        if (searchText.value) {
+          params.search = searchText.value
+        }
+
+        // User ID filter
+        if (filters.value.userID) {
+          params.userID = filters.value.userID
+        }
+
+        // Item ID filter
+        if (filters.value.itemID) {
+          params.itemID = filters.value.itemID
+        }
+
+        // Date range filters
+        if (filters.value.dateFrom) {
+          params.dateFrom = filters.value.dateFrom
+        }
+        if (filters.value.dateTo) {
+          params.dateTo = filters.value.dateTo
+        }
+
+        const result = await auditService.getAllLogs(params)
+        logs.value = result.logs
+        totalLogs.value = result.total
       } catch (e) {
         console.error('Failed to load logs:', e)
+      } finally {
+        loading.value = false
       }
     }
 
@@ -275,91 +324,44 @@ export default {
       selectedAction.value = 'All'
       selectedTimeRange.value = 'all'
       filters.value = { userID: '', itemID: '', dateFrom: '', dateTo: '' }
+      currentPage.value = 1
+    }
+
+    // Load category counts from DB (separate lightweight queries)
+    const categoryCounts = ref({})
+    const loadCategoryCounts = async () => {
+      for (const cat of actionCategories) {
+        try {
+          const result = await auditService.getAllLogs({ actions: cat.actions.join(','), pageSize: 1 })
+          categoryCounts.value[cat.label] = result.total
+        } catch (e) {
+          categoryCounts.value[cat.label] = 0
+        }
+      }
     }
 
     const getCategoryCount = (cat) => {
-      return logs.value.filter(l => cat.actions.includes(l.action)).length
+      return categoryCounts.value[cat.label] ?? '...'
     }
 
-    const filteredLogs = computed(() => {
-      let result = [...logs.value]
-
-      // Action category filter
-      if (selectedAction.value === 'All') {
-        // Show all records
-      } else {
-        const cat = actionCategories.find(c => c.label === selectedAction.value)
-        if (cat) {
-          result = result.filter(l => cat.actions.includes(l.action))
-        }
-      }
-
-      // Time range filter
-      if (selectedTimeRange.value !== 'all') {
-        const now = Date.now()
-        const rangeMs = {
-          '15m': 15 * 60 * 1000,
-          '1h': 60 * 60 * 1000,
-          '24h': 24 * 60 * 60 * 1000,
-          '7d': 7 * 24 * 60 * 60 * 1000,
-          '4w': 28 * 24 * 60 * 60 * 1000,
-          '6M': 183 * 24 * 60 * 60 * 1000,
-          '1y': 365 * 24 * 60 * 60 * 1000,
-          '2y': 730 * 24 * 60 * 60 * 1000
-        }
-        const cutoff = now - (rangeMs[selectedTimeRange.value] || 0)
-        result = result.filter(l => new Date(l.timestamp).getTime() >= cutoff)
-      }
-
-      // Text search
-      if (searchText.value) {
-        const q = searchText.value.toLowerCase()
-        result = result.filter(l =>
-          (l.userID || '').toLowerCase().includes(q) ||
-          (l.details || '').toLowerCase().includes(q) ||
-          (l.affectedItemID || '').toLowerCase().includes(q) ||
-          (l.action || '').toLowerCase().includes(q)
-        )
-      }
-
-      // User ID filter
-      if (filters.value.userID) {
-        const q = filters.value.userID.toLowerCase()
-        result = result.filter(l => (l.userID || '').toLowerCase().includes(q))
-      }
-
-      // Item ID filter
-      if (filters.value.itemID) {
-        const q = filters.value.itemID.toLowerCase()
-        result = result.filter(l => (l.affectedItemID || '').toLowerCase().includes(q))
-      }
-
-      // Date range filter
-      if (filters.value.dateFrom) {
-        const from = new Date(filters.value.dateFrom)
-        result = result.filter(l => new Date(l.timestamp) >= from)
-      }
-      if (filters.value.dateTo) {
-        const to = new Date(filters.value.dateTo)
-        to.setHours(23, 59, 59, 999)
-        result = result.filter(l => new Date(l.timestamp) <= to)
-      }
-
-      // Sort
-      result.sort((a, b) => {
-        const aVal = a[sortField.value] || ''
-        const bVal = b[sortField.value] || ''
-        if (sortDir.value === 'asc') return aVal < bVal ? -1 : aVal > bVal ? 1 : 0
-        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0
-      })
-
-      return result
-    })
-
     const paginatedLogs = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredLogs.value.slice(start, start + pageSize)
+      // Server already paginates, so just return logs directly
+      return logs.value
     })
+
+    // Watch all filters and reload from DB
+    watch([selectedAction, selectedTimeRange, currentPage, sortField, sortDir], () => {
+      loadLogs()
+    })
+
+    // Debounced watch for text inputs
+    watch([searchText, filters], () => {
+      currentPage.value = 1
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        loadLogs()
+      }, 400)
+    }, { deep: true })
 
     const toggleSort = (field) => {
       if (sortField.value === field) {
@@ -436,25 +438,46 @@ export default {
       }
     }
 
-    const exportLogs = () => {
-      const exportData = filteredLogs.value.map(l => ({
-        Timestamp: formatDateTime(l.timestamp),
-        User: l.userID,
-        Action: formatAction(l.action),
-        Details: l.details,
-        'Item ID': l.affectedItemID || '',
-        'Old Value': l.oldValue || '',
-        'New Value': l.newValue || ''
-      }))
-      exportToExcel(exportData, 'audit_logs.xlsx')
+    const exportLogs = async () => {
+      try {
+        // Fetch all matching logs (no pagination) for export
+        const params = { pageSize: 10000 }
+        if (selectedTimeRange.value !== 'all') params.timeRange = selectedTimeRange.value
+        if (selectedAction.value !== 'All') {
+          const cat = actionCategories.find(c => c.label === selectedAction.value)
+          if (cat) params.actions = cat.actions.join(',')
+        }
+        if (searchText.value) params.search = searchText.value
+        if (filters.value.userID) params.userID = filters.value.userID
+        if (filters.value.itemID) params.itemID = filters.value.itemID
+        if (filters.value.dateFrom) params.dateFrom = filters.value.dateFrom
+        if (filters.value.dateTo) params.dateTo = filters.value.dateTo
+        const result = await auditService.getAllLogs(params)
+        const exportData = (result.logs || []).map(l => ({
+          Timestamp: formatDateTime(l.timestamp),
+          User: l.userID,
+          Action: formatAction(l.action),
+          Details: l.details,
+          'Item ID': l.affectedItemID || '',
+          'Old Value': l.oldValue || '',
+          'New Value': l.newValue || ''
+        }))
+        exportToExcel(exportData, 'audit_logs.xlsx')
+      } catch (e) {
+        console.error('Failed to export logs:', e)
+        alert('Failed to export logs: ' + e.message)
+      }
     }
 
     onMounted(() => {
       loadLogs()
+      loadCategoryCounts()
     })
 
     return {
       logs,
+      totalLogs,
+      loading,
       selectedAction,
       searchText,
       showFilters,
@@ -462,7 +485,6 @@ export default {
       currentPage,
       pageSize,
       actionCategories,
-      filteredLogs,
       paginatedLogs,
       clearAllFilters,
       getCategoryCount,

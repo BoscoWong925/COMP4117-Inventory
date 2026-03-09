@@ -95,14 +95,25 @@ exports.getAllRequests = catchAsync(async (req, res) => {
   let searchFilter = null;
   if (search) {
     const searchRegex = new RegExp(search, 'i');
-    // Search in request fields
-    searchFilter = {
-      $or: [
-        { requestId: searchRegex },
-        { borrowerID: searchRegex },
-        { itemID: searchRegex }
-      ]
-    };
+    // Also search by item name: find matching item IDs first
+    const matchingItems = await Item.find({ name: searchRegex }).select('itemId').lean();
+    const matchingItemIds = matchingItems.map(i => i.itemId);
+    // Also search by borrower name
+    const matchingUsers = await User.find({ name: searchRegex }).select('userId').lean();
+    const matchingUserIds = matchingUsers.map(u => u.userId);
+
+    const orConditions = [
+      { requestId: searchRegex },
+      { borrowerID: searchRegex },
+      { itemID: searchRegex }
+    ];
+    if (matchingItemIds.length > 0) {
+      orConditions.push({ itemID: { $in: matchingItemIds } });
+    }
+    if (matchingUserIds.length > 0) {
+      orConditions.push({ borrowerID: { $in: matchingUserIds } });
+    }
+    searchFilter = { $or: orConditions };
   }
 
   // Combine filters

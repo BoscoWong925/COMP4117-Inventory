@@ -26,7 +26,9 @@ const getNextItemId = async () => {
 exports.getAllItems = catchAsync(async (req, res) => {
   const {
     status, type, category, location, vendor, supplier,
-    search, warrantyEnd, page = 1, pageSize = 10,
+    search, warrantyEnd, warrantyStatus,
+    itemId: qItemId, name: qName, universityID: qUniId, description: qDesc,
+    page = 1, pageSize = 10,
     sortBy = 'itemId', sortDir = 'asc'
   } = req.query;
 
@@ -37,8 +39,26 @@ exports.getAllItems = catchAsync(async (req, res) => {
   if (category) filter.category = category;
   if (location) filter.location = location;
   if (vendor) filter.vendor = vendor;
-  if (supplier) filter.supplier = supplier;
+  if (supplier) filter.supplier = new RegExp(supplier, 'i');
   if (warrantyEnd) filter.warrantyEnd = { $lte: warrantyEnd };
+
+  // Per-field text searches (regex)
+  if (qItemId) filter.itemId = new RegExp(qItemId, 'i');
+  if (qName) filter.name = new RegExp(qName, 'i');
+  if (qUniId) filter.universityID = new RegExp(qUniId, 'i');
+  if (qDesc) filter.description = new RegExp(qDesc, 'i');
+
+  // Warranty status filter
+  if (warrantyStatus === 'expired') {
+    filter.warrantyEnd = { $lt: new Date().toISOString().split('T')[0] };
+  } else if (warrantyStatus === 'expiring-soon') {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    filter.warrantyEnd = {
+      $gte: now.toISOString().split('T')[0],
+      $lte: soon.toISOString().split('T')[0]
+    };
+  }
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');

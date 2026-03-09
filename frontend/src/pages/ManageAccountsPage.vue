@@ -63,10 +63,10 @@
       </div>
 
       <p class="results-summary">
-        Showing {{ paginatedUsers.length }} of {{ filteredUsers.length }} accounts
+        Showing {{ users.length }} of {{ totalUsers }} accounts
       </p>
 
-      <div v-if="filteredUsers.length === 0" class="empty-state">No accounts found</div>
+      <div v-if="users.length === 0" class="empty-state">No accounts found</div>
       <div v-else class="overflow-x-auto">
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
@@ -82,7 +82,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in paginatedUsers" :key="u.userId">
+            <tr v-for="u in users" :key="u.userId">
               <td class="border p-2 text-sm font-semibold">{{ u.userId }}</td>
               <td class="border p-2 text-sm">{{ u.name }}</td>
               <td class="border p-2 text-sm">{{ u.username }}</td>
@@ -114,7 +114,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredUsers.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="totalUsers" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -203,7 +203,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { userService } from '../utils/services'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -221,15 +221,15 @@ export default {
     const filterStatus = ref('')
     const currentPage = ref(1)
     const pageSize = 15
+    const totalUsers = ref(0)
     const message = ref('')
     const messageSuccess = ref(true)
+    let searchDebounceTimer = null
 
     const formData = ref({
       userId: '', name: '', username: '', email: '',
       displayRole: 'student', department: '', password: ''
     })
-
-    watch([searchText, filterRole, filterStatus], () => { currentPage.value = 1 })
 
     const getDisplayRole = (u) => {
       if (u.role === 'admin') return 'Admin'
@@ -245,47 +245,38 @@ export default {
       return 'action-badge action-badge-success'
     }
 
-    const filteredUsers = computed(() => {
-      let result = users.value
-      if (searchText.value) {
-        const q = searchText.value.toLowerCase()
-        result = result.filter(u =>
-          (u.name || '').toLowerCase().includes(q) ||
-          (u.userId || '').toLowerCase().includes(q) ||
-          (u.username || '').toLowerCase().includes(q) ||
-          (u.email || '').toLowerCase().includes(q)
-        )
-      }
-      if (filterRole.value) {
-        if (filterRole.value === 'teacher') {
-          result = result.filter(u => u.role === 'user' && u.subRole === 'teacher')
-        } else if (filterRole.value === 'student') {
-          result = result.filter(u => u.role === 'user' && (!u.subRole || u.subRole === 'student'))
-        } else {
-          result = result.filter(u => u.role === filterRole.value)
-        }
-      }
-      if (filterStatus.value) {
-        const isActive = filterStatus.value === 'active'
-        result = result.filter(u => isActive ? u.isActive !== false : u.isActive === false)
-      }
-      return result
-    })
-
-    const paginatedUsers = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredUsers.value.slice(start, start + pageSize)
-    })
-
     const loadUsers = async () => {
       try {
-        const data = await userService.getAllUsers({ pageSize: 1000 })
+        const params = {
+          page: currentPage.value,
+          pageSize,
+        }
+        if (filterRole.value) params.displayRole = filterRole.value
+        if (filterStatus.value) params.isActive = filterStatus.value === 'active' ? 'true' : 'false'
+        if (searchText.value) params.search = searchText.value
+
+        const data = await userService.getAllUsers(params)
         users.value = data.users || []
+        totalUsers.value = data.total || 0
       } catch (e) {
         console.error('Failed to load users:', e)
         showMessage('Failed to load accounts', false)
       }
     }
+
+    // Watch dropdown filters and pagination -> reload immediately
+    watch([filterRole, filterStatus, currentPage], () => {
+      loadUsers()
+    })
+
+    // Debounced watcher for search text
+    watch(searchText, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadUsers()
+      }, 400)
+    })
 
     const clearFilters = () => {
       searchText.value = ''
@@ -409,8 +400,7 @@ export default {
     return {
       users, showForm, editingUser, showDeleteModal, deleteTarget,
       showPassword, searchText, filterRole, filterStatus,
-      currentPage, pageSize, message, messageSuccess, formData,
-      filteredUsers, paginatedUsers,
+      currentPage, pageSize, totalUsers, message, messageSuccess, formData,
       getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
       confirmDelete, handleDelete, toggleStatus, loadUsers

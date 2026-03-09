@@ -30,12 +30,12 @@
       </div>
     </div>
 
-    <div v-if="filteredItems.length === 0" class="empty-state">
+    <div v-if="items.length === 0" class="empty-state">
       No items match your search
     </div>
     <div v-else class="space-y-3">
       <div 
-        v-for="item in paginatedItems" 
+        v-for="item in items" 
         :key="item.id" 
         @click="showItemDetail(item)"
         class="theme-card p-4 cursor-pointer"
@@ -79,7 +79,7 @@
         </div>
       </div>
 
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredItems.length" :pageSize="pageSize" />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
     </div>
 
     <!-- Item Detail Modal -->
@@ -164,7 +164,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -173,6 +173,7 @@ export default {
   components: { PaginationControl },
   setup() {
     const items = ref([])
+    const totalItems = ref(0)
     const searchText = ref('')
     const categoryFilter = ref('All')
     const locationFilter = ref('All')
@@ -180,45 +181,49 @@ export default {
     const linkedComponents = ref([])
     const currentPage = ref(1)
     const pageSize = 10
-
-    // Reset to page 1 when filters change
-    watch([searchText, categoryFilter, locationFilter], () => {
-      currentPage.value = 1
-    })
+    const categories = ref(['All'])
+    const locations = ref(['All'])
+    let searchDebounceTimer = null
 
     const loadAvailableItems = async () => {
       try {
-        const available = await inventoryService.getAvailableItems()
-        items.value = available
+        const params = {
+          page: currentPage.value,
+          pageSize,
+        }
+        if (searchText.value) params.search = searchText.value
+        if (categoryFilter.value !== 'All') params.category = categoryFilter.value
+        if (locationFilter.value !== 'All') params.location = locationFilter.value
+
+        const result = await inventoryService.getAvailableItems(params)
+        items.value = result.items
+        totalItems.value = result.total
       } catch (e) {
         console.error('Failed to load available items:', e)
       }
     }
 
-    const categories = computed(() => ['All', ...new Set(items.value.map(i => i.category))])
-    const locations = computed(() => ['All', ...new Set(items.value.map(i => i.location))])
+    // Load unique categories and locations for dropdowns
+    const loadFilterOptions = async () => {
+      try {
+        const result = await inventoryService.getAvailableItems({ pageSize: 9999 })
+        categories.value = ['All', ...new Set(result.items.map(i => i.category))]
+        locations.value = ['All', ...new Set(result.items.map(i => i.location))]
+      } catch (e) { /* ignore */ }
+    }
 
-    const filteredItems = computed(() => {
-      let result = items.value
-      if (searchText.value) {
-        result = result.filter(item =>
-          item.name.toLowerCase().includes(searchText.value.toLowerCase()) ||
-          item.id.toLowerCase().includes(searchText.value.toLowerCase()) ||
-          (item.description && item.description.toLowerCase().includes(searchText.value.toLowerCase()))
-        )
-      }
-      if (categoryFilter.value !== 'All') {
-        result = result.filter(item => item.category === categoryFilter.value)
-      }
-      if (locationFilter.value !== 'All') {
-        result = result.filter(item => item.location === locationFilter.value)
-      }
-      return result
+    // Watch dropdown filters and page -> reload immediately
+    watch([categoryFilter, locationFilter, currentPage], () => {
+      loadAvailableItems()
     })
 
-    const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredItems.value.slice(start, start + pageSize)
+    // Debounced watcher for search text
+    watch(searchText, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadAvailableItems()
+      }, 400)
     })
 
     const showItemDetail = async (item) => {
@@ -239,22 +244,22 @@ export default {
     }
 
     const exportItems = () => {
-      exportToExcel(filteredItems.value, 'available_items.xlsx')
+      exportToExcel(items.value, 'available_items.xlsx')
     }
 
     onMounted(() => {
       loadAvailableItems()
+      loadFilterOptions()
     })
 
     return {
       items,
+      totalItems,
       searchText,
       categoryFilter,
       locationFilter,
       categories,
       locations,
-      filteredItems,
-      paginatedItems,
       currentPage,
       pageSize,
       selectedItem,
