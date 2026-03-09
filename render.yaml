@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: comp4117-inventory-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false          # set manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false          # set manually in Render dashboard
+      - key: FRONTEND_URL
+        sync: false          # set to your GitHub Pages URL
