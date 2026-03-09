@@ -27,6 +27,12 @@
                 </p>
               </div>
               <div>
+                <p class="field-label">Item Owner</p>
+                <span :class="group.parent.itemOwner === 'department' ? 'px-2 py-1 rounded text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'px-2 py-1 rounded text-sm bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'">
+                  {{ getOwnerDisplayName(group.parent.itemOwner) }}
+                </span>
+              </div>
+              <div>
                 <p class="field-label">Status</p>
                 <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(group.parent.status)}`">
                   {{ group.parent.status }}
@@ -229,6 +235,14 @@ export default {
       loadRecords()
     })
 
+    const getOwnerDisplayName = (ownerId) => {
+      if (!ownerId || ownerId === 'department') {
+        return 'Department'
+      }
+      // TODO: fetch teacher name from API if needed
+      return ownerId
+    }
+
     return {
       records,
       groupedRecords,
@@ -245,6 +259,7 @@ export default {
       formatDateTime,
       getStatusColor,
       isRecordOverdue,
+      getOwnerDisplayName,
     }
   }
 }

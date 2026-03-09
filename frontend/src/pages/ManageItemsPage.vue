@@ -134,6 +134,7 @@
               <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('supplier')">
                 Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
               </th>
+              <th class="border p-2 text-left">Ownership</th>
               <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('warrantyEnd')">
                 Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
               </th>
@@ -152,6 +153,11 @@
               </td>
               <td class="border p-2">{{ item.location }}</td>
               <td class="border p-2">{{ item.supplier }}</td>
+              <td class="border p-2">
+                <span :class="item.owner === 'department' ? 'px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'">
+                  {{ getOwnerName(item.owner) }}
+                </span>
+              </td>
               <td class="border p-2">{{ formatDate(item.warrantyEnd) }}</td>
               <td class="border p-2 text-center">
                 <button
@@ -1349,6 +1355,14 @@ export default {
       stopInvoiceCamera()
     })
 
+    const getOwnerName = (ownerId) => {
+      if (!ownerId || ownerId === 'department') {
+        return 'Department'
+      }
+      const teacher = teachers.value.find(t => t.userId === ownerId)
+      return teacher ? teacher.name : ownerId
+    }
+
     return {
       items,
       showForm,
@@ -1410,6 +1424,7 @@ export default {
       normalizeItemStatus,
       activeStatusFilter,
       teachers,
+      getOwnerName,
     }
   }
 }

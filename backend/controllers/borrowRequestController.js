@@ -421,7 +421,7 @@ exports.rejectRequest = catchAsync(async (req, res, next) => {
  * Return an item (cascades to children).
  */
 exports.returnRequest = catchAsync(async (req, res, next) => {
-  const { location } = req.body;
+  const { location, condition, notes } = req.body;
 
   const request = await BorrowRequest.findOne({ requestId: req.params.id });
   if (!request) {
@@ -440,6 +440,8 @@ exports.returnRequest = catchAsync(async (req, res, next) => {
   // Update request
   request.status = 'Returned';
   request.returnedDate = new Date();
+  if (condition) request.condition = condition;
+  if (notes) request.returnNotes = notes;
   await request.save();
 
   // Update item

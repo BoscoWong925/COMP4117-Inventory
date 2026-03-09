@@ -29,10 +29,6 @@
         <p class="text-2xl font-bold" style="color: #f59e0b;">{{ items.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
       </div>
-      <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #8b5cf6;">{{ items.filter(i => i.canBorrow).length }}</p>
-        <p class="text-xs text-muted">Borrowable</p>
-      </div>
     </div>
 
     <div v-if="loading" class="empty-state">Loading items...</div>
@@ -49,7 +45,6 @@
             <th class="border p-2 text-left">Category</th>
             <th class="border p-2 text-left">Status</th>
             <th class="border p-2 text-left">Location</th>
-            <th class="border p-2 text-left">Borrowable</th>
             <th class="border p-2 text-left">Current Borrower</th>
           </tr>
         </thead>
@@ -64,10 +59,6 @@
               </span>
             </td>
             <td class="border p-2 text-sm">{{ item.location || '-' }}</td>
-            <td class="border p-2 text-sm">
-              <span v-if="item.canBorrow" class="text-green-500 font-medium">Yes</span>
-              <span v-else class="text-red-400 font-medium">No</span>
-            </td>
             <td class="border p-2 text-sm">{{ item.currentBorrower || '-' }}</td>
           </tr>
         </tbody>
@@ -89,7 +80,6 @@
           <div><p class="field-label">Category</p><p class="font-medium">{{ selectedItem.category }}</p></div>
           <div><p class="field-label">Status</p><span :class="`px-2 py-1 rounded text-sm ${getStatusColor(selectedItem.status)}`">{{ selectedItem.status }}</span></div>
           <div><p class="field-label">Location</p><p class="font-medium">{{ selectedItem.location || 'N/A' }}</p></div>
-          <div><p class="field-label">Borrowable</p><p class="font-medium">{{ selectedItem.canBorrow ? 'Yes' : 'No' }}</p></div>
           <div><p class="field-label">Current Borrower</p><p class="font-medium">{{ selectedItem.currentBorrower || 'None' }}</p></div>
           <div><p class="field-label">Supplier</p><p class="font-medium">{{ selectedItem.supplier || 'N/A' }}</p></div>
           <div><p class="field-label">Purchase Date</p><p class="font-medium">{{ formatDate(selectedItem.purchaseDate) }}</p></div>

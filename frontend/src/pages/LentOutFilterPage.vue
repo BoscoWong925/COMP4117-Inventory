@@ -79,11 +79,6 @@
           <label class="filter-label">Borrower Name</label>
           <input v-model="searchFilters.borrowerName" type="text" class="form-input text-sm" placeholder="Search borrower..." />
         </div>
-        <!-- Warranty End (date) -->
-        <div>
-          <label class="filter-label">Warranty End</label>
-          <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
-        </div>
         <!-- Year (select - keep for convenience) -->
         <div>
           <label class="filter-label">Year</label>
@@ -119,9 +114,6 @@
             <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('location')">
               Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
-              Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
-            </th>
             <th class="border p-2 text-center">Return</th>
           </tr>
         </thead>
@@ -141,7 +133,6 @@
               <td class="border p-2">{{ getBorrowerName(group.parent.currentBorrower) }}</td>
               <td class="border p-2">{{ group.parent.supplier }}</td>
               <td class="border p-2">{{ group.parent.location }}</td>
-              <td class="border p-2">{{ formatDate(group.parent.warrantyEnd) }}</td>
               <td class="border p-2 text-center">
                 <button
                   @click="handleReturnItem(group.parent)"
@@ -160,7 +151,6 @@
               <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower) }}</td>
               <td class="border p-2 text-sm">{{ child.supplier }}</td>
               <td class="border p-2 text-sm">{{ child.location }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(child.warrantyEnd) }}</td>
               <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
             </tr>
           </template>
@@ -234,7 +224,7 @@ export default {
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
       type: '', borrowerId: '', borrowerName: '',
-      warrantyEnd: '', year: ''
+      year: ''
     })
 
     const uniqueCategories = computed(() => {
@@ -249,7 +239,7 @@ export default {
       searchFilters.value = {
         id: '', name: '', category: '', vendor: '', location: '',
         type: '', borrowerId: '', borrowerName: '',
-        warrantyEnd: '', year: ''
+        year: ''
       }
       vendorFilter.value = ''
       yearFilter.value = ''
@@ -374,9 +364,6 @@ export default {
       if (f.borrowerName) {
         const q = f.borrowerName.toLowerCase()
         result = result.filter(i => getBorrowerName(i.currentBorrower).toLowerCase().includes(q))
-      }
-      if (f.warrantyEnd) {
-        result = result.filter(i => i.warrantyEnd && i.warrantyEnd.startsWith(f.warrantyEnd))
       }
 
       return result

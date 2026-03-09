@@ -101,6 +101,7 @@ import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
 import HomePage from './pages/HomePage.vue'
 import ApiStatusPage from './pages/ApiStatusPage.vue'
+import TeacherCheckoutPage from './pages/TeacherCheckoutPage.vue'
 import MyItemsPage from './pages/MyItemsPage.vue'
 import ManageAccountsPage from './pages/ManageAccountsPage.vue'
 import TeacherRequestsPage from './pages/TeacherRequestsPage.vue'
@@ -140,6 +141,7 @@ export default {
     HandOverToolPage,
     HomePage,
     ApiStatusPage,
+    TeacherCheckoutPage,
     MyItemsPage,
     ManageAccountsPage,
     TeacherRequestsPage,
@@ -187,6 +189,7 @@ export default {
           { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
           { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
           { page: 'teacher-requests', label: 'Item requests', icon: NAV_ICONS.teacherRequests },
+          { page: 'teacher-checkout', label: 'Checkout', icon: NAV_ICONS.checkedOut },
         )
       } else if (user.value?.role === 'user') {
         items.push(
@@ -262,6 +265,8 @@ export default {
           return ManageAccountsPage
         case 'teacher-requests':
           return TeacherRequestsPage
+        case 'teacher-checkout':
+          return TeacherCheckoutPage
         case 'api-status':
           return ApiStatusPage
         default:
