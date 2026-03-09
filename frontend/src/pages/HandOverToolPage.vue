@@ -112,7 +112,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService, inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
 
@@ -122,11 +122,14 @@ export default {
     const searchText = ref('')
     const selectedGroup = ref(null)
     const showConfirm = ref(false)
+    let searchTimer = null
 
     const loadBorrowedItems = async () => {
       try {
-        const lentOut = await inventoryService.getLentOutItems()
-        const allReqs = await borrowingService.getAllRequests()
+        const params = { pageSize: 9999 }
+        if (searchText.value) params.search = searchText.value
+        const { items: lentOut } = await inventoryService.getLentOutItems(params)
+        const { requests: allReqs } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
         const withRequests = lentOut.map(item => {
           const request = allReqs.find(r => r.itemID === item.id && r.status === 'Approved')
           return { item, request }
@@ -137,16 +140,9 @@ export default {
       }
     }
 
-    const filteredItems = computed(() =>
-      borrowedItems.value.filter(({ item }) =>
-        item.name.toLowerCase().includes(searchText.value.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchText.value.toLowerCase())
-      )
-    )
-
     // Group items: parent requests with their child component requests
     const groupedItems = computed(() => {
-      const allItems = filteredItems.value
+      const allItems = borrowedItems.value
       const childRequestIds = new Set()
       // Find all child request item IDs
       allItems.forEach(({ request }) => {
@@ -178,6 +174,12 @@ export default {
       })
 
       return groups
+    })
+
+    // Debounced search watcher
+    watch(searchText, () => {
+      clearTimeout(searchTimer)
+      searchTimer = setTimeout(() => loadBorrowedItems(), 400)
     })
 
     const handleReturnItem = (group) => {
@@ -221,7 +223,6 @@ export default {
       searchText,
       selectedGroup,
       showConfirm,
-      filteredItems,
       groupedItems,
       handleReturnItem,
       confirmReturn,

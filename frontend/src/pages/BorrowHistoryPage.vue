@@ -77,7 +77,7 @@
       </div>
     </div>
 
-    <div v-if="sortedHistory.length === 0" class="empty-state">
+    <div v-if="history.length === 0" class="empty-state">
       No records found
     </div>
     <div v-else class="overflow-x-auto">
@@ -103,7 +103,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="record in paginatedHistory" :key="record.id">
+          <tr v-for="record in history" :key="record.id">
             <td class="border p-2">{{ record.id }}</td>
             <td class="border p-2">{{ record.itemName }}</td>
             <td class="border p-2">{{ record.borrowerName }} ({{ record.borrowerID }})</td>
@@ -121,7 +121,7 @@
       </table>
       <PaginationControl
         v-model:currentPage="currentPage"
-        :totalItems="sortedHistory.length"
+        :totalItems="totalHistory"
         :pageSize="pageSize"
       />
     </div>
@@ -130,7 +130,7 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
-import { borrowingService, inventoryService } from '../utils/services'
+import { borrowingService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, exportToExcel } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -144,6 +144,7 @@ export default {
   },
   setup(props) {
     const history = ref([])
+    const totalHistory = ref(0)
     const showFilters = ref(false)
     const filters = ref({
       requestId: '',
@@ -159,6 +160,7 @@ export default {
     const sortDir = ref('desc')
     const currentPage = ref(1)
     const pageSize = 10
+    let searchDebounceTimer = null
 
     // Watch pageParams to set initial filter from dashboard navigation
     watch(() => props.pageParams, (params) => {
@@ -168,11 +170,6 @@ export default {
         currentPage.value = 1
       }
     }, { immediate: true })
-
-    // Reset page when any filter changes
-    watch(filters, () => {
-      currentPage.value = 1
-    }, { deep: true })
 
     const clearAllFilters = () => {
       filters.value = {
@@ -202,88 +199,87 @@ export default {
       return sortDir.value === 'asc' ? '▲' : '▼'
     }
 
-    const matchesDate = (dateStr, filterDate) => {
-      if (!filterDate || !dateStr) return !filterDate
-      return dateStr.startsWith(filterDate)
+    const buildQueryParams = () => {
+      const f = filters.value
+      const params = {
+        page: currentPage.value,
+        pageSize,
+        sortBy: sortField.value,
+        sortDir: sortDir.value,
+      }
+      if (f.status) params.status = f.status
+      // Combine text search fields into one search param
+      const searchParts = [f.requestId, f.itemName, f.borrower].filter(Boolean)
+      if (searchParts.length > 0) params.search = searchParts.join(' ')
+      // Date filters
+      if (f.requestDate) {
+        params.requestDateFrom = f.requestDate
+        params.requestDateTo = f.requestDate + 'T23:59:59'
+      }
+      if (f.approvalDate) {
+        params.approvalDateFrom = f.approvalDate
+        params.approvalDateTo = f.approvalDate + 'T23:59:59'
+      }
+      if (f.returnDate) {
+        params.returnDateFrom = f.returnDate
+        params.returnDateTo = f.returnDate + 'T23:59:59'
+      }
+      if (f.returnedDate) {
+        params.returnedDateFrom = f.returnedDate
+        params.returnedDateTo = f.returnedDate + 'T23:59:59'
+      }
+      return params
     }
 
     const loadHistory = async () => {
       try {
-        const allRequests = await borrowingService.getAllRequests({ pageSize: 1000 })
-        history.value = allRequests.map(req => ({
+        const params = buildQueryParams()
+        const result = await borrowingService.getAllRequests(params)
+        history.value = (result.requests || []).map(req => ({
           ...req,
           itemName: req.itemName || 'Unknown Item',
           borrowerName: req.borrowerName || req.borrowerID
         }))
+        totalHistory.value = result.total || 0
       } catch (e) {
         console.error('Failed to load history:', e)
       }
     }
 
-    const filteredHistory = computed(() => {
-      let result = history.value
-
-      // Status filter
-      if (filters.value.status) {
-        result = result.filter(h => h.status === filters.value.status)
-      }
-
-      // Request ID (text search)
-      if (filters.value.requestId) {
-        const q = filters.value.requestId.toLowerCase()
-        result = result.filter(h => h.id.toLowerCase().includes(q))
-      }
-
-      // Item name (text search)
-      if (filters.value.itemName) {
-        const q = filters.value.itemName.toLowerCase()
-        result = result.filter(h => h.itemName.toLowerCase().includes(q))
-      }
-
-      // Borrower (text search on name or ID)
-      if (filters.value.borrower) {
-        const q = filters.value.borrower.toLowerCase()
-        result = result.filter(h =>
-          h.borrowerName.toLowerCase().includes(q) ||
-          h.borrowerID.toLowerCase().includes(q)
-        )
-      }
-
-      // Date filters
-      if (filters.value.requestDate) {
-        result = result.filter(h => matchesDate(h.requestDate, filters.value.requestDate))
-      }
-      if (filters.value.approvalDate) {
-        result = result.filter(h => matchesDate(h.approvalDate, filters.value.approvalDate))
-      }
-      if (filters.value.returnDate) {
-        result = result.filter(h => matchesDate(h.returnDate, filters.value.returnDate))
-      }
-      if (filters.value.returnedDate) {
-        result = result.filter(h => matchesDate(h.returnedDate, filters.value.returnedDate))
-      }
-
-      return result
+    // Watch dropdown/date/sort/page filters -> reload immediately
+    const selectFields = computed(() => {
+      const f = filters.value
+      return [f.status, f.requestDate, f.approvalDate, f.returnDate, f.returnedDate]
+    })
+    watch([selectFields, currentPage, () => sortField.value, () => sortDir.value], () => {
+      loadHistory()
     })
 
-    const sortedHistory = computed(() => {
-      const sorted = [...filteredHistory.value]
-      sorted.sort((a, b) => {
-        const aVal = a[sortField.value] || ''
-        const bVal = b[sortField.value] || ''
-        if (sortDir.value === 'asc') return aVal < bVal ? -1 : aVal > bVal ? 1 : 0
-        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0
-      })
-      return sorted
+    // Debounced watcher for text inputs
+    const textFields = computed(() => {
+      const f = filters.value
+      return [f.requestId, f.itemName, f.borrower]
     })
-
-    const paginatedHistory = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return sortedHistory.value.slice(start, start + pageSize)
+    watch(textFields, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadHistory()
+      }, 400)
     })
 
     const exportHistory = () => {
-      exportToExcel(sortedHistory.value, 'borrow_history.xlsx')
+      // Fetch all matching records for export
+      borrowingService.getAllRequests({ ...buildQueryParams(), page: 1, pageSize: 9999 })
+        .then(result => {
+          const data = (result.requests || []).map(req => ({
+            ...req,
+            itemName: req.itemName || 'Unknown Item',
+            borrowerName: req.borrowerName || req.borrowerID
+          }))
+          exportToExcel(data, 'borrow_history.xlsx')
+        })
+        .catch(e => console.error('Export failed:', e))
     }
 
     onMounted(() => {
@@ -292,6 +288,7 @@ export default {
 
     return {
       history,
+      totalHistory,
       showFilters,
       filters,
       clearAllFilters,
@@ -301,8 +298,6 @@ export default {
       getSortIcon,
       currentPage,
       pageSize,
-      sortedHistory,
-      paginatedHistory,
       exportHistory,
       formatDate,
       formatDateTime,

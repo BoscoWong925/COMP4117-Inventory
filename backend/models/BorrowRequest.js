@@ -56,6 +56,16 @@ const borrowRequestSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  condition: {
+    type: String,
+    enum: ['Good', 'Minor Damage', 'Major Damage', 'Lost', null],
+    default: null
+  },
+  returnNotes: {
+    type: String,
+    default: '',
+    trim: true
+  },
   parentRequestId: {
     type: String,
     default: null

@@ -72,7 +72,7 @@
         >{{ s }}</button>
       </div>
       <div v-if="loadingHistory" class="empty-state">Loading history...</div>
-      <div v-else-if="filteredHistory.length === 0" class="empty-state">No history records found</div>
+      <div v-else-if="historyRequests.length === 0" class="empty-state">No history records found</div>
       <div v-else class="overflow-x-auto">
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
@@ -87,7 +87,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="req in paginatedHistory" :key="req.id || req._id">
+            <tr v-for="req in historyRequests" :key="req.id || req._id">
               <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
               <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
               <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
@@ -102,7 +102,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredHistory.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="totalHistory" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -151,7 +151,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate, waitingTime } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -162,6 +162,7 @@ export default {
     const activeTab = ref('pending')
     const pendingRequests = ref([])
     const historyRequests = ref([])
+    const totalHistory = ref(0)
     const loadingPending = ref(true)
     const loadingHistory = ref(false)
     const historyStatus = ref('All')
@@ -190,26 +191,30 @@ export default {
     const loadHistory = async () => {
       loadingHistory.value = true
       try {
-        historyRequests.value = await borrowingService.getTeacherRequestHistory()
+        const params = {
+          page: currentPage.value,
+          pageSize,
+        }
+        if (historyStatus.value !== 'All') params.status = historyStatus.value
+        const result = await borrowingService.getTeacherRequestHistory(params)
+        historyRequests.value = result.requests || []
+        totalHistory.value = result.total || 0
       } catch (e) {
         console.error('Failed to load teacher request history:', e)
       }
       loadingHistory.value = false
     }
 
-    const filteredHistory = computed(() => {
-      if (historyStatus.value === 'All') return historyRequests.value
-      return historyRequests.value.filter(r => r.status === historyStatus.value)
+    // Watch status filter and page changes when on history tab
+    watch([historyStatus, currentPage], () => {
+      if (activeTab.value === 'history') {
+        loadHistory()
+      }
     })
 
     const paginatedPending = computed(() => {
       const start = (currentPage.value - 1) * pageSize
       return pendingRequests.value.slice(start, start + pageSize)
-    })
-
-    const paginatedHistory = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredHistory.value.slice(start, start + pageSize)
     })
 
     const getStatusBadge = (status) => {
@@ -273,10 +278,10 @@ export default {
 
     return {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
-      historyStatus, currentPage, pageSize,
+      historyStatus, currentPage, pageSize, totalHistory,
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
-      filteredHistory, paginatedPending, paginatedHistory,
+      paginatedPending,
       getStatusBadge, openApprove, openReject,
       handleApprove, handleReject, loadPending, loadHistory,
       formatDate, waitingTime

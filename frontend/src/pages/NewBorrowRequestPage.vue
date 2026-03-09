@@ -30,12 +30,12 @@
           </select>
         </div>
 
-        <div v-if="filteredItems.length === 0" class="empty-state">
+        <div v-if="availableItems.length === 0" class="empty-state">
           No available computer items found
         </div>
         <div v-else class="space-y-2 max-h-96 overflow-y-auto">
           <div
-            v-for="item in filteredItems"
+            v-for="item in availableItems"
             :key="item.id"
           >
             <div
@@ -146,7 +146,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { getStatusColor } from '../utils/helpers'
 
@@ -164,6 +164,7 @@ export default {
     const autoBorrowedComponents = ref([])
     const ownerFilter = ref('')
     const owners = ref([])
+    let searchDebounceTimer = null
 
     const loadOwners = async () => {
       try {
@@ -175,13 +176,16 @@ export default {
 
     const loadAvailableItems = async () => {
       try {
-        const params = {}
+        const params = { pageSize: 9999 }
         if (ownerFilter.value) {
           params.owner = ownerFilter.value
         }
-        const available = await inventoryService.getAvailableItems(params)
+        if (searchText.value) {
+          params.search = searchText.value
+        }
+        const result = await inventoryService.getAvailableItems(params)
         // Only show computer / main hardware items (not loose components that are children)
-        availableItems.value = available.filter(item =>
+        availableItems.value = result.items.filter(item =>
           item.category === 'Computer' || item.type === 'Hardware'
         )
       } catch (e) {
@@ -189,12 +193,13 @@ export default {
       }
     }
 
-    const filteredItems = computed(() =>
-      availableItems.value.filter(item =>
-        item.name.toLowerCase().includes(searchText.value.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchText.value.toLowerCase())
-      )
-    )
+    // Debounced watcher for search text
+    watch(searchText, () => {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadAvailableItems()
+      }, 400)
+    })
 
     const selectItem = async (item) => {
       selectedItem.value = item
@@ -305,7 +310,6 @@ export default {
       autoBorrowedComponents,
       ownerFilter,
       owners,
-      filteredItems,
       selectItem,
       handleFileUpload,
       removeFile,

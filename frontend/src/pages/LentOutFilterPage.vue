@@ -79,11 +79,6 @@
           <label class="filter-label">Borrower Name</label>
           <input v-model="searchFilters.borrowerName" type="text" class="form-input text-sm" placeholder="Search borrower..." />
         </div>
-        <!-- Warranty End (date) -->
-        <div>
-          <label class="filter-label">Warranty End</label>
-          <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
-        </div>
         <!-- Year (select - keep for convenience) -->
         <div>
           <label class="filter-label">Year</label>
@@ -119,9 +114,6 @@
             <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('location')">
               Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
-              Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
-            </th>
             <th class="border p-2 text-center">Return</th>
           </tr>
         </thead>
@@ -141,7 +133,6 @@
               <td class="border p-2">{{ getBorrowerName(group.parent.currentBorrower) }}</td>
               <td class="border p-2">{{ group.parent.supplier }}</td>
               <td class="border p-2">{{ group.parent.location }}</td>
-              <td class="border p-2">{{ formatDate(group.parent.warrantyEnd) }}</td>
               <td class="border p-2 text-center">
                 <button
                   @click="handleReturnItem(group.parent)"
@@ -160,7 +151,6 @@
               <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower) }}</td>
               <td class="border p-2 text-sm">{{ child.supplier }}</td>
               <td class="border p-2 text-sm">{{ child.location }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(child.warrantyEnd) }}</td>
               <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
             </tr>
           </template>
@@ -234,7 +224,7 @@ export default {
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
       type: '', borrowerId: '', borrowerName: '',
-      warrantyEnd: '', year: ''
+      year: ''
     })
 
     const uniqueCategories = computed(() => {
@@ -249,21 +239,14 @@ export default {
       searchFilters.value = {
         id: '', name: '', category: '', vendor: '', location: '',
         type: '', borrowerId: '', borrowerName: '',
-        warrantyEnd: '', year: ''
+        year: ''
       }
       vendorFilter.value = ''
       yearFilter.value = ''
       typeFilter.value = ''
+      activeStatusFilter.value = ''
     }
-
-    // Reset page when any filter changes
-    watch([vendorFilter, yearFilter, typeFilter], () => {
-      currentPage.value = 1
-    })
-
-    watch(searchFilters, () => {
-      currentPage.value = 1
-    }, { deep: true })
+    let searchDebounceTimer = null
 
     const toggleSort = (field) => {
       if (sortField.value === field) {
@@ -301,96 +284,87 @@ export default {
       return u ? u.name : id
     }
 
+    const buildQueryParams = () => {
+      const f = searchFilters.value
+      const params = { pageSize: 9999 }
+      if (f.category) params.category = f.category
+      if (f.location) params.location = f.location
+      if (f.type || typeFilter.value) params.type = f.type || typeFilter.value
+      if (f.vendor || vendorFilter.value) params.vendor = f.vendor || vendorFilter.value
+      if (f.year || yearFilter.value) params.year = f.year || yearFilter.value
+      if (f.borrowerId) params.borrowerId = f.borrowerId
+      // Combine text searches
+      const textParts = [f.id, f.name, f.borrowerName].filter(Boolean)
+      if (textParts.length > 0) params.search = textParts.join(' ')
+      if (sortField.value) {
+        params.sortBy = sortField.value
+        params.sortDir = sortDir.value
+      }
+      return params
+    }
+
     const loadLentOutItems = async () => {
       try {
-        const lentOut = await inventoryService.getLentOutItems()
-        items.value = lentOut
-        vendors.value = getUniqueVendors(lentOut)
-        years.value = [...new Set(lentOut.map(item => {
+        const params = buildQueryParams()
+        const result = await inventoryService.getLentOutItems(params)
+        items.value = result.items
+        vendors.value = getUniqueVendors(result.items)
+        years.value = [...new Set(result.items.map(item => {
           if (item.warrantyStartDate) return item.warrantyStartDate.split('-')[0]
           return null
         }).filter(Boolean))].sort().reverse()
-        allRequests.value = await borrowingService.getAllRequests()
+        const reqResult = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
+        allRequests.value = reqResult.requests || []
       } catch (e) {
         console.error('Failed to load lent-out items:', e)
       }
     }
 
-    const filteredItems = computed(() => {
-      let result = items.value
+    // Watch select filters - reload from server immediately
+    const selectFields = computed(() => {
       const f = searchFilters.value
+      return [f.category, f.vendor, f.location, f.type, f.year, f.warrantyEnd]
+    })
+    watch([selectFields, vendorFilter, yearFilter, typeFilter, activeStatusFilter], () => {
+      currentPage.value = 1
+      loadLentOutItems()
+    })
 
-      // Apply status filter (overdue / due-soon) from dashboard navigation
+    // Debounced watcher for text inputs
+    const textFields = computed(() => {
+      const f = searchFilters.value
+      return [f.id, f.name, f.borrowerId, f.borrowerName]
+    })
+    watch(textFields, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadLentOutItems()
+      }, 400)
+    })
+
+    // Group items: parent items with their child component items
+    const groupedItems = computed(() => {
+      let allItems = items.value
+      const reqs = allRequests.value
+
+      // Apply overdue/due-soon filter client-side (needs cross-reference with requests)
       if (activeStatusFilter.value) {
-        const reqs = allRequests.value
         if (activeStatusFilter.value === 'overdue') {
           const overdueItemIds = new Set(
             reqs.filter(r => r.status === 'Approved' && isOverdue(r.returnDate))
               .map(r => r.itemID)
           )
-          result = result.filter(i => overdueItemIds.has(i.id))
+          allItems = allItems.filter(i => overdueItemIds.has(i.id))
         } else if (activeStatusFilter.value === 'due-soon') {
           const dueSoonItemIds = new Set(
             reqs.filter(r => r.status === 'Approved' && isDueSoon(r.returnDate, 7))
               .map(r => r.itemID)
           )
-          result = result.filter(i => dueSoonItemIds.has(i.id))
+          allItems = allItems.filter(i => dueSoonItemIds.has(i.id))
         }
       }
 
-      // Legacy dropdown filters (still sync with searchFilters for backwards compat)
-      if (f.vendor || vendorFilter.value) {
-        const v = f.vendor || vendorFilter.value
-        result = filterByVendor(result, v)
-      }
-      if (f.year || yearFilter.value) {
-        const y = f.year || yearFilter.value
-        result = filterByYear(result, y)
-      }
-      if (f.type || typeFilter.value) {
-        const t = f.type || typeFilter.value
-        result = result.filter(item => item.type === t)
-      }
-
-      // Text search filters
-      if (f.id) {
-        const q = f.id.toLowerCase()
-        result = result.filter(i => i.id.toLowerCase().includes(q))
-      }
-      if (f.name) {
-        const q = f.name.toLowerCase()
-        result = result.filter(i => i.name.toLowerCase().includes(q))
-      }
-      if (f.category) {
-        result = result.filter(i => i.category === f.category)
-      }
-      if (f.location) {
-        result = result.filter(i => i.location === f.location)
-      }
-      if (f.borrowerId) {
-        const q = f.borrowerId.toLowerCase()
-        result = result.filter(i => (i.currentBorrower || '').toLowerCase().includes(q))
-      }
-      if (f.borrowerName) {
-        const q = f.borrowerName.toLowerCase()
-        result = result.filter(i => getBorrowerName(i.currentBorrower).toLowerCase().includes(q))
-      }
-      if (f.warrantyEnd) {
-        result = result.filter(i => i.warrantyEnd && i.warrantyEnd.startsWith(f.warrantyEnd))
-      }
-
-      return result
-    })
-
-    const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredItems.value.slice(start, start + pageSize)
-    })
-
-    // Group items: parent items with their child component items
-    const groupedItems = computed(() => {
-      const allItems = filteredItems.value
-      const reqs = allRequests.value
       const childItemIds = new Set()
 
       // Find items whose approved request has a parentRequestId
@@ -500,7 +474,7 @@ export default {
     }
 
     const exportFiltered = () => {
-      exportToExcel(filteredItems.value, 'lent_out_items.xlsx')
+      exportToExcel(items.value, 'lent_out_items.xlsx')
     }
 
     onMounted(() => {
@@ -519,8 +493,6 @@ export default {
       years,
       currentPage,
       pageSize,
-      filteredItems,
-      paginatedItems,
       groupedItems,
       sortedGroups,
       paginatedGroups,

@@ -18,25 +18,25 @@
     <!-- Stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold text-accent">{{ items.length }}</p>
+        <p class="text-2xl font-bold text-accent">{{ allItems.length }}</p>
         <p class="text-xs text-muted">Total Owned</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #22c55e;">{{ items.filter(i => i.status === 'Available').length }}</p>
+        <p class="text-2xl font-bold" style="color: #22c55e;">{{ allItems.filter(i => i.status === 'Available').length }}</p>
         <p class="text-xs text-muted">Available</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #f59e0b;">{{ items.filter(i => i.status === 'In-use').length }}</p>
+        <p class="text-2xl font-bold" style="color: #f59e0b;">{{ allItems.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #8b5cf6;">{{ items.filter(i => i.canBorrow).length }}</p>
+        <p class="text-2xl font-bold" style="color: #8b5cf6;">{{ allItems.filter(i => i.canBorrow).length }}</p>
         <p class="text-xs text-muted">Borrowable</p>
       </div>
     </div>
 
     <div v-if="loading" class="empty-state">Loading items...</div>
-    <div v-else-if="filteredItems.length === 0" class="empty-state">
+    <div v-else-if="items.length === 0" class="empty-state">
       <p>No items found</p>
       <p class="text-sm mt-1">You don't own any inventory items yet.</p>
     </div>
@@ -49,7 +49,6 @@
             <th class="border p-2 text-left">Category</th>
             <th class="border p-2 text-left">Status</th>
             <th class="border p-2 text-left">Location</th>
-            <th class="border p-2 text-left">Borrowable</th>
             <th class="border p-2 text-left">Current Borrower</th>
           </tr>
         </thead>
@@ -64,15 +63,11 @@
               </span>
             </td>
             <td class="border p-2 text-sm">{{ item.location || '-' }}</td>
-            <td class="border p-2 text-sm">
-              <span v-if="item.canBorrow" class="text-green-500 font-medium">Yes</span>
-              <span v-else class="text-red-400 font-medium">No</span>
-            </td>
             <td class="border p-2 text-sm">{{ item.currentBorrower || '-' }}</td>
           </tr>
         </tbody>
       </table>
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredItems.length" :pageSize="pageSize" />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
     </div>
 
     <!-- Item Detail Modal -->
@@ -89,7 +84,6 @@
           <div><p class="field-label">Category</p><p class="font-medium">{{ selectedItem.category }}</p></div>
           <div><p class="field-label">Status</p><span :class="`px-2 py-1 rounded text-sm ${getStatusColor(selectedItem.status)}`">{{ selectedItem.status }}</span></div>
           <div><p class="field-label">Location</p><p class="font-medium">{{ selectedItem.location || 'N/A' }}</p></div>
-          <div><p class="field-label">Borrowable</p><p class="font-medium">{{ selectedItem.canBorrow ? 'Yes' : 'No' }}</p></div>
           <div><p class="field-label">Current Borrower</p><p class="font-medium">{{ selectedItem.currentBorrower || 'None' }}</p></div>
           <div><p class="field-label">Supplier</p><p class="font-medium">{{ selectedItem.supplier || 'N/A' }}</p></div>
           <div><p class="field-label">Purchase Date</p><p class="font-medium">{{ formatDate(selectedItem.purchaseDate) }}</p></div>
@@ -109,7 +103,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { inventoryService, authService } from '../utils/services'
 import { formatDate, getStatusColor } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -118,52 +112,68 @@ export default {
   components: { PaginationControl },
   setup() {
     const items = ref([])
+    const allItems = ref([])
+    const totalItems = ref(0)
     const searchText = ref('')
     const selectedItem = ref(null)
     const loading = ref(true)
     const currentPage = ref(1)
     const pageSize = 15
+    let searchTimer = null
 
-    watch(searchText, () => { currentPage.value = 1 })
+    const getOwnerId = () => {
+      const u = authService.getCurrentUser()
+      return u ? (u.userId || u.id) : null
+    }
 
     const loadItems = async () => {
+      const ownerId = getOwnerId()
+      if (!ownerId) return
       loading.value = true
       try {
-        const currentUser = authService.getCurrentUser()
-        if (currentUser) {
-          items.value = await inventoryService.getItemsByOwner(currentUser.userId || currentUser.id)
-        }
+        const params = { page: currentPage.value, pageSize }
+        if (searchText.value) params.search = searchText.value
+        const { items: data, total } = await inventoryService.getItemsByOwner(ownerId, params)
+        items.value = data
+        totalItems.value = total
       } catch (e) {
         console.error('Failed to load owned items:', e)
       }
       loading.value = false
     }
 
-    const filteredItems = computed(() => {
-      if (!searchText.value) return items.value
-      const q = searchText.value.toLowerCase()
-      return items.value.filter(i =>
-        (i.name || '').toLowerCase().includes(q) ||
-        (i.id || '').toLowerCase().includes(q) ||
-        (i.description || '').toLowerCase().includes(q) ||
-        (i.category || '').toLowerCase().includes(q)
-      )
+    const loadStats = async () => {
+      const ownerId = getOwnerId()
+      if (!ownerId) return
+      try {
+        const { items: data } = await inventoryService.getItemsByOwner(ownerId, { pageSize: 9999 })
+        allItems.value = data
+      } catch (e) {
+        console.error('Failed to load stats:', e)
+      }
+    }
+
+    // Debounced search watcher
+    watch(searchText, () => {
+      currentPage.value = 1
+      clearTimeout(searchTimer)
+      searchTimer = setTimeout(() => loadItems(), 400)
     })
 
-    const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredItems.value.slice(start, start + pageSize)
-    })
+    watch(currentPage, () => loadItems())
 
     const showDetail = (item) => {
       selectedItem.value = item
     }
 
-    onMounted(() => { loadItems() })
+    onMounted(() => {
+      loadStats()
+      loadItems()
+    })
 
     return {
-      items, searchText, selectedItem, loading, currentPage, pageSize,
-      filteredItems, paginatedItems, showDetail,
+      items, allItems, totalItems, searchText, selectedItem, loading, currentPage, pageSize,
+      paginatedItems: items, showDetail,
       formatDate, getStatusColor
     }
   }

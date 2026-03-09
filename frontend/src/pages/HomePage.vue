@@ -512,50 +512,55 @@ export default {
     )
 
     const loadDashboardData = async () => {
-      try {
-        const statsData = await statsService.getStats()
-        stats.value = {
-          totalItems: statsData.totalItems || 0,
-          availableItems: statsData.availableItems || 0,
-          lentOutItems: statsData.lentOutItems || 0,
-          pendingRequests: statsData.pendingRequests || 0,
-          returnedRequests: statsData.returnedRequests || 0,
-          approvedRequests: statsData.approvedRequests || 0,
-          rejectedRequests: statsData.rejectedRequests || 0
+      if (user.value?.role !== 'user') {
+        try {
+          const statsData = await statsService.getStats()
+          stats.value = {
+            totalItems: statsData.totalItems || 0,
+            availableItems: statsData.availableItems || 0,
+            lentOutItems: statsData.lentOutItems || 0,
+            pendingRequests: statsData.pendingRequests || 0,
+            returnedRequests: statsData.returnedRequests || 0,
+            approvedRequests: statsData.approvedRequests || 0,
+            rejectedRequests: statsData.rejectedRequests || 0
+          }
+        } catch (e) {
+          console.error('Failed to load stats:', e)
         }
-      } catch (e) {
-        console.error('Failed to load stats:', e)
       }
 
-      try {
-        const allLogs = await auditService.getAllLogs({ pageSize: 20 })
-        recentLogs.value = allLogs
-      } catch (e) {
-        console.error('Failed to load logs:', e)
-      }
+      // Admin/operator only data
+      if (user.value?.role !== 'user') {
+        try {
+          const { logs } = await auditService.getAllLogs({ pageSize: 20 })
+          recentLogs.value = logs
+        } catch (e) {
+          console.error('Failed to load logs:', e)
+        }
 
-      // Load items for warranty checks
-      try {
-        const items = await inventoryService.getAllItems({ pageSize: 5000 })
-        allItems.value = items
-      } catch (e) {
-        console.error('Failed to load items:', e)
-      }
+        // Load items for warranty checks
+        try {
+          const { items } = await inventoryService.getAllItems({ pageSize: 5000 })
+          allItems.value = items
+        } catch (e) {
+          console.error('Failed to load items:', e)
+        }
 
-      // Load approved requests for overdue/due-soon checks
-      try {
-        const approved = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
-        allApprovedRequests.value = approved
-      } catch (e) {
-        console.error('Failed to load approved requests:', e)
-      }
+        // Load approved requests for overdue/due-soon checks
+        try {
+          const { requests: approved } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
+          allApprovedRequests.value = approved
+        } catch (e) {
+          console.error('Failed to load approved requests:', e)
+        }
 
-      // Load pending requests for the table
-      try {
-        const pending = await borrowingService.getPendingRequests()
-        pendingRequests.value = pending
-      } catch (e) {
-        console.error('Failed to load pending requests:', e)
+        // Load pending requests for the table
+        try {
+          const pending = await borrowingService.getPendingRequests()
+          pendingRequests.value = pending
+        } catch (e) {
+          console.error('Failed to load pending requests:', e)
+        }
       }
 
       // Load user borrows (for user role)
@@ -568,7 +573,8 @@ export default {
           // Load teacher-specific data
           if (currentUser.subRole === 'teacher') {
             try {
-              teacherOwnedItems.value = await inventoryService.getItemsByOwner(currentUser.userId || currentUser.id)
+              const { items: ownedItems } = await inventoryService.getItemsByOwner(currentUser.userId || currentUser.id)
+              teacherOwnedItems.value = ownedItems
             } catch (te) {
               console.error('Failed to load teacher owned items:', te)
             }

@@ -26,24 +26,41 @@ const formatUserResponse = (user) => ({
  */
 exports.getAllUsers = catchAsync(async (req, res) => {
   const {
-    role, subRole, isActive, search,
+    role, subRole, displayRole, isActive, search,
     page = 1, pageSize = 10,
     sortBy = 'createdAt', sortDir = 'desc'
   } = req.query;
 
   const filter = {};
-  if (role) filter.role = role;
-  if (subRole) filter.subRole = subRole;
+
+  // displayRole maps user-facing roles to internal role+subRole
+  if (displayRole) {
+    if (displayRole === 'admin') { filter.role = 'admin'; }
+    else if (displayRole === 'operator') { filter.role = 'operator'; }
+    else if (displayRole === 'teacher') { filter.role = 'user'; filter.subRole = 'teacher'; }
+    else if (displayRole === 'student') { filter.role = 'user'; filter.$or = [{ subRole: 'student' }, { subRole: { $exists: false } }, { subRole: null }]; }
+  } else {
+    if (role) filter.role = role;
+    if (subRole) filter.subRole = subRole;
+  }
+
   if (isActive !== undefined) filter.isActive = isActive === 'true';
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');
-    filter.$or = [
+    const searchOr = [
       { userId: searchRegex },
       { username: searchRegex },
       { name: searchRegex },
       { email: searchRegex }
     ];
+    // If $or already exists (from displayRole=student), combine with $and
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchOr;
+    }
   }
 
   const sort = {};

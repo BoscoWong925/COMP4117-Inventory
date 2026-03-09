@@ -134,6 +134,7 @@
               <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('supplier')">
                 Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
               </th>
+              <th class="border p-2 text-left">Ownership</th>
               <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('warrantyEnd')">
                 Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
               </th>
@@ -141,7 +142,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in paginatedItems" :key="item.id">
+            <tr v-for="item in items" :key="item.id">
               <td class="border p-2">{{ item.id }}</td>
               <td class="border p-2">{{ item.name }}</td>
               <td class="border p-2">{{ item.type }}</td>
@@ -152,6 +153,11 @@
               </td>
               <td class="border p-2">{{ item.location }}</td>
               <td class="border p-2">{{ item.supplier }}</td>
+              <td class="border p-2">
+                <span :class="item.owner === 'department' ? 'px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'">
+                  {{ getOwnerName(item.owner) }}
+                </span>
+              </td>
               <td class="border p-2">{{ formatDate(item.warrantyEnd) }}</td>
               <td class="border p-2 text-center">
                 <button
@@ -172,7 +178,7 @@
         </table>
         <PaginationControl
           v-model:currentPage="currentPage"
-          :totalItems="sortedItems.length"
+          :totalItems="totalItems"
           :pageSize="pageSize"
         />
       </div>
@@ -625,6 +631,7 @@ export default {
     const invoiceFileData = ref(null)
     const currentPage = ref(1)
     const pageSize = 10
+    const totalItems = ref(0)
     const showDeleteBlock = ref(false)
     const sortField = ref('')
     const sortDir = ref('asc')
@@ -633,6 +640,7 @@ export default {
     const teachers = ref([])
     let ocrWorker = null
     let invoiceCameraStream = null
+    let searchDebounceTimer = null
 
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
@@ -653,82 +661,68 @@ export default {
         location: '', vendor: '', supplier: '', universityID: '',
         warrantyEnd: '', description: ''
       }
+      activeStatusFilter.value = ''
     }
 
-    // Watch filters to reset page
-    watch(searchFilters, () => {
-      currentPage.value = 1
-    }, { deep: true })
-
-    const filteredItems = computed(() => {
-      let result = items.value
+    // Build query params from current filters
+    const buildQueryParams = () => {
       const f = searchFilters.value
-
-      // Apply warranty status filter from dashboard navigation
+      const params = {
+        page: currentPage.value,
+        pageSize,
+      }
+      if (sortField.value) {
+        params.sortBy = sortField.value
+        params.sortDir = sortDir.value
+      }
       if (activeStatusFilter.value) {
-        if (activeStatusFilter.value === 'warranty-expired') {
-          result = result.filter(i => isWarrantyExpired(i.warrantyEnd))
-        } else if (activeStatusFilter.value === 'warranty-expiring-soon') {
-          result = result.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30))
-        }
+        params.warrantyStatus = activeStatusFilter.value === 'warranty-expired' ? 'expired' : 'expiring-soon'
       }
+      if (f.type) params.type = f.type
+      if (f.category) params.category = f.category
+      if (f.status) params.status = f.status
+      if (f.location) params.location = f.location
+      if (f.vendor) params.vendor = f.vendor
+      if (f.supplier) params.supplier = f.supplier
+      if (f.id) params.itemId = f.id
+      if (f.name) params.name = f.name
+      if (f.universityID) params.universityID = f.universityID
+      if (f.warrantyEnd) params.warrantyEnd = f.warrantyEnd
+      if (f.description) params.description = f.description
+      return params
+    }
 
-      if (f.id) {
-        const q = f.id.toLowerCase()
-        result = result.filter(i => i.id.toLowerCase().includes(q))
+    const loadItems = async () => {
+      try {
+        const params = buildQueryParams()
+        const result = await inventoryService.getAllItems(params)
+        items.value = result.items
+        totalItems.value = result.total
+      } catch (e) {
+        console.error('Failed to load items:', e)
       }
-      if (f.name) {
-        const q = f.name.toLowerCase()
-        result = result.filter(i => i.name.toLowerCase().includes(q))
-      }
-      if (f.type) {
-        result = result.filter(i => i.type === f.type)
-      }
-      if (f.category) {
-        result = result.filter(i => i.category === f.category)
-      }
-      if (f.status) {
-        result = result.filter(i => i.status === f.status)
-      }
-      if (f.location) {
-        result = result.filter(i => i.location === f.location)
-      }
-      if (f.vendor) {
-        result = result.filter(i => (i.vendor || i.supplier) === f.vendor)
-      }
-      if (f.supplier) {
-        const q = f.supplier.toLowerCase()
-        result = result.filter(i => (i.supplier || '').toLowerCase().includes(q))
-      }
-      if (f.universityID) {
-        const q = f.universityID.toLowerCase()
-        result = result.filter(i => (i.universityID || '').toLowerCase().includes(q))
-      }
-      if (f.warrantyEnd) {
-        result = result.filter(i => i.warrantyEnd && i.warrantyEnd.startsWith(f.warrantyEnd))
-      }
-      if (f.description) {
-        const q = f.description.toLowerCase()
-        result = result.filter(i => (i.description || '').toLowerCase().includes(q))
-      }
-      return result
+    }
+
+    // Watch dropdown/select filters to reload immediately
+    const selectFilterFields = computed(() => {
+      const f = searchFilters.value
+      return [f.type, f.category, f.status, f.location, f.vendor, f.warrantyEnd]
+    })
+    watch([selectFilterFields, activeStatusFilter, currentPage, () => sortField.value, () => sortDir.value], () => {
+      loadItems()
     })
 
-    const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return sortedItems.value.slice(start, start + pageSize)
+    // Debounced watcher for text input filters
+    const textFilterFields = computed(() => {
+      const f = searchFilters.value
+      return [f.id, f.name, f.supplier, f.universityID, f.description]
     })
-
-    const sortedItems = computed(() => {
-      const list = [...filteredItems.value]
-      if (!sortField.value) return list
-      list.sort((a, b) => {
-        const valA = a[sortField.value] || ''
-        const valB = b[sortField.value] || ''
-        if (sortDir.value === 'asc') return valA < valB ? -1 : valA > valB ? 1 : 0
-        return valA > valB ? -1 : valA < valB ? 1 : 0
-      })
-      return list
+    watch(textFilterFields, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadItems()
+      }, 400)
     })
 
     const toggleSort = (field) => {
@@ -778,15 +772,6 @@ export default {
     const openNewItemForm = () => {
       resetForm()
       showForm.value = true
-    }
-
-    const loadItems = async () => {
-      try {
-        const allItems = await inventoryService.getAllItems({ pageSize: 9999 })
-        items.value = allItems
-      } catch (e) {
-        console.error('Failed to load items:', e)
-      }
     }
 
     const resetForm = () => {
@@ -1349,6 +1334,14 @@ export default {
       stopInvoiceCamera()
     })
 
+    const getOwnerName = (ownerId) => {
+      if (!ownerId || ownerId === 'department') {
+        return 'Department'
+      }
+      const teacher = teachers.value.find(t => t.userId === ownerId)
+      return teacher ? teacher.name : ownerId
+    }
+
     return {
       items,
       showForm,
@@ -1373,9 +1366,7 @@ export default {
       statuses,
       currentPage,
       pageSize,
-      paginatedItems,
-      sortedItems,
-      filteredItems,
+      totalItems,
       toggleSort,
       getSortIcon,
       sortField,
@@ -1410,6 +1401,7 @@ export default {
       normalizeItemStatus,
       activeStatusFilter,
       teachers,
+      getOwnerName,
     }
   }
 }

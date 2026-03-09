@@ -41,32 +41,32 @@
       <!-- Stats -->
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold text-accent">{{ allStats.total }}</p>
+          <p class="text-xl font-bold text-accent">{{ users.length }}</p>
           <p class="text-xs text-muted">Total</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#ef4444">{{ allStats.admins }}</p>
+          <p class="text-xl font-bold" style="color:#ef4444">{{ users.filter(u => u.role === 'admin').length }}</p>
           <p class="text-xs text-muted">Admins</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#f59e0b">{{ allStats.operators }}</p>
+          <p class="text-xl font-bold" style="color:#f59e0b">{{ users.filter(u => u.role === 'operator').length }}</p>
           <p class="text-xs text-muted">Operators</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#8b5cf6">{{ allStats.teachers }}</p>
+          <p class="text-xl font-bold" style="color:#8b5cf6">{{ users.filter(u => u.role === 'user' && u.subRole === 'teacher').length }}</p>
           <p class="text-xs text-muted">Teachers</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#22c55e">{{ allStats.students }}</p>
+          <p class="text-xl font-bold" style="color:#22c55e">{{ users.filter(u => u.role === 'user' && (!u.subRole || u.subRole === 'student')).length }}</p>
           <p class="text-xs text-muted">Students</p>
         </div>
       </div>
 
       <p class="results-summary">
-        Showing {{ paginatedUsers.length }} of {{ totalUsers }} accounts
+        Showing {{ users.length }} of {{ totalUsers }} accounts
       </p>
 
-      <div v-if="paginatedUsers.length === 0" class="empty-state">No accounts found</div>
+      <div v-if="users.length === 0" class="empty-state">No accounts found</div>
       <div v-else class="overflow-x-auto">
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
@@ -82,7 +82,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in paginatedUsers" :key="u.userId">
+            <tr v-for="u in users" :key="u.userId">
               <td class="border p-2 text-sm font-semibold">{{ u.userId }}</td>
               <td class="border p-2 text-sm">{{ u.name }}</td>
               <td class="border p-2 text-sm">{{ u.username }}</td>
@@ -203,7 +203,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { userService } from '../utils/services'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -211,8 +211,6 @@ export default {
   components: { PaginationControl },
   setup() {
     const users = ref([])
-    const totalUsers = ref(0)
-    const allStats = ref({ total: 0, admins: 0, operators: 0, teachers: 0, students: 0 })
     const showForm = ref(false)
     const editingUser = ref(null)
     const showDeleteModal = ref(false)
@@ -223,16 +221,15 @@ export default {
     const filterStatus = ref('')
     const currentPage = ref(1)
     const pageSize = 15
+    const totalUsers = ref(0)
     const message = ref('')
     const messageSuccess = ref(true)
+    let searchDebounceTimer = null
 
     const formData = ref({
       userId: '', name: '', username: '', email: '',
       displayRole: 'student', department: '', password: ''
     })
-
-    watch([searchText, filterRole, filterStatus], () => { currentPage.value = 1; loadUsers() })
-    watch(currentPage, () => { loadUsers() })
 
     const getDisplayRole = (u) => {
       if (u.role === 'admin') return 'Admin'
@@ -248,70 +245,43 @@ export default {
       return 'action-badge action-badge-success'
     }
 
-    const paginatedUsers = computed(() => users.value)
-
     const loadUsers = async () => {
       try {
         const params = {
           page: currentPage.value,
-          pageSize: pageSize
+          pageSize,
         }
-        
-        if (searchText.value) {
-          params.search = searchText.value
-        }
-        
-        if (filterRole.value) {
-          if (filterRole.value === 'teacher') {
-            params.role = 'user'
-            params.subRole = 'teacher'
-          } else if (filterRole.value === 'student') {
-            params.role = 'user'
-            params.subRole = 'student'
-          } else {
-            params.role = filterRole.value
-          }
-        }
-        
-        if (filterStatus.value) {
-          params.isActive = filterStatus.value === 'active' ? 'true' : 'false'
-        }
-        
+        if (filterRole.value) params.displayRole = filterRole.value
+        if (filterStatus.value) params.isActive = filterStatus.value === 'active' ? 'true' : 'false'
+        if (searchText.value) params.search = searchText.value
+
         const data = await userService.getAllUsers(params)
         users.value = data.users || []
         totalUsers.value = data.total || 0
-        
-        // Load stats separately without filters
-        if (currentPage.value === 1 && !searchText.value && !filterRole.value && !filterStatus.value) {
-          calculateStats()
-        }
       } catch (e) {
         console.error('Failed to load users:', e)
         showMessage('Failed to load accounts', false)
       }
     }
-    
-    const calculateStats = async () => {
-      try {
-        const allData = await userService.getAllUsers({ pageSize: 10000 })
-        const all = allData.users || []
-        allStats.value = {
-          total: all.length,
-          admins: all.filter(u => u.role === 'admin').length,
-          operators: all.filter(u => u.role === 'operator').length,
-          teachers: all.filter(u => u.role === 'user' && u.subRole === 'teacher').length,
-          students: all.filter(u => u.role === 'user' && (!u.subRole || u.subRole === 'student')).length
-        }
-      } catch (e) {
-        console.error('Failed to calculate stats:', e)
-      }
-    }
+
+    // Watch dropdown filters and pagination -> reload immediately
+    watch([filterRole, filterStatus, currentPage], () => {
+      loadUsers()
+    })
+
+    // Debounced watcher for search text
+    watch(searchText, () => {
+      currentPage.value = 1
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => {
+        loadUsers()
+      }, 400)
+    })
 
     const clearFilters = () => {
       searchText.value = ''
       filterRole.value = ''
       filterStatus.value = ''
-      currentPage.value = 1
     }
 
     const onRoleChange = () => {
@@ -428,10 +398,9 @@ export default {
     onMounted(() => { loadUsers() })
 
     return {
-      users, totalUsers, allStats, showForm, editingUser, showDeleteModal, deleteTarget,
+      users, showForm, editingUser, showDeleteModal, deleteTarget,
       showPassword, searchText, filterRole, filterStatus,
-      currentPage, pageSize, message, messageSuccess, formData,
-      paginatedUsers,
+      currentPage, pageSize, totalUsers, message, messageSuccess, formData,
       getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
       confirmDelete, handleDelete, toggleStatus, loadUsers

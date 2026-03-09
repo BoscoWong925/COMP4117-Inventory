@@ -4,6 +4,17 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') 
 // ===== HTTP Helper =====
 const getToken = () => sessionStorage.getItem('token');
 
+// Clean empty/null/undefined params
+const cleanQueryParams = (params) => {
+  const clean = {};
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== '' && val !== null && val !== undefined) {
+      clean[key] = val;
+    }
+  }
+  return clean;
+};
+
 const apiRequest = async (endpoint, options = {}) => {
   const token = getToken();
   const headers = { ...options.headers };
@@ -86,10 +97,10 @@ export const authService = {
 // ===== Inventory Service =====
 export const inventoryService = {
   getAllItems: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/items?${query}`);
-    // Return items array with id field mapped from itemId for frontend compat
-    return (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    const items = (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    return { items, total: data.total || items.length };
   },
 
   getItemById: async (id) => {
@@ -99,15 +110,17 @@ export const inventoryService = {
   },
 
   getAvailableItems: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/items/available?${query}`);
-    return (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    const items = (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    return { items, total: data.total || items.length };
   },
 
   getLentOutItems: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/items/lent-out?${query}`);
-    return (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    const items = (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    return { items, total: data.total || items.length };
   },
 
   getItemsByBorrower: async (borrowerID) => {
@@ -115,9 +128,11 @@ export const inventoryService = {
     return (data.items || []).map(item => ({ ...item, id: item.itemId }));
   },
 
-  getItemsByOwner: async (ownerId) => {
-    const data = await apiRequest(`/items/by-owner/${encodeURIComponent(ownerId)}?pageSize=100`);
-    return (data.items || []).map(item => ({ ...item, id: item.itemId }));
+  getItemsByOwner: async (ownerId, params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
+    const data = await apiRequest(`/items/by-owner/${encodeURIComponent(ownerId)}?${query}`);
+    const items = (data.items || []).map(item => ({ ...item, id: item.itemId }));
+    return { items, total: data.total || items.length };
   },
 
   getItemOwners: async () => {
@@ -204,9 +219,9 @@ export const inventoryService = {
 // ===== Borrowing Service =====
 export const borrowingService = {
   getAllRequests: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/borrow-requests?${query}`);
-    return data.requests || [];
+    return { requests: data.requests || [], total: data.total || 0 };
   },
 
   getRequestsForUser: async (borrowerID) => {
@@ -294,9 +309,9 @@ export const borrowingService = {
   },
 
   getTeacherRequestHistory: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/borrow-requests/teacher-history?${query}`);
-    return data.requests || [];
+    return { requests: data.requests || [], total: data.total || 0 };
   }
 };
 
@@ -304,9 +319,9 @@ export const borrowingService = {
 export const auditService = {
   getAllLogs: async (params = {}) => {
     if (!params.pageSize) params.pageSize = 1000;
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/audit-logs?${query}`);
-    return data.logs || [];
+    return { logs: data.logs || [], total: data.total || 0 };
   },
 
   getLogsByUser: async (userID) => {
