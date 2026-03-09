@@ -26,13 +26,14 @@ const formatUserResponse = (user) => ({
  */
 exports.getAllUsers = catchAsync(async (req, res) => {
   const {
-    role, isActive, search,
+    role, subRole, isActive, search,
     page = 1, pageSize = 10,
     sortBy = 'createdAt', sortDir = 'desc'
   } = req.query;
 
   const filter = {};
   if (role) filter.role = role;
+  if (subRole) filter.subRole = subRole;
   if (isActive !== undefined) filter.isActive = isActive === 'true';
 
   if (search) {
