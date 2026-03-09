@@ -365,10 +365,6 @@ export default {
         }
       }
 
-      // Group items: parent items with their child component items
-    const groupedItems = computed(() => {
-      const allItems = items.value
-      const reqs = allRequests.value
       const childItemIds = new Set()
 
       // Find items whose approved request has a parentRequestId
