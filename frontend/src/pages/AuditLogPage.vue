@@ -43,24 +43,58 @@
       </div>
     </div>
 
-    <!-- Action Category Tabs -->
+    <!-- Filter Dropdown Bar -->
     <div class="mb-4">
-      <div class="flex gap-2 flex-wrap">
+      <div class="flex gap-2 flex-wrap relative">
+        <!-- All button -->
         <button
-          @click="selectedAction = 'All'; currentPage = 1"
-          :class="`pill ${selectedAction === 'All' ? 'pill-active' : ''}`"
+          @click="selectedAction = 'All'; selectedTimeRange = 'all'; currentPage = 1; closeDropdowns()"
+          :class="`pill ${selectedAction === 'All' && selectedTimeRange === 'all' ? 'pill-active' : ''}`"
         >
           All
         </button>
-        <button
-          v-for="cat in actionCategories"
-          :key="cat.label"
-          @click="selectedAction = cat.label; currentPage = 1"
-          :class="`pill ${selectedAction === cat.label ? 'pill-active' : ''}`"
-        >
-          {{ cat.label }}
-          <span class="ml-1 text-xs opacity-75">({{ getCategoryCount(cat) }})</span>
-        </button>
+
+        <!-- Time Range Dropdown -->
+        <div class="relative">
+          <button
+            @click.stop="toggleDropdown('time')"
+            :class="`pill ${selectedTimeRange !== 'all' ? 'pill-active' : ''}`"
+          >
+            {{ selectedTimeRangeLabel }}
+            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div v-if="openDropdown === 'time'" class="dropdown-menu">
+            <button
+              v-for="opt in timeRangeOptions"
+              :key="opt.value"
+              @click="selectTimeRange(opt.value)"
+              :class="`dropdown-item ${selectedTimeRange === opt.value ? 'dropdown-item-active' : ''}`"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Action Dropdown -->
+        <div class="relative">
+          <button
+            @click.stop="toggleDropdown('action')"
+            :class="`pill ${selectedAction !== 'All' ? 'pill-active' : ''}`"
+          >
+            {{ selectedAction === 'All' ? 'Action' : selectedAction }}
+            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div v-if="openDropdown === 'action'" class="dropdown-menu">
+            <button
+              v-for="cat in actionCategories"
+              :key="cat.label"
+              @click="selectAction(cat.label)"
+              :class="`dropdown-item ${selectedAction === cat.label ? 'dropdown-item-active' : ''}`"
+            >
+              {{ cat.label }} ({{ getCategoryCount(cat) }})
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -131,7 +165,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { auditService, authService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -160,6 +194,60 @@ export default {
       return user?.role === 'admin'
     })
 
+    // Dropdown state
+    const openDropdown = ref(null)
+    const selectedTimeRange = ref('all')
+
+    const timeRangeOptions = [
+      { label: 'Past 15 minutes', value: '15m' },
+      { label: 'Past 1 hour', value: '1h' },
+      { label: 'Past 24 hours', value: '24h' },
+      { label: 'Past 7 days', value: '7d' },
+      { label: 'Past 4 weeks', value: '4w' },
+      { label: 'Past 6 months', value: '6M' },
+      { label: 'Past 1 year', value: '1y' },
+      { label: 'Past 2 years', value: '2y' },
+      { label: 'All time', value: 'all' }
+    ]
+
+    const selectedTimeRangeLabel = computed(() => {
+      const opt = timeRangeOptions.find(o => o.value === selectedTimeRange.value)
+      return opt ? opt.label : 'Time range'
+    })
+
+    const toggleDropdown = (name) => {
+      openDropdown.value = openDropdown.value === name ? null : name
+    }
+
+    const closeDropdowns = () => {
+      openDropdown.value = null
+    }
+
+    const selectTimeRange = (value) => {
+      selectedTimeRange.value = value
+      currentPage.value = 1
+      closeDropdowns()
+    }
+
+    const selectAction = (label) => {
+      selectedAction.value = label
+      currentPage.value = 1
+      closeDropdowns()
+    }
+
+    // Close dropdown on click outside
+    const handleClickOutside = () => {
+      closeDropdowns()
+    }
+
+    onMounted(() => {
+      document.addEventListener('click', handleClickOutside)
+    })
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleClickOutside)
+    })
+
     // Action categories for grouping
     const actionCategories = [
       { label: 'Login / Logout', actions: ['LOGIN', 'LOGOUT'], activeClass: 'pill-active' },
@@ -169,7 +257,7 @@ export default {
     ]
 
     // Reset page on any filter change
-    watch([searchText, selectedAction, filters], () => {
+    watch([searchText, selectedAction, selectedTimeRange, filters], () => {
       currentPage.value = 1
     }, { deep: true })
 
@@ -185,6 +273,7 @@ export default {
     const clearAllFilters = () => {
       searchText.value = ''
       selectedAction.value = 'All'
+      selectedTimeRange.value = 'all'
       filters.value = { userID: '', itemID: '', dateFrom: '', dateTo: '' }
     }
 
@@ -197,13 +286,29 @@ export default {
 
       // Action category filter
       if (selectedAction.value === 'All') {
-        // Hide login/logout in the default "All" view — use the dedicated tab to see them
-        result = result.filter(l => l.action !== 'LOGIN' && l.action !== 'LOGOUT')
+        // Show all records
       } else {
         const cat = actionCategories.find(c => c.label === selectedAction.value)
         if (cat) {
           result = result.filter(l => cat.actions.includes(l.action))
         }
+      }
+
+      // Time range filter
+      if (selectedTimeRange.value !== 'all') {
+        const now = Date.now()
+        const rangeMs = {
+          '15m': 15 * 60 * 1000,
+          '1h': 60 * 60 * 1000,
+          '24h': 24 * 60 * 60 * 1000,
+          '7d': 7 * 24 * 60 * 60 * 1000,
+          '4w': 28 * 24 * 60 * 60 * 1000,
+          '6M': 183 * 24 * 60 * 60 * 1000,
+          '1y': 365 * 24 * 60 * 60 * 1000,
+          '2y': 730 * 24 * 60 * 60 * 1000
+        }
+        const cutoff = now - (rangeMs[selectedTimeRange.value] || 0)
+        result = result.filter(l => new Date(l.timestamp).getTime() >= cutoff)
       }
 
       // Text search
@@ -373,6 +478,14 @@ export default {
       allSelected,
       toggleSelectAll,
       handleDeleteLogs,
+      openDropdown,
+      selectedTimeRange,
+      selectedTimeRangeLabel,
+      timeRangeOptions,
+      toggleDropdown,
+      closeDropdowns,
+      selectTimeRange,
+      selectAction,
     }
   }
 }
@@ -389,5 +502,38 @@ export default {
 }
 thead th:hover .sort-icon {
   color: #1f2937;
+}
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  background: var(--color-bg-card, #1e293b);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 50;
+  overflow: hidden;
+}
+.dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text, #e2e8f0);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.dropdown-item:hover {
+  background: var(--color-bg-hover, rgba(99, 102, 241, 0.15));
+}
+.dropdown-item-active {
+  background: var(--color-bg-active, rgba(99, 102, 241, 0.25));
+  font-weight: 600;
 }
 </style>
