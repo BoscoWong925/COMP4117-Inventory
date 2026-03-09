@@ -142,8 +142,8 @@
             <input type="text" required v-model="formData.username" class="form-input" :disabled="!!editingUser" />
           </div>
           <div>
-            <label class="form-label">Email</label>
-            <input type="email" v-model="formData.email" class="form-input" />
+            <label class="form-label">Email *</label>
+            <input type="email" v-model="formData.email" class="form-input" :required="!editingUser" />
           </div>
           <div>
             <label class="form-label">Role *</label>
@@ -155,8 +155,8 @@
             </select>
           </div>
           <div>
-            <label class="form-label">Department</label>
-            <input type="text" v-model="formData.department" class="form-input" placeholder="e.g. COMP" />
+            <label class="form-label">Department *</label>
+            <input type="text" v-model="formData.department" class="form-input" placeholder="e.g. COMP" :required="!editingUser" />
           </div>
           <div>
             <label class="form-label">{{ editingUser ? 'New Password (leave blank to keep)' : 'Password *' }}</label>
