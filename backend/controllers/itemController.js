@@ -1,4 +1,6 @@
 const Item = require('../models/Item');
+const BorrowRequest = require('../models/BorrowRequest');
+const User = require('../models/User');
 const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
@@ -97,10 +99,18 @@ exports.getAllItems = catchAsync(async (req, res) => {
 exports.getAvailableItems = catchAsync(async (req, res) => {
   const { search, category, location, owner, page = 1, pageSize = 10 } = req.query;
 
+  // Find items that are pending check-out (reserved but not yet physically handed over)
+  const pendingCheckoutRequests = await BorrowRequest.find({ status: 'Pending Check-Out' }).select('itemID').lean();
+  const reservedItemIds = pendingCheckoutRequests.map(r => r.itemID);
+
   const filter = { status: 'Available', canBorrow: true };
 
+  // Exclude items with pending check-out requests
+  if (reservedItemIds.length > 0) {
+    filter.itemId = { $nin: reservedItemIds };
+  }
+
   // Exclude child items (items with motherID that are not the mother themselves)
-  // Only mother items or standalone items can be borrowed
   filter.$and = [{ $or: [{ motherID: null }, { motherID: '' }, { fixedComponents: { $exists: true, $not: { $size: 0 } } }] }];
 
   if (category) filter.category = category;
@@ -499,7 +509,16 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
  * Get list of distinct item owners.
  */
 exports.getItemOwners = catchAsync(async (req, res) => {
-  const owners = await Item.distinct('owner');
+  const ownerIds = await Item.distinct('owner');
+  const owners = [];
+  for (const ownerId of ownerIds) {
+    if (ownerId === 'department') {
+      owners.push({ id: 'department', name: 'Department' });
+    } else {
+      const user = await User.findOne({ userId: ownerId }).select('name userId').lean();
+      owners.push({ id: ownerId, name: user ? user.name : ownerId });
+    }
+  }
   res.status(200).json({
     success: true,
     owners

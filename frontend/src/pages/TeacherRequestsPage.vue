@@ -22,7 +22,7 @@
       </button>
     </div>
 
-    <!-- ========== PENDING TAB ========== -->
+    <!-- ========== UNIFIED PENDING TAB ========== -->
     <template v-if="activeTab === 'pending'">
       <div v-if="loadingPending" class="empty-state">Loading pending requests...</div>
       <div v-else-if="pendingRequests.length === 0" class="empty-state">
@@ -37,6 +37,7 @@
               <th class="border p-2 text-left">Item</th>
               <th class="border p-2 text-left">Borrower</th>
               <th class="border p-2 text-left">Request Date</th>
+              <th class="border p-2 text-left">Status</th>
               <th class="border p-2 text-left">Waiting</th>
               <th class="border p-2 text-left">Reason</th>
               <th class="border p-2 text-center">Actions</th>
@@ -48,11 +49,20 @@
               <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
               <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
               <td class="border p-2 text-sm">{{ formatDate(req.requestDate) }}</td>
+              <td class="border p-2 text-sm">
+                <span v-if="req.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+              </td>
               <td class="border p-2 text-sm text-orange-500 font-medium">{{ waitingTime(req.requestDate) }}</td>
               <td class="border p-2 text-sm">{{ req.reason || '-' }}</td>
               <td class="border p-2 text-center whitespace-nowrap">
-                <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
-                <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
+                <template v-if="req.status === 'Pending'">
+                  <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
+                  <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
+                </template>
+                <template v-else>
+                  <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
+                </template>
               </td>
             </tr>
           </tbody>
@@ -178,6 +188,11 @@ export default {
     const rejectTarget = ref(null)
     const rejectReason = ref('')
 
+    const paginatedPending = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return pendingRequests.value.slice(start, start + pageSize)
+    })
+
     const loadPending = async () => {
       loadingPending.value = true
       try {
@@ -210,11 +225,6 @@ export default {
       if (activeTab.value === 'history') {
         loadHistory()
       }
-    })
-
-    const paginatedPending = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return pendingRequests.value.slice(start, start + pageSize)
     })
 
     const getStatusBadge = (status) => {
@@ -274,6 +284,17 @@ export default {
       }
     }
 
+    const handleCheckout = async (req) => {
+      try {
+        const reqId = req.requestId || req.id || req._id
+        await borrowingService.checkoutRequest(reqId)
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to checkout:', e)
+        alert('Failed to checkout: ' + e.message)
+      }
+    }
+
     onMounted(() => { loadPending() })
 
     return {
@@ -283,7 +304,7 @@ export default {
       rejectTarget, rejectReason,
       paginatedPending,
       getStatusBadge, openApprove, openReject,
-      handleApprove, handleReject, loadPending, loadHistory,
+      handleApprove, handleReject, handleCheckout, loadPending, loadHistory,
       formatDate, waitingTime
     }
   }

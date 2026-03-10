@@ -5,7 +5,8 @@
       <button @click="exportRequests" class="btn">Export to Excel</button>
     </div>
 
-    <div v-if="groupedRequests.length === 0" class="empty-state">
+    <!-- ========== UNIFIED PENDING TAB ========== -->
+    <div v-if="allPendingGroups.length === 0" class="empty-state">
       No pending requests
     </div>
     <div v-else class="overflow-x-auto">
@@ -16,14 +17,14 @@
             <th class="border p-2 text-left">Item Name</th>
             <th class="border p-2 text-left">Borrower</th>
             <th class="border p-2 text-left">Request Date</th>
+            <th class="border p-2 text-left">Status</th>
             <th class="border p-2 text-left">Waiting</th>
             <th class="border p-2 text-left">Reason</th>
             <th class="border p-2 text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="group in paginatedRequests" :key="group.parent.id">
-            <!-- Parent / standalone request row -->
+          <template v-for="group in paginatedAll" :key="group.parent.id">
             <tr class="row-parent">
               <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
               <td class="border p-2 font-semibold">
@@ -32,50 +33,52 @@
                   (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                 </span>
               </td>
-              <td class="border p-2">{{ group.parent.borrowerID }}
+              <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
                 <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
                   <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
                   <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
                 </span>
               </td>
               <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
+              <td class="border p-2">
+                <span v-if="group.parent.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+              </td>
               <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
               <td class="border p-2">{{ group.parent.reason }}</td>
               <td class="border p-2 text-center whitespace-nowrap">
-                <button
-                  @click="selectedRequest = group.parent.id"
-                  class="btn btn-outline-success text-sm"
-                >
-                  Approve{{ group.children.length > 0 ? ' All' : '' }}
-                </button>
-                <button
-                  @click="showRejectForm = group.parent.id"
-                  class="btn btn-outline-danger text-sm ml-2"
-                >
-                  Reject{{ group.children.length > 0 ? ' All' : '' }}
-                </button>
+                <template v-if="group.parent.status === 'Pending'">
+                  <button @click="selectedRequest = group.parent.id" class="btn btn-outline-success text-sm">
+                    Approve{{ group.children.length > 0 ? ' All' : '' }}
+                  </button>
+                  <button @click="showRejectForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
+                    Reject{{ group.children.length > 0 ? ' All' : '' }}
+                  </button>
+                </template>
+                <template v-else>
+                  <button @click="handleCheckout(group.parent.id)" class="btn btn-outline-primary text-sm">
+                    Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
+                  </button>
+                </template>
               </td>
             </tr>
-            <!-- Child component rows (indented) -->
             <tr v-for="child in group.children" :key="child.id" class="row-child">
               <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
               <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
-              <td class="border p-2 text-sm">{{ child.borrowerID }}</td>
+              <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
               <td class="border p-2 text-sm">{{ formatDate(child.requestDate) }}</td>
+              <td class="border p-2 text-sm">
+                <span v-if="child.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+              </td>
               <td class="border p-2 text-sm">{{ waitingTime(child.requestDate) }}</td>
               <td class="border p-2 text-sm italic">{{ child.reason }}</td>
-              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">
-                Auto with parent
-              </td>
+              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
             </tr>
           </template>
         </tbody>
       </table>
-      <PaginationControl
-        v-model:currentPage="currentPage"
-        :totalItems="groupedRequests.length"
-        :pageSize="pageSize"
-      />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="allPendingGroups.length" :pageSize="pageSize" />
     </div>
 
     <!-- Approve Modal -->
@@ -159,7 +162,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
-import { locations as defaultLocations } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import RemarkBox from '../components/RemarkBox.vue'
@@ -175,8 +177,8 @@ export default {
     const showRejectForm = ref(null)
     const currentPage = ref(1)
     const pageSize = 10
-    const locationOptions = ref([...defaultLocations])
-    const approveLocation = ref(defaultLocations[0])
+    const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
+    const approveLocation = ref('Lab A')
     const approveRemark = ref('')
 
     // Borrowers with overdue items
@@ -190,35 +192,32 @@ export default {
       return ids
     })
 
-    // Group requests: parent requests with their children nested underneath
-    const groupedRequests = computed(() => {
-      const allReqs = requests.value
-      // Collect IDs of child requests (those with a parentRequestId)
-      const childIds = new Set(allReqs.filter(r => r.parentRequestId).map(r => r.id))
-      // Parent/standalone requests = those that are NOT children
-      const parents = allReqs.filter(r => !childIds.has(r.id) || !r.parentRequestId)
-        .filter(r => !r.parentRequestId) // true standalone / parent
-      // Also include standalone requests that have no parent (non-child)
-      const standalones = allReqs.filter(r => !r.parentRequestId && !parents.find(p => p.id === r.id))
-
+    // Build groups from requests by status
+    const buildGroups = (reqs) => {
+      const childIds = new Set(reqs.filter(r => r.parentRequestId).map(r => r.id))
+      const parents = reqs.filter(r => !r.parentRequestId)
       const groups = []
-      // Build groups for parent requests
       parents.forEach(parent => {
-        const children = allReqs.filter(r => r.parentRequestId === parent.id)
+        const children = reqs.filter(r => r.parentRequestId === parent.id)
         groups.push({ parent, children })
       })
-      // Add standalone requests that are children without a matching parent in pending
-      allReqs.filter(r => r.parentRequestId && !parents.find(p => p.id === r.parentRequestId))
+      // Orphan children
+      reqs.filter(r => r.parentRequestId && !parents.find(p => p.id === r.parentRequestId))
         .forEach(orphan => {
           groups.push({ parent: orphan, children: [] })
         })
-
       return groups
+    }
+
+    // All pending requests (both Pending and Pending Check-Out) in one list
+    const allPendingGroups = computed(() => {
+      const all = requests.value.filter(r => r.status === 'Pending' || r.status === 'Pending Check-Out')
+      return buildGroups(all)
     })
 
-    const paginatedRequests = computed(() => {
+    const paginatedAll = computed(() => {
       const start = (currentPage.value - 1) * pageSize
-      return groupedRequests.value.slice(start, start + pageSize)
+      return allPendingGroups.value.slice(start, start + pageSize)
     })
 
     const addLocation = (val) => {
@@ -295,6 +294,16 @@ export default {
       loadPendingRequests()
     }
 
+    const handleCheckout = async (requestId) => {
+      try {
+        await borrowingService.checkoutRequest(requestId)
+      } catch (e) {
+        console.error('Failed to checkout request:', e)
+        alert('Failed to checkout: ' + e.message)
+      }
+      loadPendingRequests()
+    }
+
     const exportRequests = () => {
       exportToExcel(requests.value, 'borrow_requests.xlsx')
     }
@@ -305,20 +314,21 @@ export default {
 
     return {
       requests,
-      groupedRequests,
+      allPendingGroups,
       selectedRequest,
       returnDate,
       rejectReason,
       showRejectForm,
       currentPage,
       pageSize,
-      paginatedRequests,
+      paginatedAll,
       locationOptions,
       approveLocation,
       approveRemark,
       addLocation,
       handleApprove,
       handleReject,
+      handleCheckout,
       exportRequests,
       formatDate,
       waitingTime,

@@ -147,12 +147,12 @@ exports.getAllRequests = catchAsync(async (req, res) => {
  * Get pending requests + top-level count for notification badge.
  */
 exports.getPendingRequests = catchAsync(async (req, res) => {
-  const requests = await BorrowRequest.find({ status: 'Pending' }).sort({ requestDate: -1 });
+  const requests = await BorrowRequest.find({ status: { $in: ['Pending', 'Pending Check-Out'] } }).sort({ requestDate: -1 });
   const populated = await populateRequests(requests);
 
   // Count only top-level (no parent) for badge
   const topLevelCount = await BorrowRequest.countDocuments({
-    status: 'Pending',
+    status: { $in: ['Pending', 'Pending Check-Out'] },
     parentRequestId: null
   });
 
@@ -315,33 +315,32 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
   }
 
   // Update parent request
-  request.status = 'Approved';
+  request.status = 'Pending Check-Out';
   request.approvalDate = new Date();
   request.approvedBy = req.user.userId;
   request.returnDate = returnDate ? new Date(returnDate) : null;
   if (remark) request.notes = remark;
   await request.save();
 
-  // Update parent item
+  // Do NOT change item status yet – item stays Available until physical checkout
+  // But update location if provided
   const item = await Item.findOne({ itemId: request.itemID });
-  if (item) {
-    item.status = 'In-use';
-    item.currentBorrower = request.borrowerID;
-    if (location) item.location = location;
+  if (item && location) {
+    item.location = location;
     item.lastUpdate = new Date().toISOString().split('T')[0];
     await item.save();
   }
 
-  await addAuditLog(req.user.userId, 'BORROW_REQUEST_APPROVED', `Request approved for item ${request.itemID}`, request.itemID);
+  await addAuditLog(req.user.userId, 'BORROW_REQUEST_APPROVED', `Request approved for item ${request.itemID} (pending check-out)`, request.itemID);
 
-  // Cascade: approve child requests
+  // Cascade: approve child requests (set to Pending Check-Out)
   const childRequests = await BorrowRequest.find({
     parentRequestId: req.params.id,
     status: 'Pending'
   });
 
   for (const childReq of childRequests) {
-    childReq.status = 'Approved';
+    childReq.status = 'Pending Check-Out';
     childReq.approvalDate = new Date();
     childReq.approvedBy = req.user.userId;
     childReq.returnDate = returnDate ? new Date(returnDate) : null;
@@ -349,16 +348,14 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
     await childReq.save();
 
     const childItem = await Item.findOne({ itemId: childReq.itemID });
-    if (childItem) {
-      childItem.status = 'In-use';
-      childItem.currentBorrower = childReq.borrowerID;
-      if (location) childItem.location = location;
+    if (childItem && location) {
+      childItem.location = location;
       childItem.lastUpdate = new Date().toISOString().split('T')[0];
       await childItem.save();
     }
 
     await addAuditLog(req.user.userId, 'BORROW_REQUEST_APPROVED',
-      `Child request auto-approved with parent ${req.params.id}`, childReq.itemID);
+      `Child request auto-approved with parent ${req.params.id} (pending check-out)`, childReq.itemID);
   }
 
   const populated = await populateRequests([request]);
@@ -417,6 +414,76 @@ exports.rejectRequest = catchAsync(async (req, res, next) => {
 
     await addAuditLog(req.user.userId, 'BORROW_REQUEST_REJECTED',
       `Child request auto-rejected with parent ${req.params.id}: ${reason}`, childReq.itemID);
+  }
+
+  const populated = await populateRequests([request]);
+
+  res.status(200).json({
+    success: true,
+    request: populated[0]
+  });
+});
+
+/**
+ * PUT /api/borrow-requests/:id/checkout
+ * Mark a "Pending Check-Out" request as physically checked out ("Borrowed Out").
+ * This sets request status to Approved and item status to In-use.
+ * Cascades to child requests.
+ */
+exports.checkoutRequest = catchAsync(async (req, res, next) => {
+  const request = await BorrowRequest.findOne({ requestId: req.params.id });
+  if (!request) {
+    return next(ApiError.notFound(`Request ${req.params.id} not found`));
+  }
+
+  if (request.status !== 'Pending Check-Out') {
+    return next(ApiError.badRequest(`Request must be in 'Pending Check-Out' status to checkout. Current: ${request.status}`));
+  }
+
+  // Teachers can only checkout items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    const item = await Item.findOne({ itemId: request.itemID });
+    if (!item || item.owner !== req.user.userId) {
+      return next(ApiError.forbidden('You can only checkout items you own'));
+    }
+  }
+
+  // Update request status
+  request.status = 'Approved';
+  await request.save();
+
+  // Now update item to In-use
+  const item = await Item.findOne({ itemId: request.itemID });
+  if (item) {
+    item.status = 'In-use';
+    item.currentBorrower = request.borrowerID;
+    item.lastUpdate = new Date().toISOString().split('T')[0];
+    await item.save();
+  }
+
+  await addAuditLog(req.user.userId, 'BORROW_CHECKED_OUT',
+    `Item ${request.itemID} checked out to ${request.borrowerID}`, request.itemID);
+
+  // Cascade: checkout child requests
+  const childRequests = await BorrowRequest.find({
+    parentRequestId: req.params.id,
+    status: 'Pending Check-Out'
+  });
+
+  for (const childReq of childRequests) {
+    childReq.status = 'Approved';
+    await childReq.save();
+
+    const childItem = await Item.findOne({ itemId: childReq.itemID });
+    if (childItem) {
+      childItem.status = 'In-use';
+      childItem.currentBorrower = childReq.borrowerID;
+      childItem.lastUpdate = new Date().toISOString().split('T')[0];
+      await childItem.save();
+    }
+
+    await addAuditLog(req.user.userId, 'BORROW_CHECKED_OUT',
+      `Child item ${childReq.itemID} auto-checked-out with parent ${req.params.id}`, childReq.itemID);
   }
 
   const populated = await populateRequests([request]);
@@ -612,7 +679,7 @@ exports.getTeacherPendingRequests = catchAsync(async (req, res) => {
 
   const requests = await BorrowRequest.find({
     itemID: { $in: ownedItemIds },
-    status: 'Pending'
+    status: { $in: ['Pending', 'Pending Check-Out'] }
   }).sort({ requestDate: -1 });
 
   const populated = await populateRequests(requests);

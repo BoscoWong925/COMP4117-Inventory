@@ -100,7 +100,10 @@ const seedData = async () => {
       { requestId: 'REQ-013', itemID: 'INV-009', borrowerID: 'U003', status: 'Pending', requestDate: new Date('2025-02-01T10:15:00Z'), approvalDate: null, approvedBy: null, returnDate: null, returnedDate: null, reason: 'GPU computing for data analysis', notes: '', parentRequestId: null },
       { requestId: 'REQ-014', itemID: 'INV-005', borrowerID: 'U003', status: 'Returned', requestDate: new Date('2024-12-10T08:45:00Z'), approvalDate: new Date('2024-12-10T11:30:00Z'), approvedBy: 'U002', returnDate: new Date('2025-01-10'), returnedDate: new Date('2025-01-08T16:20:00Z'), reason: 'Lab setup - Mouse needed for testing', notes: 'Returned in good condition', parentRequestId: null },
       { requestId: 'REQ-015', itemID: 'INV-003', borrowerID: 'U003', status: 'Returned', requestDate: new Date('2024-11-05T14:00:00Z'), approvalDate: new Date('2024-11-06T09:00:00Z'), approvedBy: 'U001', returnDate: new Date('2024-12-05'), returnedDate: new Date('2024-12-03T10:30:00Z'), reason: 'SSD benchmarking for research paper', notes: 'All good', parentRequestId: null },
-      { requestId: 'REQ-016', itemID: 'INV-012', borrowerID: 'U003', status: 'Rejected', requestDate: new Date('2025-01-20T13:00:00Z'), approvalDate: new Date('2025-01-21T09:45:00Z'), approvedBy: 'U001', returnDate: null, returnedDate: null, reason: 'Need headphones for recording project', notes: 'Item reserved for audio lab', parentRequestId: null }
+      { requestId: 'REQ-016', itemID: 'INV-012', borrowerID: 'U003', status: 'Rejected', requestDate: new Date('2025-01-20T13:00:00Z'), approvalDate: new Date('2025-01-21T09:45:00Z'), approvedBy: 'U001', returnDate: null, returnedDate: null, reason: 'Need headphones for recording project', notes: 'Item reserved for audio lab', parentRequestId: null },
+      { requestId: 'REQ-017', itemID: 'INV-014', borrowerID: 'S00678901', status: 'Pending Check-Out', requestDate: new Date('2025-02-02T09:00:00Z'), approvalDate: new Date('2025-02-02T14:00:00Z'), approvedBy: 'U001', returnDate: new Date('2025-03-15T17:00:00Z'), returnedDate: null, reason: 'Classroom presentation setup', notes: '', parentRequestId: null },
+      { requestId: 'REQ-018', itemID: 'INV-018', borrowerID: 'S00789012', status: 'Pending Check-Out', requestDate: new Date('2025-02-03T10:30:00Z'), approvalDate: new Date('2025-02-03T15:00:00Z'), approvedBy: 'U002', returnDate: new Date('2025-03-10T17:00:00Z'), returnedDate: null, reason: 'Digital art project for coursework', notes: 'Handle with care', parentRequestId: null },
+      { requestId: 'REQ-019', itemID: 'INV-017', borrowerID: 'S00901234', status: 'Pending', requestDate: new Date('2025-02-04T08:15:00Z'), approvalDate: null, approvedBy: null, returnDate: null, returnedDate: null, reason: 'Music production project', notes: '', parentRequestId: null }
     ];
 
     await BorrowRequest.insertMany(requests);
@@ -133,7 +136,7 @@ const seedData = async () => {
 
     // ===== SET COUNTERS =====
     await Counter.create({ _id: 'itemId', seq: 20 });
-    await Counter.create({ _id: 'requestId', seq: 16 });
+    await Counter.create({ _id: 'requestId', seq: 19 });
     await Counter.create({ _id: 'logId', seq: 18 });
     console.log('Set counters.');
 

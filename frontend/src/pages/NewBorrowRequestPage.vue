@@ -25,8 +25,7 @@
           <label class="form-label">Filter by Owner</label>
           <select v-model="ownerFilter" class="form-select" @change="loadAvailableItems">
             <option value="">All Owners</option>
-            <option value="department">Department</option>
-            <option v-for="t in owners" :key="t" :value="t">{{ t }}</option>
+            <option v-for="o in owners" :key="o.id" :value="o.id">{{ o.name }}</option>
           </select>
         </div>
 

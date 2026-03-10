@@ -194,7 +194,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, isDueSoon, daysFromNow } from '../utils/helpers'
-import { mockUsers } from '../data/mockData'
 import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
@@ -280,8 +279,7 @@ export default {
 
     const getBorrowerName = (id) => {
       if (!id) return '-'
-      const u = mockUsers.find(u => u.id === id)
-      return u ? u.name : id
+      return id
     }
 
     const buildQueryParams = () => {

@@ -285,6 +285,14 @@ export const borrowingService = {
     return data.request;
   },
 
+  checkoutRequest: async (requestID) => {
+    const data = await apiRequest(`/borrow-requests/${requestID}/checkout`, {
+      method: 'PUT',
+      body: JSON.stringify({})
+    });
+    return data.request;
+  },
+
   returnItem: async (requestID, location = null) => {
     const body = {};
     if (location) body.location = location;

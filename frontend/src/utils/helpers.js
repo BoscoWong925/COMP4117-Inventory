@@ -36,7 +36,7 @@ export const formatDateTime = (dateTimeString) => {
 export const ITEM_STATUSES = ['Available', 'Checked-out', 'Reserved', 'In repair', 'Retired', 'Lost'];
 
 // Request statuses (borrow workflow)
-export const REQUEST_STATUSES = ['Pending', 'Approved', 'Rejected', 'Returned'];
+export const REQUEST_STATUSES = ['Pending', 'Pending Check-Out', 'Approved', 'Rejected', 'Returned'];
 
 // Map legacy status labels to new canonical labels
 export const normalizeItemStatus = (status) => {
@@ -63,6 +63,7 @@ export const getStatusColor = (status) => {
     'Lost':         'badge-danger',
     // Request statuses
     'Pending':      'badge-warning',
+    'Pending Check-Out': 'badge-info',
     'Approved':     'badge-success',
     'Rejected':     'badge-danger',
     'Returned':     'badge-info',

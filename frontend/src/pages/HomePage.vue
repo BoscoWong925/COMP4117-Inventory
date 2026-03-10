@@ -87,7 +87,7 @@
           </div>
         </div>
 
-        <!-- Pending requests table -->
+        <!-- Pending requests table (unified: Pending + Pending Check-Out) -->
         <div v-if="(activeTab === 'all' || activeTab === 'pending') && pendingRequests.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-accent">Pending requests</h3>
@@ -99,6 +99,7 @@
                 <tr>
                   <th>Item</th>
                   <th>Borrower</th>
+                  <th>Status</th>
                   <th>Waiting</th>
                   <th>Reason</th>
                   <th v-if="pendingRequests.length <= 5" class="text-center">Actions</th>
@@ -107,17 +108,26 @@
               <tbody>
                 <tr v-for="req in pendingRequests.slice(0, 5)" :key="req.id">
                   <td class="font-semibold">{{ req.itemName }}</td>
-                  <td>{{ req.borrowerID }}
+                  <td>{{ req.borrowerName || req.borrowerID }}
                     <span v-if="overdueBorrowerIDs.has(req.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
                       <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
                       <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
                     </span>
                   </td>
+                  <td>
+                    <span v-if="req.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                    <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+                  </td>
                   <td>{{ waitingTime(req.requestDate) }}</td>
                   <td class="text-ellip">{{ req.reason || '—' }}</td>
                   <td v-if="pendingRequests.length <= 5" class="text-center whitespace-nowrap">
-                    <button @click="inlineApproveId = req.id" class="inline-action-btn success">Approve</button>
-                    <button @click="inlineRejectId = req.id" class="inline-action-btn danger">Reject</button>
+                    <template v-if="req.status === 'Pending'">
+                      <button @click="inlineApproveId = req.id" class="inline-action-btn success">Approve</button>
+                      <button @click="inlineRejectId = req.id" class="inline-action-btn danger">Reject</button>
+                    </template>
+                    <template v-else>
+                      <button @click="handleInlineCheckout(req.id)" class="inline-action-btn primary">Borrowed Out</button>
+                    </template>
                   </td>
                 </tr>
               </tbody>
@@ -245,54 +255,130 @@
 
     <!-- ==================== TEACHER VIEW ==================== -->
     <template v-else-if="user?.subRole === 'teacher'">
+      <!-- Page heading -->
       <div class="hero-section animate-in">
-        <h2 class="hero-title">Teacher dashboard</h2>
-        <p class="hero-subtitle">{{ todayLabel }}</p>
+        <div class="hero-row">
+          <div>
+            <h2 class="hero-title">Teacher dashboard</h2>
+            <p class="hero-subtitle">{{ todayLabel }}</p>
+          </div>
+          <div class="items-tracked-box">
+            <span class="items-tracked-count">{{ teacherOwnedItems.length }}</span>
+            <span class="items-tracked-label">Items Owned</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="quick-actions animate-in delay-1">
-        <button @click="$emit('navigate', 'new-borrow-request')" class="quick-action-card action-blue">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
-          <span class="quick-action-text">New borrow request</span>
-        </button>
-        <button @click="$emit('navigate', 'my-items')" class="quick-action-card action-purple">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
-          <span class="quick-action-text">My items</span>
-        </button>
-        <button @click="$emit('navigate', 'teacher-requests')" class="quick-action-card action-orange">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></span>
-          <span class="quick-action-text">Pending requests</span>
-          <span v-if="teacherPendingCount > 0" class="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-red-500 text-white">{{ teacherPendingCount }}</span>
-        </button>
-        <button @click="$emit('navigate', 'search-available')" class="quick-action-card action-green">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-          <span class="quick-action-text">Search items</span>
-        </button>
-      </div>
-
-      <!-- Owned Items Summary -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 animate-in delay-1 mb-4 px-4">
-        <div class="theme-card p-4 text-center">
+      <!-- Summary stat cards -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in delay-1 mb-4 px-4">
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'teacher-requests')">
+          <p class="text-2xl font-bold" style="color:#ef4444">{{ teacherPendingCount }}</p>
+          <p class="text-xs text-muted">Pending Requests</p>
+        </div>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items')">
           <p class="text-2xl font-bold text-accent">{{ teacherOwnedItems.length }}</p>
           <p class="text-xs text-muted">Items Owned</p>
         </div>
-        <div class="theme-card p-4 text-center">
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items')">
           <p class="text-2xl font-bold" style="color:#22c55e">{{ teacherOwnedItems.filter(i => i.status === 'Available').length }}</p>
           <p class="text-xs text-muted">Available</p>
         </div>
-        <div class="theme-card p-4 text-center">
-          <p class="text-2xl font-bold" style="color:#f59e0b">{{ teacherOwnedItems.filter(i => i.status === 'In-use').length }}</p>
-          <p class="text-xs text-muted">In Use</p>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'teacher-checkout')">
+          <p class="text-2xl font-bold" style="color:#f59e0b">{{ teacherCheckedOutCount }}</p>
+          <p class="text-xs text-muted">Checked Out</p>
         </div>
-        <div class="theme-card p-4 text-center">
-          <p class="text-2xl font-bold" style="color:#ef4444">{{ teacherPendingCount }}</p>
-          <p class="text-xs text-muted">Pending Requests</p>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'search-available')">
+          <p class="text-2xl font-bold" style="color:#6366f1">{{ teacherAvailableForBorrow }}</p>
+          <p class="text-xs text-muted">Available to Borrow</p>
+        </div>
+      </div>
+
+      <!-- Tabbed attention section -->
+      <div class="section-card animate-in delay-2">
+        <div class="tab-bar">
+          <button
+            v-for="tab in teacherAttentionTabs"
+            :key="tab.key"
+            :class="['tab-btn', { active: teacherActiveTab === tab.key }]"
+            @click="teacherActiveTab = tab.key"
+          >
+            {{ tab.label }}
+            <span v-if="tab.count > 0" :class="['tab-badge', tab.severity]">{{ tab.count }}</span>
+          </button>
+        </div>
+
+        <!-- Pending requests (unified: Pending + Pending Check-Out) -->
+        <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'pending') && teacherPendingRequests.length > 0" class="tab-section">
+          <div class="section-header">
+            <h3 class="section-title section-title-accent">Pending requests</h3>
+            <button @click="$emit('navigate', 'teacher-requests')" class="section-link">View all →</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table-striped">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Borrower</th>
+                  <th>Status</th>
+                  <th>Waiting</th>
+                  <th>Reason</th>
+                  <th class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="req in teacherPendingRequests.slice(0, 5)" :key="req.id">
+                  <td class="font-semibold">{{ req.itemName }}</td>
+                  <td>{{ req.borrowerName || req.borrowerID }}</td>
+                  <td>
+                    <span v-if="req.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                    <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+                  </td>
+                  <td>{{ waitingTime(req.requestDate) }}</td>
+                  <td class="text-ellip">{{ req.reason || '—' }}</td>
+                  <td class="text-center whitespace-nowrap">
+                    <template v-if="req.status === 'Pending Check-Out'">
+                      <button @click="handleTeacherCheckout(req.id)" class="inline-action-btn primary">Borrowed Out</button>
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Checked-out items -->
+        <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'checkout') && teacherOwnedItems.filter(i => i.status === 'In-use').length > 0" class="tab-section">
+          <div class="section-header">
+            <h3 class="section-title section-title-warning">Items currently checked out</h3>
+            <button @click="$emit('navigate', 'teacher-checkout')" class="section-link">View all →</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table-striped">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Borrower</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in teacherOwnedItems.filter(i => i.status === 'In-use').slice(0, 5)" :key="item.id">
+                  <td class="font-semibold">{{ item.name }}</td>
+                  <td>{{ item.currentBorrower || '—' }}</td>
+                  <td><StatusBadge :status="item.status" type="item" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div v-if="teacherActiveTabEmpty" class="empty-state">
+          <p>No items need attention</p>
         </div>
       </div>
 
       <!-- My Borrow Records -->
-      <div class="section-card animate-in delay-2">
+      <div class="section-card animate-in delay-3">
         <div class="section-header">
           <h3 class="section-title">My borrow records</h3>
           <button @click="$emit('navigate', 'my-borrowing-record')" class="section-link">View all →</button>
@@ -373,7 +459,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime, isOverdue, isDueSoon, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
-import { locations as defaultLocations } from '../data/mockData'
 import DashboardCalendar from '../components/DashboardCalendar.vue'
 import AlertCard from '../components/AlertCard.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -402,6 +487,9 @@ export default {
     const showCalendar = ref(false)
     const teacherOwnedItems = ref([])
     const teacherPendingCount = ref(0)
+    const teacherPendingRequests = ref([])
+    const teacherCheckedOutCount = ref(0)
+    const teacherAvailableForBorrow = ref(0)
 
     // Tab & inline approve/reject state
     const activeTab = ref('all')
@@ -410,8 +498,8 @@ export default {
     const inlineRemark = ref('')
     const inlineRejectId = ref(null)
     const inlineRejectReason = ref('')
-    const locationOptions = ref([...defaultLocations])
-    const inlineLocation = ref(defaultLocations[0])
+    const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
+    const inlineLocation = ref('Lab A')
 
     const todayLabel = computed(() => {
       return new Date().toLocaleDateString('en-HK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -430,6 +518,28 @@ export default {
     const warrantyExpiringSoonItems = computed(() =>
       allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30))
     )
+
+    // Teacher dashboard computed
+    const teacherActiveTab = ref('all')
+    const teacherAttentionTabs = computed(() => [
+      { key: 'all', label: 'All', count: teacherPendingRequests.value.length + teacherCheckedOutCount.value, severity: 'neutral' },
+      { key: 'pending', label: 'Pending', count: teacherPendingRequests.value.length, severity: 'danger' },
+      { key: 'checkout', label: 'Checked out', count: teacherCheckedOutCount.value, severity: 'neutral' }
+    ])
+    const teacherActiveTabEmpty = computed(() => {
+      if (teacherActiveTab.value === 'all') return teacherPendingRequests.value.length === 0 && teacherCheckedOutCount.value === 0
+      if (teacherActiveTab.value === 'pending') return teacherPendingRequests.value.length === 0
+      if (teacherActiveTab.value === 'checkout') return teacherCheckedOutCount.value === 0
+      return true
+    })
+
+    const handleTeacherCheckout = async (requestId) => {
+      if (!confirm('Confirm item has been borrowed out?')) return
+      try {
+        await borrowingService.checkoutRequest(requestId)
+      } catch (e) { console.error('Failed to checkout request:', e) }
+      loadDashboardData()
+    }
 
     // Borrowers with overdue items (for red mark on pending requests)
     const overdueBorrowerIDs = computed(() => {
@@ -511,6 +621,14 @@ export default {
       })
     )
 
+    const handleInlineCheckout = async (requestId) => {
+      if (!confirm('Confirm item has been borrowed out?')) return
+      try {
+        await borrowingService.checkoutRequest(requestId)
+      } catch (e) { console.error('Failed to checkout request:', e) }
+      loadDashboardData()
+    }
+
     const loadDashboardData = async () => {
       if (user.value?.role !== 'user') {
         try {
@@ -580,9 +698,19 @@ export default {
             }
             try {
               const tPending = await borrowingService.getTeacherPendingRequests()
+              teacherPendingRequests.value = tPending
               teacherPendingCount.value = tPending.length
             } catch (te) {
               console.error('Failed to load teacher pending:', te)
+            }
+            // Count checked-out items (items owned by teacher that are In-use)
+            teacherCheckedOutCount.value = teacherOwnedItems.value.filter(i => i.status === 'In-use').length
+            // Count available items for borrow
+            try {
+              const { items: availItems } = await inventoryService.getAvailableItems()
+              teacherAvailableForBorrow.value = availItems.length
+            } catch (te) {
+              console.error('Failed to load available items:', te)
             }
           }
         }
@@ -626,6 +754,7 @@ export default {
       cancelInlineApprove,
       confirmInlineReject,
       cancelInlineReject,
+      handleInlineCheckout,
       formatDate,
       formatDateTime,
       getStatusColor,
@@ -634,6 +763,13 @@ export default {
       overdueBorrowerIDs,
       teacherOwnedItems,
       teacherPendingCount,
+      teacherPendingRequests,
+      teacherCheckedOutCount,
+      teacherAvailableForBorrow,
+      teacherActiveTab,
+      teacherAttentionTabs,
+      teacherActiveTabEmpty,
+      handleTeacherCheckout,
     }
   }
 }
@@ -763,6 +899,8 @@ export default {
 .inline-action-btn.success:hover { background: rgba(22, 163, 74, 0.08); }
 .inline-action-btn.danger { color: var(--danger); border-color: var(--danger); }
 .inline-action-btn.danger:hover { background: rgba(239, 68, 68, 0.08); }
+.inline-action-btn.primary { color: var(--accent); border-color: var(--accent); }
+.inline-action-btn.primary:hover { background: rgba(59, 130, 246, 0.08); }
 
 .text-warning-em {
   color: var(--warning);

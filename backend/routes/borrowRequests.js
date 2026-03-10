@@ -23,6 +23,7 @@ router.post('/', upload.array('attachments', 10), borrowRequestController.create
 router.get('/:id', borrowRequestController.getRequestById);
 router.put('/:id/approve', borrowRequestController.approveRequest);
 router.put('/:id/reject', borrowRequestController.rejectRequest);
+router.put('/:id/checkout', borrowRequestController.checkoutRequest);
 router.put('/:id/declare-return', borrowRequestController.declareReturnDate);
 router.put('/:id/return', borrowRequestController.returnRequest);
 router.post('/:id/attachments', upload.array('attachments', 10), borrowRequestController.uploadAttachments);

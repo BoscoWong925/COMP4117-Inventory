@@ -184,12 +184,12 @@ export default {
         )
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         items.push(
-          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
-          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
-          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
-          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
           { page: 'teacher-requests', label: 'Item requests', icon: NAV_ICONS.teacherRequests },
+          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
           { page: 'teacher-checkout', label: 'Checkout', icon: NAV_ICONS.checkedOut },
+          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
+          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
+          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
         )
       } else if (user.value?.role === 'user') {
         items.push(
