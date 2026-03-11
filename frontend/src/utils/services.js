@@ -203,6 +203,15 @@ export const inventoryService = {
     return data.success;
   },
 
+  updateItemStatus: async (id, status) => {
+    const data = await apiRequest(`/items/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+    const item = data.item;
+    return item ? { ...item, id: item.itemId } : null;
+  },
+
   searchItems: async (query) => {
     const data = await apiRequest(`/items?search=${encodeURIComponent(query)}&pageSize=100`);
     return (data.items || []).map(item => ({ ...item, id: item.itemId }));
@@ -291,6 +300,22 @@ export const borrowingService = {
       body: JSON.stringify({})
     });
     return data.request;
+  },
+
+  denyCheckout: async (requestID, reason) => {
+    const data = await apiRequest(`/borrow-requests/${requestID}/deny`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason })
+    });
+    return data.request;
+  },
+
+  autoExpirePendingCheckouts: async () => {
+    const data = await apiRequest('/borrow-requests/auto-expire', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    return data.expiredCount || 0;
   },
 
   returnItem: async (requestID, location = null) => {

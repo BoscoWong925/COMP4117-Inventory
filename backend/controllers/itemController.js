@@ -10,6 +10,24 @@ const path = require('path');
 const fs = require('fs');
 
 /**
+ * Resolve currentBorrower userId to name for a list of items.
+ */
+const populateBorrowerNames = async (items) => {
+  const borrowerIds = [...new Set(items.filter(i => i.currentBorrower).map(i => i.currentBorrower))];
+  if (borrowerIds.length === 0) return items;
+  const users = await User.find({ userId: { $in: borrowerIds } }).select('userId name').lean();
+  const nameMap = {};
+  users.forEach(u => { nameMap[u.userId] = u.name; });
+  return items.map(item => {
+    const obj = item.toObject ? item.toObject() : { ...item };
+    if (obj.currentBorrower && nameMap[obj.currentBorrower]) {
+      obj.currentBorrowerName = nameMap[obj.currentBorrower];
+    }
+    return obj;
+  });
+};
+
+/**
  * Generate next item ID
  */
 const getNextItemId = async () => {
@@ -18,7 +36,7 @@ const getNextItemId = async () => {
     { $inc: { seq: 1 } },
     { new: true, upsert: true }
   );
-  return `INV-${String(counter.seq).padStart(3, '0')}`;
+  return `INV-${String(counter.seq).padStart(4, '0')}`;
 };
 
 /**
@@ -78,10 +96,12 @@ exports.getAllItems = catchAsync(async (req, res) => {
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await Item.countDocuments(filter);
-  const items = await Item.find(filter)
+  const rawItems = await Item.find(filter)
     .sort(sort)
     .skip(skip)
     .limit(parseInt(pageSize));
+
+  const items = await populateBorrowerNames(rawItems);
 
   res.status(200).json({
     success: true,
@@ -181,10 +201,12 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await Item.countDocuments(filter);
-  const items = await Item.find(filter)
+  const rawItems = await Item.find(filter)
     .sort(sort)
     .skip(skip)
     .limit(parseInt(pageSize));
+
+  const items = await populateBorrowerNames(rawItems);
 
   res.status(200).json({
     success: true,
@@ -490,10 +512,12 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await Item.countDocuments(filter);
-  const items = await Item.find(filter)
+  const rawItems = await Item.find(filter)
     .sort({ itemId: 1 })
     .skip(skip)
     .limit(parseInt(pageSize));
+
+  const items = await populateBorrowerNames(rawItems);
 
   res.status(200).json({
     success: true,
@@ -510,17 +534,67 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
  */
 exports.getItemOwners = catchAsync(async (req, res) => {
   const ownerIds = await Item.distinct('owner');
-  const owners = [];
-  for (const ownerId of ownerIds) {
-    if (ownerId === 'department') {
-      owners.push({ id: 'department', name: 'Department' });
-    } else {
-      const user = await User.findOne({ userId: ownerId }).select('name userId').lean();
-      owners.push({ id: ownerId, name: user ? user.name : ownerId });
-    }
-  }
+  const nonDeptIds = ownerIds.filter(id => id && id !== 'department');
+  const users = await User.find({ userId: { $in: nonDeptIds } }).select('userId name').lean();
+  const nameMap = {};
+  users.forEach(u => { nameMap[u.userId] = u.name; });
+
+  const owners = ownerIds.map(ownerId => {
+    if (ownerId === 'department') return { id: 'department', name: 'Department' };
+    return { id: ownerId, name: nameMap[ownerId] || ownerId };
+  });
+
   res.status(200).json({
     success: true,
     owners
+  });
+});
+
+/**
+ * PUT /api/items/:id/status
+ * Allow teachers (item owners), admins, and operators to change item status.
+ * Teachers can only change status of items they own, and only between Available/In-use.
+ */
+exports.updateItemStatus = catchAsync(async (req, res, next) => {
+  const { status } = req.body;
+  const item = await Item.findOne({ itemId: req.params.id });
+  if (!item) {
+    return next(ApiError.notFound(`Item ${req.params.id} not found`));
+  }
+
+  // Teachers can only update items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    if (item.owner !== req.user.userId) {
+      return next(ApiError.forbidden('You can only update status for items you own'));
+    }
+    // Teachers can only switch between Available and In-use
+    const allowedStatuses = ['Available', 'In-use'];
+    if (!allowedStatuses.includes(status)) {
+      return next(ApiError.badRequest(`Teachers can only set status to: ${allowedStatuses.join(', ')}`));
+    }
+  } else if (req.user.role !== 'admin' && req.user.role !== 'operator') {
+    return next(ApiError.forbidden('You do not have permission to change item status'));
+  }
+
+  const oldStatus = item.status;
+  item.status = status;
+  if (status === 'Available') {
+    item.currentBorrower = null;
+  }
+  item.lastUpdate = new Date().toISOString().split('T')[0];
+  await item.save();
+
+  await addAuditLog(
+    req.user.userId,
+    'ITEM_STATUS_CHANGE',
+    `Item ${item.name} status changed from ${oldStatus} to ${status}`,
+    item.itemId,
+    oldStatus,
+    status
+  );
+
+  res.status(200).json({
+    success: true,
+    item
   });
 });

@@ -18,17 +18,17 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.125rem;
-  height: 1.125rem;
-  padding: 0 0.3rem;
-  font-size: 0.6875rem;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.375rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #fff;
   background: var(--danger, #ef4444);
   border-radius: 9999px;
   line-height: 1;
-  margin-left: 0.25rem;
+  margin-left: 0.375rem;
   vertical-align: middle;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
 }
 </style>

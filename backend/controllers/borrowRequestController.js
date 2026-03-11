@@ -15,7 +15,7 @@ const getNextRequestId = async () => {
     { $inc: { seq: 1 } },
     { new: true, upsert: true }
   );
-  return `REQ-${String(counter.seq).padStart(3, '0')}`;
+  return `REQ-${String(counter.seq).padStart(4, '0')}`;
 };
 
 /**
@@ -232,6 +232,20 @@ exports.createRequest = catchAsync(async (req, res, next) => {
     return next(ApiError.notFound(`Item ${itemID} not found`));
   }
 
+  // Block requests if item already has a Pending Check-Out request
+  const existingPendingCheckout = await BorrowRequest.findOne({
+    itemID,
+    status: 'Pending Check-Out'
+  });
+  if (existingPendingCheckout) {
+    return next(ApiError.badRequest(`Item ${itemID} is currently pending check-out and cannot receive new requests`));
+  }
+
+  // Also block if item status is not Available
+  if (item.status !== 'Available') {
+    return next(ApiError.badRequest(`Item ${itemID} is not available for borrowing (current status: ${item.status})`));
+  }
+
   // Create parent request
   const parentRequestId = await getNextRequestId();
   const parentRequest = await BorrowRequest.create({
@@ -314,6 +328,44 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
     }
   }
 
+  // Auto-reject other pending requests for the same item(s)
+  const itemIds = [request.itemID];
+  // Also collect child item IDs from fixedComponents
+  const parentItem = await Item.findOne({ itemId: request.itemID });
+  if (parentItem && parentItem.fixedComponents && parentItem.fixedComponents.length > 0) {
+    itemIds.push(...parentItem.fixedComponents);
+  }
+
+  const competingRequests = await BorrowRequest.find({
+    itemID: { $in: itemIds },
+    status: 'Pending',
+    requestId: { $ne: request.requestId }
+  });
+
+  // Also reject child requests of competing parent requests
+  const competingParentIds = [...new Set(competingRequests.filter(r => !r.parentRequestId).map(r => r.requestId))];
+  const competingChildRequests = competingParentIds.length > 0
+    ? await BorrowRequest.find({ parentRequestId: { $in: competingParentIds }, status: 'Pending' })
+    : [];
+  const allCompeting = [...competingRequests, ...competingChildRequests];
+  // Deduplicate
+  const seenIds = new Set();
+  const uniqueCompeting = allCompeting.filter(r => {
+    if (seenIds.has(r.requestId)) return false;
+    seenIds.add(r.requestId);
+    return true;
+  });
+
+  for (const comp of uniqueCompeting) {
+    comp.status = 'Rejected';
+    comp.notes = `Auto-rejected: another request (${request.requestId}) for the same item was approved`;
+    comp.approvalDate = new Date();
+    comp.approvedBy = req.user.userId;
+    await comp.save();
+    await addAuditLog(req.user.userId, 'BORROW_REQUEST_REJECTED',
+      `Auto-rejected request ${comp.requestId} (item ${comp.itemID} approved for ${request.requestId})`, comp.itemID);
+  }
+
   // Update parent request
   request.status = 'Pending Check-Out';
   request.approvalDate = new Date();
@@ -332,6 +384,9 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
   }
 
   await addAuditLog(req.user.userId, 'BORROW_REQUEST_APPROVED', `Request approved for item ${request.itemID} (pending check-out)`, request.itemID);
+
+  // Include auto-rejected count in response
+  const autoRejectedCount = uniqueCompeting.length;
 
   // Cascade: approve child requests (set to Pending Check-Out)
   const childRequests = await BorrowRequest.find({
@@ -362,7 +417,8 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    request: populated[0]
+    request: populated[0],
+    autoRejectedCount
   });
 });
 
@@ -661,6 +717,104 @@ exports.uploadAttachments = catchAsync(async (req, res, next) => {
   res.status(200).json({
     success: true,
     files: newAttachments
+  });
+});
+
+/**
+ * PUT /api/borrow-requests/:id/deny
+ * Deny a "Pending Check-Out" request: revert item to Available, set request to Rejected.
+ * Cascades to child requests.
+ */
+exports.denyCheckout = catchAsync(async (req, res, next) => {
+  const { reason } = req.body;
+
+  const request = await BorrowRequest.findOne({ requestId: req.params.id });
+  if (!request) {
+    return next(ApiError.notFound(`Request ${req.params.id} not found`));
+  }
+
+  if (request.status !== 'Pending Check-Out') {
+    return next(ApiError.badRequest(`Request must be in 'Pending Check-Out' status to deny. Current: ${request.status}`));
+  }
+
+  // Teachers can only deny items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    const item = await Item.findOne({ itemId: request.itemID });
+    if (!item || item.owner !== req.user.userId) {
+      return next(ApiError.forbidden('You can only deny requests for items you own'));
+    }
+  }
+
+  // Reject the request
+  request.status = 'Rejected';
+  request.notes = reason || 'Denied at check-out stage';
+  await request.save();
+
+  // Item stays Available (it was never changed to In-use during Pending Check-Out)
+
+  await addAuditLog(req.user.userId, 'BORROW_CHECKOUT_DENIED',
+    `Pending check-out denied for item ${request.itemID}: ${reason || 'No reason'}`, request.itemID);
+
+  // Cascade: deny child requests
+  const childRequests = await BorrowRequest.find({
+    parentRequestId: req.params.id,
+    status: 'Pending Check-Out'
+  });
+
+  for (const childReq of childRequests) {
+    childReq.status = 'Rejected';
+    childReq.notes = `Auto-denied with parent: ${reason || 'No reason'}`;
+    await childReq.save();
+
+    await addAuditLog(req.user.userId, 'BORROW_CHECKOUT_DENIED',
+      `Child request auto-denied with parent ${req.params.id}`, childReq.itemID);
+  }
+
+  const populated = await populateRequests([request]);
+
+  res.status(200).json({
+    success: true,
+    request: populated[0]
+  });
+});
+
+/**
+ * POST /api/borrow-requests/auto-expire
+ * Auto-expire Pending Check-Out requests older than 30 days.
+ * Called on-demand (e.g., when loading pending requests).
+ */
+exports.autoExpirePendingCheckouts = catchAsync(async (req, res) => {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const expiredRequests = await BorrowRequest.find({
+    status: 'Pending Check-Out',
+    approvalDate: { $lt: thirtyDaysAgo }
+  }).lean();
+
+  if (expiredRequests.length === 0) {
+    return res.status(200).json({ success: true, expiredCount: 0 });
+  }
+
+  const parentIds = expiredRequests.map(r => r.requestId);
+  const itemIds = expiredRequests.map(r => r.itemID);
+
+  // Bulk update parent requests
+  await BorrowRequest.updateMany(
+    { requestId: { $in: parentIds } },
+    { $set: { status: 'Rejected', notes: 'Auto-expired: Pending Check-Out exceeded 30 days without action' } }
+  );
+
+  // Bulk update child requests
+  const childResult = await BorrowRequest.updateMany(
+    { parentRequestId: { $in: parentIds }, status: 'Pending Check-Out' },
+    { $set: { status: 'Rejected', notes: 'Auto-expired with parent request' } }
+  );
+
+  const expiredCount = parentIds.length + (childResult.modifiedCount || 0);
+
+  res.status(200).json({
+    success: true,
+    expiredCount
   });
 });
 

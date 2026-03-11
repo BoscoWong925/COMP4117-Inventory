@@ -12,7 +12,14 @@
         :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
       >
         Pending
-        <span v-if="pendingRequests.length" class="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-red-500 text-white">{{ pendingRequests.length }}</span>
+        <span v-if="pendingOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-red-500 text-white" style="min-width:1.5rem;text-align:center">{{ pendingOnly.length }}</span>
+      </button>
+      <button
+        @click="activeTab = 'checkout'; currentPage = 1"
+        :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
+      >
+        Pending Check-Out
+        <span v-if="checkoutOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-blue-500 text-white" style="min-width:1.5rem;text-align:center">{{ checkoutOnly.length }}</span>
       </button>
       <button
         @click="activeTab = 'history'; currentPage = 1; loadHistory()"
@@ -22,10 +29,10 @@
       </button>
     </div>
 
-    <!-- ========== UNIFIED PENDING TAB ========== -->
+    <!-- ========== PENDING TAB ========== -->
     <template v-if="activeTab === 'pending'">
       <div v-if="loadingPending" class="empty-state">Loading pending requests...</div>
-      <div v-else-if="pendingRequests.length === 0" class="empty-state">
+      <div v-else-if="pendingOnly.length === 0" class="empty-state">
         <p>No pending requests</p>
         <p class="text-sm mt-1">Students haven't requested any of your items yet.</p>
       </div>
@@ -50,24 +57,60 @@
               <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
               <td class="border p-2 text-sm">{{ formatDate(req.requestDate) }}</td>
               <td class="border p-2 text-sm">
-                <span v-if="req.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+                <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
               </td>
               <td class="border p-2 text-sm text-orange-500 font-medium">{{ waitingTime(req.requestDate) }}</td>
               <td class="border p-2 text-sm">{{ req.reason || '-' }}</td>
               <td class="border p-2 text-center whitespace-nowrap">
-                <template v-if="req.status === 'Pending'">
-                  <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
-                  <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
-                </template>
-                <template v-else>
-                  <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
-                </template>
+                <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
+                <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
               </td>
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingRequests.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingOnly.length" :pageSize="pageSize" />
+      </div>
+    </template>
+
+    <!-- ========== PENDING CHECK-OUT TAB ========== -->
+    <template v-if="activeTab === 'checkout'">
+      <div v-if="loadingPending" class="empty-state">Loading...</div>
+      <div v-else-if="checkoutOnly.length === 0" class="empty-state">
+        <p>No items pending check-out</p>
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse table-striped theme-table">
+          <thead>
+            <tr>
+              <th class="border p-2 text-left">Request ID</th>
+              <th class="border p-2 text-left">Item</th>
+              <th class="border p-2 text-left">Borrower</th>
+              <th class="border p-2 text-left">Approved Date</th>
+              <th class="border p-2 text-left">Status</th>
+              <th class="border p-2 text-left">Waiting</th>
+              <th class="border p-2 text-left">Return Date</th>
+              <th class="border p-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="req in paginatedCheckout" :key="req.id || req._id">
+              <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
+              <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
+              <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+              <td class="border p-2 text-sm">{{ formatDate(req.approvalDate) }}</td>
+              <td class="border p-2 text-sm">
+                <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+              </td>
+              <td class="border p-2 text-sm text-orange-500 font-medium">{{ waitingTime(req.approvalDate) }}</td>
+              <td class="border p-2 text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
+              <td class="border p-2 text-center whitespace-nowrap">
+                <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
+                <button @click="openDeny(req)" class="btn btn-outline-danger text-sm ml-1">Deny</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutOnly.length" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -157,6 +200,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Deny Check-Out Modal -->
+    <div v-if="denyTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Deny Check-Out</h3>
+        <p class="text-sm text-secondary mb-3">
+          This will reject the approved request for <strong>{{ denyTarget.itemName || denyTarget.itemID }}</strong> and make the item available again.
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Reason</label>
+          <textarea v-model="denyReason" class="form-input" rows="3" placeholder="Enter reason for denying check-out..." />
+        </div>
+        <div class="flex gap-2">
+          <button @click="handleDeny" class="btn btn-outline-danger flex-1">Deny</button>
+          <button @click="denyTarget = null; denyReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -188,9 +249,22 @@ export default {
     const rejectTarget = ref(null)
     const rejectReason = ref('')
 
+    // Deny modal
+    const denyTarget = ref(null)
+    const denyReason = ref('')
+
+    // Split pending requests by status
+    const pendingOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending'))
+    const checkoutOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending Check-Out'))
+
     const paginatedPending = computed(() => {
       const start = (currentPage.value - 1) * pageSize
-      return pendingRequests.value.slice(start, start + pageSize)
+      return pendingOnly.value.slice(start, start + pageSize)
+    })
+
+    const paginatedCheckout = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return checkoutOnly.value.slice(start, start + pageSize)
     })
 
     const loadPending = async () => {
@@ -248,6 +322,11 @@ export default {
       rejectReason.value = ''
     }
 
+    const openDeny = (req) => {
+      denyTarget.value = req
+      denyReason.value = ''
+    }
+
     const handleApprove = async () => {
       if (!returnDate.value) {
         alert('Please set a return date')
@@ -295,16 +374,32 @@ export default {
       }
     }
 
+    const handleDeny = async () => {
+      try {
+        const reqId = denyTarget.value.requestId || denyTarget.value.id || denyTarget.value._id
+        await borrowingService.denyCheckout(reqId, denyReason.value || '')
+        denyTarget.value = null
+        denyReason.value = ''
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to deny:', e)
+        alert('Failed to deny: ' + e.message)
+      }
+    }
+
     onMounted(() => { loadPending() })
 
     return {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
       historyStatus, currentPage, pageSize, totalHistory,
+      pendingOnly, checkoutOnly,
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
-      paginatedPending,
-      getStatusBadge, openApprove, openReject,
-      handleApprove, handleReject, handleCheckout, loadPending, loadHistory,
+      denyTarget, denyReason,
+      paginatedPending, paginatedCheckout,
+      getStatusBadge, openApprove, openReject, openDeny,
+      handleApprove, handleReject, handleCheckout, handleDeny,
+      loadPending, loadHistory,
       formatDate, waitingTime
     }
   }

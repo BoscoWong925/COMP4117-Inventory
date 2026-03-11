@@ -12,6 +12,7 @@ router.get('/pending', authorize('admin', 'operator'), borrowRequestController.g
 router.get('/my', borrowRequestController.getMyRequests);
 router.get('/teacher-pending', borrowRequestController.getTeacherPendingRequests);
 router.get('/teacher-history', borrowRequestController.getTeacherRequestHistory);
+router.post('/auto-expire', authorize('admin', 'operator'), borrowRequestController.autoExpirePendingCheckouts);
 
 // Admin/operator: get all requests
 router.get('/', authorize('admin', 'operator'), borrowRequestController.getAllRequests);
@@ -24,6 +25,7 @@ router.get('/:id', borrowRequestController.getRequestById);
 router.put('/:id/approve', borrowRequestController.approveRequest);
 router.put('/:id/reject', borrowRequestController.rejectRequest);
 router.put('/:id/checkout', borrowRequestController.checkoutRequest);
+router.put('/:id/deny', borrowRequestController.denyCheckout);
 router.put('/:id/declare-return', borrowRequestController.declareReturnDate);
 router.put('/:id/return', borrowRequestController.returnRequest);
 router.post('/:id/attachments', upload.array('attachments', 10), borrowRequestController.uploadAttachments);

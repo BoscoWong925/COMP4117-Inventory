@@ -183,10 +183,7 @@ export default {
           params.search = searchText.value
         }
         const result = await inventoryService.getAvailableItems(params)
-        // Only show computer / main hardware items (not loose components that are children)
-        availableItems.value = result.items.filter(item =>
-          item.category === 'Computer' || item.type === 'Hardware'
-        )
+        availableItems.value = result.items
       } catch (e) {
         console.error('Failed to load available items:', e)
       }
@@ -310,6 +307,7 @@ export default {
       ownerFilter,
       owners,
       selectItem,
+      loadAvailableItems,
       handleFileUpload,
       removeFile,
       handleSubmitRequest,

@@ -1308,7 +1308,12 @@ export default {
     onMounted(() => {
       // Apply auto-filter from dashboard navigation
       if (props.pageParams?.filter) {
-        activeStatusFilter.value = props.pageParams.filter
+        const filterMap = { available: 'Available', missing: 'Missing', disposed: 'Dispose' }
+        if (filterMap[props.pageParams.filter]) {
+          searchFilters.value.status = filterMap[props.pageParams.filter]
+        } else {
+          activeStatusFilter.value = props.pageParams.filter
+        }
       }
       loadItems()
       // Load teachers for owner dropdown

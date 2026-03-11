@@ -32,43 +32,32 @@ export const formatDateTime = (dateTimeString) => {
 };
 
 // ===== Status model =====
-// Item statuses (physical inventory)
-export const ITEM_STATUSES = ['Available', 'Checked-out', 'Reserved', 'In repair', 'Retired', 'Lost'];
+// Item statuses (must match backend schema enum)
+export const ITEM_STATUSES = ['Available', 'In-use', 'Missing', 'Dispose', 'Not Available', 'Transferred'];
 
 // Request statuses (borrow workflow)
 export const REQUEST_STATUSES = ['Pending', 'Pending Check-Out', 'Approved', 'Rejected', 'Returned'];
 
-// Map legacy status labels to new canonical labels
-export const normalizeItemStatus = (status) => {
-  const map = {
-    'In-use': 'Checked-out',
-    'Lent out': 'Checked-out',
-    'Dispose': 'Retired',
-    'Not Available': 'Retired',
-    'Missing': 'Lost',
-    'Transferred': 'Retired',
-  };
-  return map[status] || status;
-};
+// Pass-through: statuses now match DB schema directly
+export const normalizeItemStatus = (status) => status;
 
 export const getStatusColor = (status) => {
-  const normalized = normalizeItemStatus(status);
   const colors = {
     // Item statuses
-    'Available':    'badge-success',
-    'Checked-out':  'badge-info',
-    'Reserved':     'badge-warning',
-    'In repair':    'badge-warning',
-    'Retired':      'badge-muted',
-    'Lost':         'badge-danger',
+    'Available':         'badge-success',
+    'In-use':            'badge-info',
+    'Missing':           'badge-danger',
+    'Dispose':           'badge-muted',
+    'Not Available':     'badge-warning',
+    'Transferred':       'badge-muted',
     // Request statuses
-    'Pending':      'badge-warning',
+    'Pending':           'badge-warning',
     'Pending Check-Out': 'badge-info',
-    'Approved':     'badge-success',
-    'Rejected':     'badge-danger',
-    'Returned':     'badge-info',
+    'Approved':          'badge-success',
+    'Rejected':          'badge-danger',
+    'Returned':          'badge-info',
   };
-  return colors[normalized] || 'badge-muted';
+  return colors[status] || 'badge-muted';
 };
 
 // ===== Date / time helpers =====

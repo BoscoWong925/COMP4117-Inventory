@@ -15,6 +15,12 @@
       />
     </div>
 
+    <!-- Active status filter banner -->
+    <div v-if="statusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between text-sm" style="background: var(--bg-tertiary); border: 1px solid var(--border-color);">
+      <span>Showing: <strong>{{ statusFilter }}</strong> items only</span>
+      <button @click="statusFilter = ''" class="text-accent hover:underline font-medium">Clear Filter &times;</button>
+    </div>
+
     <!-- Tabs for teacher -->
     <div v-if="isTeacher" class="flex gap-2 mb-4">
       <button
@@ -68,6 +74,7 @@
               <th class="border p-2 text-left">Status</th>
               <th class="border p-2 text-left">Location</th>
               <th class="border p-2 text-left">Current Borrower</th>
+              <th class="border p-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -81,7 +88,15 @@
                 </span>
               </td>
               <td class="border p-2 text-sm">{{ item.location || '-' }}</td>
-              <td class="border p-2 text-sm">{{ item.currentBorrower || '-' }}</td>
+              <td class="border p-2 text-sm">{{ item.currentBorrowerName || item.currentBorrower || '-' }}</td>
+              <td class="border p-2 text-center whitespace-nowrap" @click.stop>
+                <template v-if="item.status === 'Available'">
+                  <button @click="changeStatus(item, 'In-use')" class="btn btn-outline-warning text-xs">Set In-use</button>
+                </template>
+                <template v-else-if="item.status === 'In-use'">
+                  <button @click="changeStatus(item, 'Available')" class="btn btn-outline-success text-xs">Set Available</button>
+                </template>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -164,7 +179,7 @@
           <div><p class="field-label">Category</p><p class="font-medium">{{ selectedItem.category }}</p></div>
           <div><p class="field-label">Status</p><span :class="`px-2 py-1 rounded text-sm ${getStatusColor(selectedItem.status)}`">{{ selectedItem.status }}</span></div>
           <div><p class="field-label">Location</p><p class="font-medium">{{ selectedItem.location || 'N/A' }}</p></div>
-          <div><p class="field-label">Current Borrower</p><p class="font-medium">{{ selectedItem.currentBorrower || 'None' }}</p></div>
+          <div><p class="field-label">Current Borrower</p><p class="font-medium">{{ selectedItem.currentBorrowerName || selectedItem.currentBorrower || 'None' }}</p></div>
           <div><p class="field-label">Supplier</p><p class="font-medium">{{ selectedItem.supplier || 'N/A' }}</p></div>
           <div><p class="field-label">Purchase Date</p><p class="font-medium">{{ formatDate(selectedItem.purchaseDate) }}</p></div>
           <div><p class="field-label">Warranty End</p><p class="font-medium">{{ formatDate(selectedItem.warrantyEnd) }}</p></div>
@@ -190,11 +205,15 @@ import PaginationControl from '../components/PaginationControl.vue'
 
 export default {
   components: { PaginationControl },
-  setup() {
+  props: {
+    pageParams: { type: Object, default: () => ({}) }
+  },
+  setup(props) {
     const allOwnedItems = ref([])
     const ownedItems = ref([])
     const borrowedItems = ref([])
     const searchText = ref('')
+    const statusFilter = ref('')
     const selectedItem = ref(null)
     const loading = ref(true)
     const currentPage = ref(1)
@@ -208,9 +227,13 @@ export default {
     const getOwnerId = () => currentUser ? (currentUser.userId || currentUser.id) : null
 
     const filteredOwnedItems = computed(() => {
-      if (!searchText.value) return allOwnedItems.value
+      let result = allOwnedItems.value
+      if (statusFilter.value) {
+        result = result.filter(i => i.status === statusFilter.value)
+      }
+      if (!searchText.value) return result
       const q = searchText.value.toLowerCase()
-      return allOwnedItems.value.filter(i =>
+      return result.filter(i =>
         (i.name || '').toLowerCase().includes(q) ||
         (i.id || '').toLowerCase().includes(q) ||
         (i.description || '').toLowerCase().includes(q)
@@ -276,14 +299,31 @@ export default {
       selectedItem.value = item
     }
 
-    onMounted(loadData)
+    const changeStatus = async (item, newStatus) => {
+      try {
+        await inventoryService.updateItemStatus(item.id, newStatus)
+        item.status = newStatus
+      } catch (e) {
+        alert(e.response?.data?.message || 'Failed to update status')
+      }
+    }
+
+    onMounted(() => {
+      if (props.pageParams?.filter) {
+        const filterMap = { available: 'Available', 'in-use': 'In-use' }
+        if (filterMap[props.pageParams.filter]) {
+          statusFilter.value = filterMap[props.pageParams.filter]
+        }
+      }
+      loadData()
+    })
 
     return {
-      allOwnedItems, borrowedItems, searchText, selectedItem, loading,
+      allOwnedItems, borrowedItems, searchText, statusFilter, selectedItem, loading,
       currentPage, pageSize, activeTab, isTeacher,
       filteredOwnedItems, filteredBorrowedItems,
       paginatedOwnedItems, paginatedBorrowedItems,
-      showDetail, formatDate, getStatusColor
+      showDetail, changeStatus, formatDate, getStatusColor
     }
   }
 }

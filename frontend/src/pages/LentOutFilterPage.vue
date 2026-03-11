@@ -130,7 +130,7 @@
               </td>
               <td class="border p-2">{{ group.parent.category }}</td>
               <td class="border p-2">{{ group.parent.currentBorrower }}</td>
-              <td class="border p-2">{{ getBorrowerName(group.parent.currentBorrower) }}</td>
+              <td class="border p-2">{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
               <td class="border p-2">{{ group.parent.supplier }}</td>
               <td class="border p-2">{{ group.parent.location }}</td>
               <td class="border p-2 text-center">
@@ -148,7 +148,7 @@
               <td class="border p-2 pl-6 text-sm">{{ child.name }}</td>
               <td class="border p-2 text-sm">{{ child.category }}</td>
               <td class="border p-2 text-sm">{{ child.currentBorrower }}</td>
-              <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower) }}</td>
+              <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower, child) }}</td>
               <td class="border p-2 text-sm">{{ child.supplier }}</td>
               <td class="border p-2 text-sm">{{ child.location }}</td>
               <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
@@ -277,8 +277,9 @@ export default {
     }
     const locationOptions = ref(loadLocations())
 
-    const getBorrowerName = (id) => {
+    const getBorrowerName = (id, item) => {
       if (!id) return '-'
+      if (item && item.currentBorrowerName) return item.currentBorrowerName
       return id
     }
 

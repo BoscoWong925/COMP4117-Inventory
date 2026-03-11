@@ -5,86 +5,170 @@
       <button @click="exportRequests" class="btn">Export to Excel</button>
     </div>
 
-    <!-- ========== UNIFIED PENDING TAB ========== -->
-    <div v-if="allPendingGroups.length === 0" class="empty-state">
-      No pending requests
+    <!-- Tabs -->
+    <div class="mb-4 flex gap-2">
+      <button
+        @click="activeTab = 'pending'; currentPage = 1"
+        :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
+      >
+        Pending
+        <span v-if="pendingGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-red-500 text-white" style="min-width:1.5rem;text-align:center">{{ pendingGroups.length }}</span>
+      </button>
+      <button
+        @click="activeTab = 'checkout'; currentPage = 1"
+        :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
+      >
+        Pending Check-Out
+        <span v-if="checkoutGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-blue-500 text-white" style="min-width:1.5rem;text-align:center">{{ checkoutGroups.length }}</span>
+      </button>
     </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse table-striped theme-table">
-        <thead>
-          <tr>
-            <th class="border p-2 text-left">Request ID</th>
-            <th class="border p-2 text-left">Item Name</th>
-            <th class="border p-2 text-left">Borrower</th>
-            <th class="border p-2 text-left">Request Date</th>
-            <th class="border p-2 text-left">Status</th>
-            <th class="border p-2 text-left">Waiting</th>
-            <th class="border p-2 text-left">Reason</th>
-            <th class="border p-2 text-center">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="group in paginatedAll" :key="group.parent.id">
-            <tr class="row-parent">
-              <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
-              <td class="border p-2 font-semibold">
-                {{ group.parent.itemName }}
-                <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
-                  (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
-                </span>
-              </td>
-              <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
-                <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                  <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
-                  <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
-                </span>
-              </td>
-              <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
-              <td class="border p-2">
-                <span v-if="group.parent.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-              </td>
-              <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
-              <td class="border p-2">{{ group.parent.reason }}</td>
-              <td class="border p-2 text-center whitespace-nowrap">
-                <template v-if="group.parent.status === 'Pending'">
+
+    <!-- ========== PENDING TAB ========== -->
+    <template v-if="activeTab === 'pending'">
+      <div v-if="pendingGroups.length === 0" class="empty-state">
+        No pending requests
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse table-striped theme-table">
+          <thead>
+            <tr>
+              <th class="border p-2 text-left">Request ID</th>
+              <th class="border p-2 text-left">Item Name</th>
+              <th class="border p-2 text-left">Borrower</th>
+              <th class="border p-2 text-left">Request Date</th>
+              <th class="border p-2 text-left">Status</th>
+              <th class="border p-2 text-left">Waiting</th>
+              <th class="border p-2 text-left">Reason</th>
+              <th class="border p-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="group in paginatedPending" :key="group.parent.id">
+              <tr class="row-parent">
+                <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
+                <td class="border p-2 font-semibold">
+                  {{ group.parent.itemName }}
+                  <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
+                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
+                  </span>
+                </td>
+                <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
+                  <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
+                    <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                    <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                  </span>
+                </td>
+                <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
+                <td class="border p-2">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                </td>
+                <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
+                <td class="border p-2">{{ group.parent.reason }}</td>
+                <td class="border p-2 text-center whitespace-nowrap">
                   <button @click="selectedRequest = group.parent.id" class="btn btn-outline-success text-sm">
                     Approve{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
                   <button @click="showRejectForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
                     Reject{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
-                </template>
-                <template v-else>
+                </td>
+              </tr>
+              <tr v-for="child in group.children" :key="child.id" class="row-child">
+                <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
+                <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
+                <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
+                <td class="border p-2 text-sm">{{ formatDate(child.requestDate) }}</td>
+                <td class="border p-2 text-sm">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
+                </td>
+                <td class="border p-2 text-sm">{{ waitingTime(child.requestDate) }}</td>
+                <td class="border p-2 text-sm italic">{{ child.reason }}</td>
+                <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingGroups.length" :pageSize="pageSize" />
+      </div>
+    </template>
+
+    <!-- ========== PENDING CHECK-OUT TAB ========== -->
+    <template v-if="activeTab === 'checkout'">
+      <div v-if="checkoutGroups.length === 0" class="empty-state">
+        No items pending check-out
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse table-striped theme-table">
+          <thead>
+            <tr>
+              <th class="border p-2 text-left">Request ID</th>
+              <th class="border p-2 text-left">Item Name</th>
+              <th class="border p-2 text-left">Borrower</th>
+              <th class="border p-2 text-left">Approved Date</th>
+              <th class="border p-2 text-left">Status</th>
+              <th class="border p-2 text-left">Waiting</th>
+              <th class="border p-2 text-left">Return Date</th>
+              <th class="border p-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="group in paginatedCheckout" :key="group.parent.id">
+              <tr class="row-parent">
+                <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
+                <td class="border p-2 font-semibold">
+                  {{ group.parent.itemName }}
+                  <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
+                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
+                  </span>
+                </td>
+                <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
+                  <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
+                    <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+                    <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                  </span>
+                </td>
+                <td class="border p-2">{{ formatDate(group.parent.approvalDate) }}</td>
+                <td class="border p-2">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+                  <span v-if="isCheckoutExpiringSoon(group.parent)" class="ml-1 text-xs text-red-500 font-semibold">(expiring soon)</span>
+                </td>
+                <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.approvalDate) }}</td>
+                <td class="border p-2">{{ formatDate(group.parent.returnDate) || '-' }}</td>
+                <td class="border p-2 text-center whitespace-nowrap">
                   <button @click="handleCheckout(group.parent.id)" class="btn btn-outline-primary text-sm">
                     Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
-                </template>
-              </td>
-            </tr>
-            <tr v-for="child in group.children" :key="child.id" class="row-child">
-              <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
-              <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
-              <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(child.requestDate) }}</td>
-              <td class="border p-2 text-sm">
-                <span v-if="child.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-              </td>
-              <td class="border p-2 text-sm">{{ waitingTime(child.requestDate) }}</td>
-              <td class="border p-2 text-sm italic">{{ child.reason }}</td>
-              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="allPendingGroups.length" :pageSize="pageSize" />
-    </div>
+                  <button @click="showDenyForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
+                    Deny{{ group.children.length > 0 ? ' All' : '' }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-for="child in group.children" :key="child.id" class="row-child">
+                <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
+                <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
+                <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
+                <td class="border p-2 text-sm">{{ formatDate(child.approvalDate) }}</td>
+                <td class="border p-2 text-sm">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
+                </td>
+                <td class="border p-2 text-sm">{{ waitingTime(child.approvalDate) }}</td>
+                <td class="border p-2 text-sm">{{ formatDate(child.returnDate) || '-' }}</td>
+                <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutGroups.length" :pageSize="pageSize" />
+      </div>
+    </template>
 
     <!-- Approve Modal -->
     <div v-if="selectedRequest" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve Request</h3>
+        <p v-if="competingCount > 0" class="text-sm text-red-500 mb-3 p-2 rounded" style="background: rgba(239,68,68,0.1);">
+          ⚠ Approving this request will auto-reject {{ competingCount }} other pending request(s) for the same item.
+        </p>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
           <input
@@ -117,7 +201,7 @@
             Approve
           </button>
           <button
-            @click="selectedRequest = null; returnDate = ''; approveRemark = ''; approveLocation = locationOptions[0]"
+            @click="selectedRequest = null; returnDate = ''; approveRemark = ''; approveLocation = locationOptions[0]; competingCount = 0"
             class="btn btn-outline-secondary flex-1"
           >
             Cancel
@@ -155,6 +239,39 @@
         </div>
       </div>
     </div>
+
+    <!-- Deny Check-Out Modal -->
+    <div v-if="showDenyForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Deny Check-Out</h3>
+        <p class="text-sm text-secondary mb-3">
+          This will reject the approved request and make the item available again.
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Reason</label>
+          <textarea
+            v-model="denyReason"
+            class="form-input"
+            rows="4"
+            placeholder="Enter reason for denying check-out..."
+          />
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="handleDeny(showDenyForm)"
+            class="btn btn-outline-danger flex-1"
+          >
+            Deny
+          </button>
+          <button
+            @click="showDenyForm = null; denyReason = ''"
+            class="btn btn-outline-secondary flex-1"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -175,8 +292,12 @@ export default {
     const returnDate = ref('')
     const rejectReason = ref('')
     const showRejectForm = ref(null)
+    const showDenyForm = ref(null)
+    const denyReason = ref('')
     const currentPage = ref(1)
     const pageSize = 10
+    const activeTab = ref('pending')
+    const competingCount = ref(0)
     const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
     const approveLocation = ref('Lab A')
     const approveRemark = ref('')
@@ -194,7 +315,6 @@ export default {
 
     // Build groups from requests by status
     const buildGroups = (reqs) => {
-      const childIds = new Set(reqs.filter(r => r.parentRequestId).map(r => r.id))
       const parents = reqs.filter(r => !r.parentRequestId)
       const groups = []
       parents.forEach(parent => {
@@ -209,16 +329,30 @@ export default {
       return groups
     }
 
-    // All pending requests (both Pending and Pending Check-Out) in one list
-    const allPendingGroups = computed(() => {
-      const all = requests.value.filter(r => r.status === 'Pending' || r.status === 'Pending Check-Out')
-      return buildGroups(all)
+    // Separate groups for each tab
+    const pendingGroups = computed(() => {
+      return buildGroups(requests.value.filter(r => r.status === 'Pending'))
     })
 
-    const paginatedAll = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return allPendingGroups.value.slice(start, start + pageSize)
+    const checkoutGroups = computed(() => {
+      return buildGroups(requests.value.filter(r => r.status === 'Pending Check-Out'))
     })
+
+    const paginatedPending = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return pendingGroups.value.slice(start, start + pageSize)
+    })
+
+    const paginatedCheckout = computed(() => {
+      const start = (currentPage.value - 1) * pageSize
+      return checkoutGroups.value.slice(start, start + pageSize)
+    })
+
+    const isCheckoutExpiringSoon = (req) => {
+      if (!req.approvalDate) return false
+      const daysSinceApproval = (Date.now() - new Date(req.approvalDate).getTime()) / (1000 * 60 * 60 * 24)
+      return daysSinceApproval >= 25
+    }
 
     const addLocation = (val) => {
       if (!locationOptions.value.includes(val)) {
@@ -228,6 +362,8 @@ export default {
 
     const loadPendingRequests = async () => {
       try {
+        // Trigger auto-expire first
+        try { await borrowingService.autoExpirePendingCheckouts() } catch (e) { /* ignore */ }
         const pendingReqs = await borrowingService.getPendingRequests()
         requests.value = pendingReqs
       } catch (e) {
@@ -235,11 +371,22 @@ export default {
       }
       // Load approved requests for overdue check
       try {
-        const approved = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
+        const { requests: approved } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
         allApprovedRequests.value = approved
       } catch (e) {
         console.error('Failed to load approved requests:', e)
       }
+    }
+
+    const countCompetingRequests = (requestId) => {
+      const req = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (!req) return 0
+      return requests.value.filter(r =>
+        r.itemID === req.itemID &&
+        r.status === 'Pending' &&
+        (r.id || r.requestId) !== requestId &&
+        !r.parentRequestId
+      ).length
     }
 
     const handleApprove = async (requestId) => {
@@ -247,35 +394,25 @@ export default {
         alert('Please set a return date')
         return
       }
-      // Convert date string to ISO datetime string (with default time 17:00:00)
       const returnDatetime = `${returnDate.value}T17:00:00Z`
       try {
         const req = await borrowingService.approveRequest(requestId, returnDatetime)
         if (req) {
           req.notes = approveRemark.value
-          // Update item location if specified
           const item = await inventoryService.getItemById(req.itemID)
           if (item && approveLocation.value) {
             await inventoryService.updateItem(item.id, { ...item, location: approveLocation.value })
           }
-          // Also update location for auto-approved child requests
-          const allReqs = await borrowingService.getAllRequests()
-          const childReqs = allReqs.filter(r => r.parentRequestId === requestId && r.status === 'Approved')
-          for (const childReq of childReqs) {
-            childReq.notes = approveRemark.value
-            const childItem = await inventoryService.getItemById(childReq.itemID)
-            if (childItem && approveLocation.value) {
-              await inventoryService.updateItem(childItem.id, { ...childItem, location: approveLocation.value })
-            }
-          }
         }
       } catch (e) {
         console.error('Failed to approve request:', e)
+        alert('Failed to approve: ' + e.message)
       }
       selectedRequest.value = null
       returnDate.value = ''
       approveRemark.value = ''
       approveLocation.value = locationOptions.value[0]
+      competingCount.value = 0
       loadPendingRequests()
     }
 
@@ -304,6 +441,18 @@ export default {
       loadPendingRequests()
     }
 
+    const handleDeny = async (requestId) => {
+      try {
+        await borrowingService.denyCheckout(requestId, denyReason.value || '')
+      } catch (e) {
+        console.error('Failed to deny checkout:', e)
+        alert('Failed to deny: ' + e.message)
+      }
+      showDenyForm.value = null
+      denyReason.value = ''
+      loadPendingRequests()
+    }
+
     const exportRequests = () => {
       exportToExcel(requests.value, 'borrow_requests.xlsx')
     }
@@ -314,14 +463,20 @@ export default {
 
     return {
       requests,
-      allPendingGroups,
+      activeTab,
+      pendingGroups,
+      checkoutGroups,
       selectedRequest,
       returnDate,
       rejectReason,
       showRejectForm,
+      showDenyForm,
+      denyReason,
       currentPage,
       pageSize,
-      paginatedAll,
+      competingCount,
+      paginatedPending,
+      paginatedCheckout,
       locationOptions,
       approveLocation,
       approveRemark,
@@ -329,10 +484,13 @@ export default {
       handleApprove,
       handleReject,
       handleCheckout,
+      handleDeny,
       exportRequests,
       formatDate,
       waitingTime,
       overdueBorrowerIDs,
+      isCheckoutExpiringSoon,
+      countCompetingRequests,
     }
   }
 }

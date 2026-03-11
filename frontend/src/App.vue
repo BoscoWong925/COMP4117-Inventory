@@ -19,16 +19,30 @@
         </div>
       </div>
       <nav class="top-nav">
-        <button
-          v-for="item in navItems"
-          :key="item.page"
-          @click="handleNavigate(item.page)"
-          :class="['top-nav-tab', currentPage === item.page ? 'top-nav-active' : '']"
-        >
-          <span class="top-nav-icon" v-html="item.icon"></span>
-          <span class="top-nav-label">{{ item.label }}</span>
-          <NotificationBadge v-if="item.page === 'approve-requests'" :count="pendingCount" />
-        </button>
+        <div class="nav-groups">
+          <button
+            v-for="group in navGroups"
+            :key="group.key"
+            @click="handleGroupClick(group)"
+            :class="['nav-group-tab', activeGroup === group.key ? 'nav-group-active' : '']"
+          >
+            <span class="top-nav-icon" v-html="group.icon"></span>
+            <span class="top-nav-label">{{ group.label }}</span>
+            <NotificationBadge v-if="group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
+          </button>
+        </div>
+        <div class="nav-sub" v-if="activeSubItems.length">
+          <button
+            v-for="item in activeSubItems"
+            :key="item.page"
+            @click="handleNavigate(item.page)"
+            :class="['nav-sub-tab', currentPage === item.page ? 'nav-sub-active' : '']"
+          >
+            <span class="top-nav-icon" v-html="item.icon"></span>
+            <span class="top-nav-label">{{ item.label }}</span>
+            <NotificationBadge v-if="item.page === 'approve-requests' || item.page === 'teacher-requests'" :count="pendingCount" />
+          </button>
+        </div>
       </nav>
     </header>
 
@@ -157,55 +171,105 @@ export default {
     const showOverdueWarning = ref(false)
     const overdueItems = ref([])
     let pollTimer = null
+    const activeGroup = ref('dashboard')
 
-    // Navigation items based on role
-    const navItems = computed(() => {
-      const items = [
-        { page: 'home', label: 'Dashboard', icon: NAV_ICONS.home },
-      ]
+    // Navigation groups with sub-items (two-layer nav)
+    const navGroups = computed(() => {
       if (user.value?.role === 'admin') {
-        items.push(
-          { page: 'approve-requests', label: 'Requests', icon: NAV_ICONS.requests },
-          { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
-          { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
-          { page: 'lent-out-filter', label: 'Checked out', icon: NAV_ICONS.checkedOut },
-          { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
-          { page: 'manage-accounts', label: 'Accounts', icon: NAV_ICONS.accounts },
-          { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
-        )
+        return [
+          { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
+          { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
+            { page: 'approve-requests', label: 'Approve Requests', icon: NAV_ICONS.requests },
+            { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+          ]},
+          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
+            { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
+            { page: 'lent-out-filter', label: 'Checked Out', icon: NAV_ICONS.checkedOut },
+          ]},
+          { key: 'admin', label: 'Admin', icon: NAV_ICONS.accounts, children: [
+            { page: 'manage-accounts', label: 'Accounts', icon: NAV_ICONS.accounts },
+            { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
+            { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
+          ]},
+        ]
       } else if (user.value?.role === 'operator') {
-        items.push(
-          { page: 'approve-requests', label: 'Requests', icon: NAV_ICONS.requests },
-          { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
-          { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
-          { page: 'lent-out-filter', label: 'Checked out', icon: NAV_ICONS.checkedOut },
-          { page: 'audit-log', label: 'Audit log', icon: NAV_ICONS.auditLog },
-          { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
-        )
+        return [
+          { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
+          { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
+            { page: 'approve-requests', label: 'Approve Requests', icon: NAV_ICONS.requests },
+            { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+          ]},
+          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
+            { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
+            { page: 'lent-out-filter', label: 'Checked Out', icon: NAV_ICONS.checkedOut },
+          ]},
+          { key: 'system', label: 'System', icon: NAV_ICONS.auditLog, children: [
+            { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
+            { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
+          ]},
+        ]
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
-        items.push(
-          { page: 'teacher-requests', label: 'Item requests', icon: NAV_ICONS.teacherRequests },
-          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
-          { page: 'teacher-checkout', label: 'Checkout', icon: NAV_ICONS.checkedOut },
-          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
-          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
-          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
-        )
+        return [
+          { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
+          { key: 'manage', label: 'Manage', icon: NAV_ICONS.teacherRequests, children: [
+            { page: 'teacher-requests', label: 'Item Requests', icon: NAV_ICONS.teacherRequests },
+            { page: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems },
+            { page: 'teacher-checkout', label: 'Checkout', icon: NAV_ICONS.checkedOut },
+          ]},
+          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
+            { page: 'new-borrow-request', label: 'New Request', icon: NAV_ICONS.newRequest },
+            { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
+            { page: 'my-borrowing-record', label: 'My Records', icon: NAV_ICONS.myRecords },
+          ]},
+        ]
       } else if (user.value?.role === 'user') {
-        items.push(
-          { page: 'new-borrow-request', label: 'New request', icon: NAV_ICONS.newRequest },
-          { page: 'my-borrowing-record', label: 'My records', icon: NAV_ICONS.myRecords },
-          { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
-          { page: 'my-items', label: 'My items', icon: NAV_ICONS.myItems },
-        )
+        return [
+          { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
+          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
+            { page: 'new-borrow-request', label: 'New Request', icon: NAV_ICONS.newRequest },
+            { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
+            { page: 'my-borrowing-record', label: 'My Records', icon: NAV_ICONS.myRecords },
+          ]},
+          { key: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems, page: 'my-items' },
+        ]
       }
-      return items
+      return [{ key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' }]
     })
+
+    const findGroupForPage = (page) => {
+      for (const group of navGroups.value) {
+        if (group.page === page) return group.key
+        if (group.children?.some(c => c.page === page)) return group.key
+      }
+      return 'dashboard'
+    }
+
+    const activeSubItems = computed(() => {
+      const group = navGroups.value.find(g => g.key === activeGroup.value)
+      return group?.children || []
+    })
+
+    const handleGroupClick = (group) => {
+      activeGroup.value = group.key
+      if (group.page) {
+        handleNavigate(group.page)
+      } else if (group.children?.length) {
+        const isOnChildPage = group.children.some(c => c.page === currentPage.value)
+        if (!isOnChildPage) {
+          handleNavigate(group.children[0].page)
+        }
+      }
+    }
 
     const refreshPendingCount = async () => {
       try {
-        const requests = await borrowingService.getTopLevelPendingRequests()
-        pendingCount.value = requests.length
+        if (user.value?.role !== 'user') {
+          const requests = await borrowingService.getTopLevelPendingRequests()
+          pendingCount.value = requests.length
+        } else if (user.value?.subRole === 'teacher') {
+          const requests = await borrowingService.getTeacherPendingRequests()
+          pendingCount.value = requests.length
+        }
       } catch (e) {
         pendingCount.value = 0
       }
@@ -215,12 +279,13 @@ export default {
       currentPage.value = page
       pageParams.value = params || {}
       showUserMenu.value = false
+      activeGroup.value = findGroupForPage(page)
     }
 
     const handleLogin = async (username, password) => {
       const ok = await login(username, password)
       if (ok) {
-        if (user.value?.role !== 'user') {
+        if (user.value?.role !== 'user' || user.value?.subRole === 'teacher') {
           refreshPendingCount()
           if (!pollTimer) pollTimer = setInterval(refreshPendingCount, 5000)
         }
@@ -303,7 +368,10 @@ export default {
       pageParams,
       darkMode,
       showUserMenu,
-      navItems,
+      navGroups,
+      activeGroup,
+      activeSubItems,
+      handleGroupClick,
       handleLogin,
       handleNavigate,
       handleLogout,
@@ -399,27 +467,32 @@ export default {
   display: block;
 }
 
-/* ===== Nav Tabs ===== */
+/* ===== Nav Tabs (Two-Layer) ===== */
 .top-nav {
+  display: flex;
+  flex-direction: column;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+.nav-groups {
   display: flex;
   gap: 0.125rem;
   padding: 0 1rem;
-  max-width: 80rem;
-  margin: 0 auto;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
-.top-nav::-webkit-scrollbar {
+.nav-groups::-webkit-scrollbar {
   display: none;
 }
 
-.top-nav-tab {
+.nav-group-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -433,11 +506,54 @@ export default {
   position: relative;
 }
 
-.top-nav-tab:hover {
+.nav-group-tab:hover {
   color: var(--text-primary);
 }
 
-.top-nav-active {
+.nav-group-active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+.nav-sub {
+  display: flex;
+  gap: 0.125rem;
+  padding: 0 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-glass);
+}
+
+.nav-sub::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.nav-sub-tab:hover {
+  color: var(--text-primary);
+}
+
+.nav-sub-active {
   color: var(--accent);
   font-weight: 600;
   border-bottom-color: var(--accent);

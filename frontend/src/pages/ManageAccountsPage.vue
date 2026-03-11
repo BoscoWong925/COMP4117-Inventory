@@ -41,23 +41,23 @@
       <!-- Stats -->
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold text-accent">{{ users.length }}</p>
+          <p class="text-xl font-bold text-accent">{{ allCounts.total }}</p>
           <p class="text-xs text-muted">Total</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#ef4444">{{ users.filter(u => u.role === 'admin').length }}</p>
+          <p class="text-xl font-bold" style="color:#ef4444">{{ allCounts.admin }}</p>
           <p class="text-xs text-muted">Admins</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#f59e0b">{{ users.filter(u => u.role === 'operator').length }}</p>
+          <p class="text-xl font-bold" style="color:#f59e0b">{{ allCounts.operator }}</p>
           <p class="text-xs text-muted">Operators</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#8b5cf6">{{ users.filter(u => u.role === 'user' && u.subRole === 'teacher').length }}</p>
+          <p class="text-xl font-bold" style="color:#8b5cf6">{{ allCounts.teacher }}</p>
           <p class="text-xs text-muted">Teachers</p>
         </div>
         <div class="theme-card p-3 text-center">
-          <p class="text-xl font-bold" style="color:#22c55e">{{ users.filter(u => u.role === 'user' && (!u.subRole || u.subRole === 'student')).length }}</p>
+          <p class="text-xl font-bold" style="color:#22c55e">{{ allCounts.student }}</p>
           <p class="text-xs text-muted">Students</p>
         </div>
       </div>
@@ -224,6 +224,7 @@ export default {
     const totalUsers = ref(0)
     const message = ref('')
     const messageSuccess = ref(true)
+    const allCounts = ref({ total: 0, admin: 0, operator: 0, teacher: 0, student: 0 })
     let searchDebounceTimer = null
 
     const formData = ref({
@@ -261,6 +262,22 @@ export default {
       } catch (e) {
         console.error('Failed to load users:', e)
         showMessage('Failed to load accounts', false)
+      }
+    }
+
+    const loadAllCounts = async () => {
+      try {
+        const data = await userService.getAllUsers({ pageSize: 5000 })
+        const all = data.users || []
+        allCounts.value = {
+          total: data.total || all.length,
+          admin: all.filter(u => u.role === 'admin').length,
+          operator: all.filter(u => u.role === 'operator').length,
+          teacher: all.filter(u => u.role === 'user' && u.subRole === 'teacher').length,
+          student: all.filter(u => u.role === 'user' && (!u.subRole || u.subRole === 'student')).length,
+        }
+      } catch (e) {
+        console.error('Failed to load account counts:', e)
       }
     }
 
@@ -395,12 +412,13 @@ export default {
       setTimeout(() => { message.value = '' }, 4000)
     }
 
-    onMounted(() => { loadUsers() })
+    onMounted(() => { loadUsers(); loadAllCounts() })
 
     return {
       users, showForm, editingUser, showDeleteModal, deleteTarget,
       showPassword, searchText, filterRole, filterStatus,
       currentPage, pageSize, totalUsers, message, messageSuccess, formData,
+      allCounts,
       getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
       confirmDelete, handleDelete, toggleStatus, loadUsers

@@ -22,6 +22,7 @@ router.post('/', authorize('admin', 'operator'), upload.single('invoiceFile'), i
 router.get('/:id', itemController.getItemById);
 router.get('/:id/components', itemController.getItemComponents);
 router.get('/:id/invoice', authorize('admin', 'operator'), itemController.getInvoice);
+router.put('/:id/status', itemController.updateItemStatus);
 router.put('/:id', authorize('admin', 'operator'), upload.single('invoiceFile'), itemController.updateItem);
 router.delete('/:id', authorize('admin', 'operator'), itemController.deleteItem);
 

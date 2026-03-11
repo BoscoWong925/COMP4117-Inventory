@@ -11,7 +11,7 @@ const addAuditLog = async (userID, action, details, affectedItemID = null, oldVa
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
-    const logId = `LOG-${String(counter.seq).padStart(3, '0')}`;
+    const logId = `LOG-${String(counter.seq).padStart(4, '0')}`;
 
     await AuditLog.create({
       logId,

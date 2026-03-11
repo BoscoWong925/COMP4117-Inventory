@@ -9,10 +9,30 @@
             <h2 class="hero-title">Inventory dashboard</h2>
             <p class="hero-subtitle">{{ todayLabel }}</p>
           </div>
-          <div class="items-tracked-box">
-            <span class="items-tracked-count">{{ stats.totalItems }}</span>
-            <span class="items-tracked-label">Items Tracked</span>
-          </div>
+        </div>
+      </div>
+
+      <!-- Summary stat cards -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in delay-1 mb-4 px-4">
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'manage-items')">
+          <p class="text-2xl font-bold text-accent">{{ stats.totalItems }}</p>
+          <p class="text-xs text-muted">Items Tracked</p>
+        </div>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'manage-items', { filter: 'available' })">
+          <p class="text-2xl font-bold" style="color:#22c55e">{{ stats.availableItems }}</p>
+          <p class="text-xs text-muted">Available</p>
+        </div>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'lent-out-filter')">
+          <p class="text-2xl font-bold" style="color:#f59e0b">{{ stats.lentOutItems }}</p>
+          <p class="text-xs text-muted">Checked Out</p>
+        </div>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'manage-items', { filter: 'missing' })">
+          <p class="text-2xl font-bold" style="color:#ef4444">{{ stats.missingItems }}</p>
+          <p class="text-xs text-muted">Missing</p>
+        </div>
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'manage-items', { filter: 'disposed' })">
+          <p class="text-2xl font-bold" style="color:#6b7280">{{ stats.disposedItems }}</p>
+          <p class="text-xs text-muted">Disposed</p>
         </div>
       </div>
 
@@ -270,26 +290,14 @@
       </div>
 
       <!-- Summary stat cards -->
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in delay-1 mb-4 px-4">
-        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'teacher-requests')">
-          <p class="text-2xl font-bold" style="color:#ef4444">{{ teacherPendingCount }}</p>
-          <p class="text-xs text-muted">Pending Requests</p>
-        </div>
-        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items')">
-          <p class="text-2xl font-bold text-accent">{{ teacherOwnedItems.length }}</p>
-          <p class="text-xs text-muted">Items Owned</p>
-        </div>
-        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items')">
+      <div class="grid grid-cols-2 gap-3 animate-in delay-1 mb-4 px-4">
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items', { filter: 'available' })">
           <p class="text-2xl font-bold" style="color:#22c55e">{{ teacherOwnedItems.filter(i => i.status === 'Available').length }}</p>
-          <p class="text-xs text-muted">Available</p>
+          <p class="text-xs text-muted">Available to Borrow</p>
         </div>
-        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'teacher-checkout')">
+        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'my-items', { filter: 'in-use' })">
           <p class="text-2xl font-bold" style="color:#f59e0b">{{ teacherCheckedOutCount }}</p>
           <p class="text-xs text-muted">Checked Out</p>
-        </div>
-        <div class="theme-card p-4 text-center cursor-pointer" @click="$emit('navigate', 'search-available')">
-          <p class="text-2xl font-bold" style="color:#6366f1">{{ teacherAvailableForBorrow }}</p>
-          <p class="text-xs text-muted">Available to Borrow</p>
         </div>
       </div>
 
@@ -364,7 +372,7 @@
               <tbody>
                 <tr v-for="item in teacherOwnedItems.filter(i => i.status === 'In-use').slice(0, 5)" :key="item.id">
                   <td class="font-semibold">{{ item.name }}</td>
-                  <td>{{ item.currentBorrower || '—' }}</td>
+                  <td>{{ item.currentBorrowerName || item.currentBorrower || '—' }}</td>
                   <td><StatusBadge :status="item.status" type="item" /></td>
                 </tr>
               </tbody>
@@ -474,6 +482,8 @@ export default {
       totalItems: 0,
       availableItems: 0,
       lentOutItems: 0,
+      missingItems: 0,
+      disposedItems: 0,
       pendingRequests: 0,
       returnedRequests: 0,
       approvedRequests: 0,
@@ -484,6 +494,7 @@ export default {
     const allItems = ref([])
     const allApprovedRequests = ref([])
     const pendingRequests = ref([])
+    const pendingRequestsCount = ref(0)
     const showCalendar = ref(false)
     const teacherOwnedItems = ref([])
     const teacherPendingCount = ref(0)
@@ -554,9 +565,9 @@ export default {
 
     // Tab definitions with counts
     const attentionTabs = computed(() => [
-      { key: 'all', label: 'All', count: overdueItems.value.length + dueSoonItems.value.length + pendingRequests.value.length + warrantyExpiredItems.value.length + warrantyExpiringSoonItems.value.length, severity: 'neutral' },
+      { key: 'all', label: 'All', count: overdueItems.value.length + dueSoonItems.value.length + pendingRequestsCount.value + warrantyExpiredItems.value.length + warrantyExpiringSoonItems.value.length, severity: 'neutral' },
       { key: 'overdue', label: 'Overdue / Due soon', count: overdueItems.value.length + dueSoonItems.value.length, severity: 'danger' },
-      { key: 'pending', label: 'Pending', count: pendingRequests.value.length, severity: 'neutral' },
+      { key: 'pending', label: 'Pending', count: pendingRequestsCount.value, severity: 'neutral' },
       { key: 'warranty', label: 'Warranty', count: warrantyExpiredItems.value.length + warrantyExpiringSoonItems.value.length, severity: 'warning' }
     ])
 
@@ -637,6 +648,8 @@ export default {
             totalItems: statsData.totalItems || 0,
             availableItems: statsData.availableItems || 0,
             lentOutItems: statsData.lentOutItems || 0,
+            missingItems: statsData.missingItems || 0,
+            disposedItems: statsData.disposedItems || 0,
             pendingRequests: statsData.pendingRequests || 0,
             returnedRequests: statsData.returnedRequests || 0,
             approvedRequests: statsData.approvedRequests || 0,
@@ -679,6 +692,14 @@ export default {
         } catch (e) {
           console.error('Failed to load pending requests:', e)
         }
+
+        // Load pending requests count (top-level only)
+        try {
+          const count = await borrowingService.getTopLevelPendingCount()
+          pendingRequestsCount.value = count
+        } catch (e) {
+          console.error('Failed to load pending count:', e)
+        }
       }
 
       // Load user borrows (for user role)
@@ -705,13 +726,6 @@ export default {
             }
             // Count checked-out items (items owned by teacher that are In-use)
             teacherCheckedOutCount.value = teacherOwnedItems.value.filter(i => i.status === 'In-use').length
-            // Count available items for borrow
-            try {
-              const { items: availItems } = await inventoryService.getAvailableItems()
-              teacherAvailableForBorrow.value = availItems.length
-            } catch (te) {
-              console.error('Failed to load available items:', te)
-            }
           }
         }
       } catch (e) {
@@ -731,6 +745,7 @@ export default {
       myBorrows,
       allItems,
       pendingRequests,
+      pendingRequestsCount,
       overdueItems,
       dueSoonItems,
       warrantyExpiredItems,
@@ -765,7 +780,6 @@ export default {
       teacherPendingCount,
       teacherPendingRequests,
       teacherCheckedOutCount,
-      teacherAvailableForBorrow,
       teacherActiveTab,
       teacherAttentionTabs,
       teacherActiveTabEmpty,
@@ -852,10 +866,10 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.375rem;
-  font-size: 0.6875rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   border-radius: 9999px;
   line-height: 1;

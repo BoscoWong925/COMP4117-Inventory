@@ -40,7 +40,7 @@
           <div class="space-y-2 mb-4 text-sm">
             <div class="flex justify-between">
               <span class="text-secondary">Borrower:</span>
-              <span class="font-medium">{{ group.parent.item.currentBorrower }}</span>
+              <span class="font-medium">{{ group.parent.item.currentBorrowerName || group.parent.item.currentBorrower }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-secondary">Status:</span>
@@ -82,7 +82,7 @@
         <h3 class="modal-title">Confirm Item Return</h3>
         <div class="mb-4 p-3 theme-section">
           <p class="text-sm"><strong>Item:</strong> {{ selectedGroup.parent.item.name }}</p>
-          <p class="text-sm"><strong>Borrower:</strong> {{ selectedGroup.parent.item.currentBorrower }}</p>
+          <p class="text-sm"><strong>Borrower:</strong> {{ selectedGroup.parent.item.currentBorrowerName || selectedGroup.parent.item.currentBorrower }}</p>
           <p class="text-sm"><strong>ID:</strong> {{ selectedGroup.parent.item.id }}</p>
           <div v-if="selectedGroup.children.length > 0" class="mt-2 pt-2 border-t">
             <p class="field-label font-semibold mb-1">+ Components to be returned:</p>
@@ -204,7 +204,7 @@ export default {
       const exportData = borrowedItems.value.map(({ item, request }) => ({
         'Item ID': item.id,
         'Name': item.name,
-        'Borrower': item.currentBorrower,
+        'Borrower': item.currentBorrowerName || item.currentBorrower,
         'Status': item.status,
         'Location': item.location,
         'Request ID': request.id,
