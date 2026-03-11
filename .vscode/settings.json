@@ -11,5 +11,5 @@
         ".kittify/scripts/ps/": true
     },
     "git.ignoreLimitWarning": true,
-    "chat.mcp.enabled": true
+    "chat.mcp.access": "all"
 }
