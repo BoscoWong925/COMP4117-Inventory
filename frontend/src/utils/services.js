@@ -33,6 +33,14 @@ const apiRequest = async (endpoint, options = {}) => {
     headers
   });
 
+  // Handle special status codes that don't have a body
+  if (response.status === 204 || response.status === 304) {
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    return {};
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
