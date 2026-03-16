@@ -5,6 +5,9 @@
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-2xl font-bold">Inventory items</h2>
         <div class="gap-2 flex flex-wrap">
+          <button v-if="isAdmin && selectedItemIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
+            Delete ({{ selectedItemIds.length }})
+          </button>
           <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
             {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
           </button>
@@ -120,6 +123,9 @@
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
             <tr>
+              <th v-if="isAdmin" class="border p-2 text-center w-10">
+                <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
+              </th>
               <th class="border p-2 text-left">ID</th>
               <th class="border p-2 text-left">Name</th>
               <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('type')">
@@ -143,6 +149,9 @@
           </thead>
           <tbody>
             <tr v-for="item in items" :key="item.id">
+              <td v-if="isAdmin" class="border p-2 text-center">
+                <input type="checkbox" :value="item.id" v-model="selectedItemIds" />
+              </td>
               <td class="border p-2">{{ item.id }}</td>
               <td class="border p-2">{{ item.name }}</td>
               <td class="border p-2">{{ item.type }}</td>
@@ -166,12 +175,6 @@
                 >
                   Edit
                 </button>
-                <button
-                  @click="handleDelete(item.id)"
-                  class="btn btn-outline-danger text-sm ml-2"
-                >
-                  Delete
-                </button>
               </td>
             </tr>
           </tbody>
@@ -189,6 +192,19 @@
         message="This item is currently in use (lent out) and cannot be deleted. Please return it first."
         @close="showDeleteBlock = false"
       />
+
+      <!-- Bulk Delete Confirmation Modal -->
+      <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+        <div class="modal-card max-w-md w-full">
+          <h3 class="modal-title">Confirm Delete</h3>
+          <p class="mb-4">Are you sure you want to delete <strong>{{ selectedItemIds.length }}</strong> item(s)?</p>
+          <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+          <div class="flex gap-2">
+            <button @click="handleDeleteItems" class="btn btn-outline-danger flex-1">Delete</button>
+            <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          </div>
+        </div>
+      </div>
     </template>
 
     <!-- ========== FULL-PAGE FORM VIEW ========== -->
@@ -557,7 +573,7 @@ import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
-import { inventoryService, userService } from '../utils/services'
+import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel, ITEM_STATUSES, normalizeItemStatus, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
@@ -633,6 +649,8 @@ export default {
     const pageSize = 10
     const totalItems = ref(0)
     const showDeleteBlock = ref(false)
+    const selectedItemIds = ref([])
+    const showDeleteConfirm = ref(false)
     const sortField = ref('')
     const sortDir = ref('asc')
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
@@ -648,6 +666,15 @@ export default {
       id: '', name: '', type: '', category: '', status: '',
       location: '', vendor: '', supplier: '', universityID: '',
       warrantyEnd: '', description: ''
+    })
+
+    const isAdmin = computed(() => {
+      const user = authService.getCurrentUser()
+      return user?.role === 'admin'
+    })
+
+    const allSelected = computed(() => {
+      return items.value.length > 0 && selectedItemIds.value.length === items.value.length
     })
 
     const uniqueVendors = computed(() => {
@@ -918,6 +945,33 @@ export default {
           console.error('Failed to delete item:', e)
         }
         loadItems()
+      }
+    }
+
+    const toggleSelectAll = (event) => {
+      if (event.target.checked) {
+        selectedItemIds.value = items.value.map(item => item.id)
+      } else {
+        selectedItemIds.value = []
+      }
+    }
+
+    const handleDeleteItems = async () => {
+      showDeleteConfirm.value = false
+      try {
+        // Delete all selected items
+        for (const id of selectedItemIds.value) {
+          try {
+            await inventoryService.deleteItem(id)
+          } catch (e) {
+            console.error(`Failed to delete item ${id}:`, e)
+          }
+        }
+        // Clear selection and reload
+        selectedItemIds.value = []
+        loadItems()
+      } catch (e) {
+        console.error('Failed to delete items:', e)
       }
     }
 
@@ -1407,6 +1461,12 @@ export default {
       activeStatusFilter,
       teachers,
       getOwnerName,
+      selectedItemIds,
+      showDeleteConfirm,
+      isAdmin,
+      allSelected,
+      toggleSelectAll,
+      handleDeleteItems,
     }
   }
 }

@@ -5,6 +5,15 @@
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-2xl font-bold">Manage Accounts</h2>
         <div class="flex gap-2">
+          <button v-if="selectedUserIds.length > 0" @click="openBulkDisableModal" class="btn btn-outline-warning text-sm">
+            Disable ({{ selectedUserIds.length }})
+          </button>
+          <button v-if="selectedUserIds.length > 0" @click="openBulkEnableModal" class="btn btn-outline-primary text-sm">
+            Enable ({{ selectedUserIds.length }})
+          </button>
+          <button v-if="selectedUserIds.length > 0" @click="openBulkDeleteModal" class="btn btn-outline-danger text-sm">
+            Delete ({{ selectedUserIds.length }})
+          </button>
           <button @click="openNewUserForm" class="btn btn-outline-primary">Add New Account</button>
         </div>
       </div>
@@ -71,6 +80,9 @@
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
             <tr>
+              <th class="border p-2 text-center w-10">
+                <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
+              </th>
               <th class="border p-2 text-left">User ID</th>
               <th class="border p-2 text-left">Name</th>
               <th class="border p-2 text-left">Username</th>
@@ -83,6 +95,9 @@
           </thead>
           <tbody>
             <tr v-for="u in users" :key="u.userId">
+              <td class="border p-2 text-center">
+                <input type="checkbox" :value="u.userId" v-model="selectedUserIds" />
+              </td>
               <td class="border p-2 text-sm font-semibold">{{ u.userId }}</td>
               <td class="border p-2 text-sm">{{ u.name }}</td>
               <td class="border p-2 text-sm">{{ u.username }}</td>
@@ -194,6 +209,45 @@
       </div>
     </div>
 
+    <!-- Bulk Disable Confirmation Modal -->
+    <div v-if="showBulkDisableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Confirm Disable</h3>
+        <p class="mb-4">Are you sure you want to disable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
+        <p class="text-sm text-orange-600 mb-4">These accounts will no longer be able to access the system.</p>
+        <div class="flex gap-2">
+          <button @click="handleBulkDisable" class="btn btn-outline-warning flex-1">Disable</button>
+          <button @click="showBulkDisableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Enable Confirmation Modal -->
+    <div v-if="showBulkEnableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Confirm Enable</h3>
+        <p class="mb-4">Are you sure you want to enable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
+        <p class="text-sm text-secondary mb-4">These accounts will be able to access the system again.</p>
+        <div class="flex gap-2">
+          <button @click="handleBulkEnable" class="btn btn-outline-primary flex-1">Enable</button>
+          <button @click="showBulkEnableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Delete Confirmation Modal -->
+    <div v-if="showBulkDeleteModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Confirm Delete</h3>
+        <p class="mb-4">Are you sure you want to delete <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
+        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <div class="flex gap-2">
+          <button @click="handleBulkDelete" class="btn btn-outline-danger flex-1">Delete</button>
+          <button @click="showBulkDeleteModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Success/Error Messages -->
     <div v-if="message" class="fixed bottom-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm" :class="messageSuccess ? 'alert-success' : 'border-2 border-[color:var(--danger)]'" :style="!messageSuccess ? 'background:var(--danger-light);color:var(--danger-dark)' : ''">
       {{ message }}
@@ -203,7 +257,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { userService } from '../utils/services'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -225,6 +279,10 @@ export default {
     const message = ref('')
     const messageSuccess = ref(true)
     const allCounts = ref({ total: 0, admin: 0, operator: 0, teacher: 0, student: 0 })
+    const selectedUserIds = ref([])
+    const showBulkDisableModal = ref(false)
+    const showBulkEnableModal = ref(false)
+    const showBulkDeleteModal = ref(false)
     let searchDebounceTimer = null
 
     const formData = ref({
@@ -406,6 +464,87 @@ export default {
       }
     }
 
+    const allSelected = computed(() => {
+      return users.value.length > 0 && selectedUserIds.value.length === users.value.length
+    })
+
+    const toggleSelectAll = (event) => {
+      if (event.target.checked) {
+        selectedUserIds.value = users.value.map(user => user.userId)
+      } else {
+        selectedUserIds.value = []
+      }
+    }
+
+    const openBulkDisableModal = () => {
+      showBulkDisableModal.value = true
+    }
+
+    const openBulkEnableModal = () => {
+      showBulkEnableModal.value = true
+    }
+
+    const openBulkDeleteModal = () => {
+      showBulkDeleteModal.value = true
+    }
+
+    const handleBulkDisable = async () => {
+      showBulkDisableModal.value = false
+      try {
+        for (const userId of selectedUserIds.value) {
+          try {
+            await userService.toggleUserStatus(userId, false)
+          } catch (e) {
+            console.error(`Failed to disable user ${userId}:`, e)
+          }
+        }
+        selectedUserIds.value = []
+        showMessage(`Disabled ${selectedUserIds.value.length} account(s)`, true)
+        await loadUsers()
+      } catch (e) {
+        console.error('Failed to bulk disable users:', e)
+        showMessage('Error disabling accounts', false)
+      }
+    }
+
+    const handleBulkEnable = async () => {
+      showBulkEnableModal.value = false
+      try {
+        for (const userId of selectedUserIds.value) {
+          try {
+            await userService.toggleUserStatus(userId, true)
+          } catch (e) {
+            console.error(`Failed to enable user ${userId}:`, e)
+          }
+        }
+        selectedUserIds.value = []
+        showMessage(`Enabled ${selectedUserIds.value.length} account(s)`, true)
+        await loadUsers()
+      } catch (e) {
+        console.error('Failed to bulk enable users:', e)
+        showMessage('Error enabling accounts', false)
+      }
+    }
+
+    const handleBulkDelete = async () => {
+      showBulkDeleteModal.value = false
+      try {
+        for (const userId of selectedUserIds.value) {
+          try {
+            await userService.deleteUser(userId)
+          } catch (e) {
+            console.error(`Failed to delete user ${userId}:`, e)
+          }
+        }
+        selectedUserIds.value = []
+        showMessage(`Deleted ${selectedUserIds.value.length} account(s)`, true)
+        await loadUsers()
+      } catch (e) {
+        console.error('Failed to bulk delete users:', e)
+        showMessage('Error deleting accounts', false)
+      }
+    }
+
     const showMessage = (msg, success) => {
       message.value = msg
       messageSuccess.value = success
@@ -418,10 +557,13 @@ export default {
       users, showForm, editingUser, showDeleteModal, deleteTarget,
       showPassword, searchText, filterRole, filterStatus,
       currentPage, pageSize, totalUsers, message, messageSuccess, formData,
-      allCounts,
+      allCounts, selectedUserIds, showBulkDisableModal,
+      showBulkEnableModal, showBulkDeleteModal,
       getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
-      confirmDelete, handleDelete, toggleStatus, loadUsers
+      confirmDelete, handleDelete, toggleStatus, loadUsers,
+      allSelected, toggleSelectAll, openBulkDisableModal, openBulkEnableModal,
+      openBulkDeleteModal, handleBulkDisable, handleBulkEnable, handleBulkDelete
     }
   }
 }

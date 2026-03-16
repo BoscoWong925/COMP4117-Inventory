@@ -3,6 +3,9 @@
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">Borrowing History</h2>
       <div class="flex gap-2">
+        <button v-if="isAdmin && selectedHistoryIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
+          Delete ({{ selectedHistoryIds.length }})
+        </button>
         <button @click="showFilters = !showFilters" class="btn btn-outline-primary">
           {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
         </button>
@@ -84,6 +87,9 @@
       <table class="w-full border-collapse table-striped theme-table">
         <thead>
           <tr>
+            <th v-if="isAdmin" class="border p-2 text-center w-10">
+              <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
+            </th>
             <th class="border p-2 text-left">Request ID</th>
             <th class="border p-2 text-left">Item</th>
             <th class="border p-2 text-left">Borrower</th>
@@ -104,6 +110,9 @@
         </thead>
         <tbody>
           <tr v-for="record in history" :key="record.id">
+            <td v-if="isAdmin" class="border p-2 text-center">
+              <input type="checkbox" :value="record.id" v-model="selectedHistoryIds" />
+            </td>
             <td class="border p-2">{{ record.id }}</td>
             <td class="border p-2">{{ record.itemName }}</td>
             <td class="border p-2">{{ record.borrowerName }} ({{ record.borrowerID }})</td>
@@ -125,12 +134,25 @@
         :pageSize="pageSize"
       />
     </div>
+
+    <!-- Bulk Delete Confirmation Modal -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Confirm Delete</h3>
+        <p class="mb-4">Are you sure you want to delete <strong>{{ selectedHistoryIds.length }}</strong> record(s)?</p>
+        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <div class="flex gap-2">
+          <button @click="handleDeleteRecords" class="btn btn-outline-danger flex-1">Delete</button>
+          <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
-import { borrowingService } from '../utils/services'
+import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, exportToExcel } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
 
@@ -160,6 +182,8 @@ export default {
     const sortDir = ref('desc')
     const currentPage = ref(1)
     const pageSize = 10
+    const selectedHistoryIds = ref([])
+    const showDeleteConfirm = ref(false)
     let searchDebounceTimer = null
 
     // Watch pageParams to set initial filter from dashboard navigation
@@ -184,6 +208,15 @@ export default {
       }
     }
 
+    const isAdmin = computed(() => {
+      const user = authService.getCurrentUser()
+      return user?.role === 'admin'
+    })
+
+    const allSelected = computed(() => {
+      return history.value.length > 0 && selectedHistoryIds.value.length === history.value.length
+    })
+
     const toggleSort = (field) => {
       if (sortField.value === field) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
@@ -197,6 +230,33 @@ export default {
     const getSortIcon = (field) => {
       if (sortField.value !== field) return '⇅'
       return sortDir.value === 'asc' ? '▲' : '▼'
+    }
+
+    const toggleSelectAll = (event) => {
+      if (event.target.checked) {
+        selectedHistoryIds.value = history.value.map(record => record.id)
+      } else {
+        selectedHistoryIds.value = []
+      }
+    }
+
+    const handleDeleteRecords = async () => {
+      showDeleteConfirm.value = false
+      try {
+        // Delete all selected records
+        for (const id of selectedHistoryIds.value) {
+          try {
+            await borrowingService.deleteRequest(id)
+          } catch (e) {
+            console.error(`Failed to delete record ${id}:`, e)
+          }
+        }
+        // Clear selection and reload
+        selectedHistoryIds.value = []
+        loadHistory()
+      } catch (e) {
+        console.error('Failed to delete records:', e)
+      }
     }
 
     const buildQueryParams = () => {
@@ -302,6 +362,12 @@ export default {
       formatDate,
       formatDateTime,
       getStatusColor,
+      selectedHistoryIds,
+      showDeleteConfirm,
+      isAdmin,
+      allSelected,
+      toggleSelectAll,
+      handleDeleteRecords,
     }
   }
 }
