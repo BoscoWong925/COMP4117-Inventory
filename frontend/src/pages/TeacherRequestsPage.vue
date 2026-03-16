@@ -1,28 +1,28 @@
 <template>
   <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">My Item Requests</h2>
-      <p class="text-sm text-secondary">Manage borrow requests for items you own</p>
-    </div>
-
-    <!-- Bulk Actions for Pending Tab -->
-    <div v-if="activeTab === 'pending' && selectedPendingIds.length > 0" class="mb-4 flex gap-2">
-      <button @click="showBulkApproveModal = true" class="btn btn-outline-success">
-        Approve ({{ selectedPendingIds.length }})
-      </button>
-      <button @click="showBulkRejectModal = true" class="btn btn-outline-danger">
-        Reject ({{ selectedPendingIds.length }})
-      </button>
-    </div>
-
-    <!-- Bulk Actions for Check-Out Tab -->
-    <div v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" class="mb-4 flex gap-2">
-      <button @click="showBulkCheckoutModal = true" class="btn btn-outline-primary">
-        Borrowed Out ({{ selectedCheckoutIds.length }})
-      </button>
-      <button @click="showBulkDenyModal = true" class="btn btn-outline-danger">
-        Deny ({{ selectedCheckoutIds.length }})
-      </button>
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h2 class="text-2xl font-bold">My Item Requests</h2>
+        <p class="text-sm text-secondary">Manage borrow requests for items you own</p>
+      </div>
+      <!-- Bulk Actions for Pending Tab -->
+      <div v-if="activeTab === 'pending' && selectedPendingIds.length > 0" class="flex gap-2">
+        <button @click="showBulkApproveModal = true" class="btn btn-outline-success">
+          Approve ({{ selectedPendingIds.length }})
+        </button>
+        <button @click="showBulkRejectModal = true" class="btn btn-outline-danger">
+          Reject ({{ selectedPendingIds.length }})
+        </button>
+      </div>
+      <!-- Bulk Actions for Check-Out Tab -->
+      <div v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" class="flex gap-2">
+        <button @click="showBulkCheckoutModal = true" class="btn btn-outline-primary">
+          Borrowed Out ({{ selectedCheckoutIds.length }})
+        </button>
+        <button @click="showBulkDenyModal = true" class="btn btn-outline-danger">
+          Deny ({{ selectedCheckoutIds.length }})
+        </button>
+      </div>
     </div>
 
     <!-- Tabs -->

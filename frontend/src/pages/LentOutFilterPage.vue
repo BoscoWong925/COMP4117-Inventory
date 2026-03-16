@@ -1,12 +1,19 @@
 ﻿<template>
   <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex justify-between items-start mb-4">
       <h2 class="text-2xl font-bold">Checked-out items</h2>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
           {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
         </button>
         <button @click="exportFiltered" class="btn">Export to Excel</button>
+        <button
+          v-if="selectedReturnIds.length > 0"
+          @click="showBulkReturnModal = true"
+          class="btn btn-outline-danger"
+        >
+          Return Bulk ({{ selectedReturnIds.length }})
+        </button>
       </div>
     </div>
 
@@ -97,6 +104,14 @@
       <table class="w-full border-collapse table-striped theme-table">
         <thead>
           <tr>
+            <th class="border p-2 text-center w-12">
+              <input
+                type="checkbox"
+                :checked="allReturnSelected"
+                @change="toggleSelectAllReturn"
+                class="form-checkbox"
+              />
+            </th>
             <th class="border p-2 text-left">ID</th>
             <th class="border p-2 text-left">Name</th>
             <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('category')">
@@ -121,6 +136,14 @@
           <template v-for="group in paginatedGroups" :key="group.parent.id">
             <!-- Parent / standalone item row -->
             <tr class="row-parent">
+              <td class="border p-2 text-center">
+                <input
+                  type="checkbox"
+                  :checked="selectedReturnIds.includes(group.parent.id)"
+                  @change="e => toggleReturnItem(group.parent.id, e.target.checked)"
+                  class="form-checkbox"
+                />
+              </td>
               <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
               <td class="border p-2 font-semibold">
                 {{ group.parent.name }}
@@ -144,6 +167,7 @@
             </tr>
             <!-- Child component rows -->
             <tr v-for="child in group.children" :key="child.id" class="row-child">
+              <td class="border p-2"></td>
               <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
               <td class="border p-2 pl-6 text-sm">{{ child.name }}</td>
               <td class="border p-2 text-sm">{{ child.category }}</td>
@@ -161,6 +185,35 @@
         :totalItems="sortedGroups.length"
         :pageSize="pageSize"
       />
+    </div>
+
+    <!-- Bulk Return Modal -->
+    <div v-if="showBulkReturnModal" class="modal-overlay">
+      <div class="modal-card" style="width:400px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <svg class="w-6 h-6" style="color:var(--accent)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span style="font-size:16px;font-weight:700;">Confirm Bulk Return</span>
+        </div>
+        <p class="text-muted" style="font-size:13px;margin-bottom:16px;">
+          You are about to return <strong>{{ selectedReturnIds.length }}</strong> item{{ selectedReturnIds.length !== 1 ? 's' : '' }}. This action will mark them as returned.
+        </p>
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Return Condition</label>
+          <select v-model="bulkReturnCondition" class="form-select" style="width:100%;">
+            <option value="Good">Good</option>
+            <option value="Fair">Fair</option>
+            <option value="Damaged">Damaged</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Notes (Optional)</label>
+          <textarea v-model="bulkReturnNotes" class="form-textarea" style="width:100%;height:80px;" placeholder="Add any notes about the returns..." />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button @click="handleBulkReturn" class="btn btn-outline-success" style="flex:1;">Confirm Return</button>
+          <button @click="showBulkReturnModal = false" class="btn btn-outline-secondary" style="flex:1;">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <!-- Update Location Popup -->
@@ -219,6 +272,10 @@ export default {
     const sortDir = ref('asc')
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
+    const selectedReturnIds = ref([])
+    const showBulkReturnModal = ref(false)
+    const bulkReturnCondition = ref('Good')
+    const bulkReturnNotes = ref('')
 
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
@@ -234,6 +291,11 @@ export default {
       return [...new Set(items.value.map(i => i.location).filter(Boolean))].sort()
     })
 
+    const allReturnSelected = computed(() => {
+      const parentCount = groupedItems.value.length
+      return parentCount > 0 && selectedReturnIds.value.length === parentCount
+    })
+
     const clearAllFilters = () => {
       searchFilters.value = {
         id: '', name: '', category: '', vendor: '', location: '',
@@ -244,6 +306,24 @@ export default {
       yearFilter.value = ''
       typeFilter.value = ''
       activeStatusFilter.value = ''
+    }
+
+    const toggleSelectAllReturn = (event) => {
+      if (event.target.checked) {
+        selectedReturnIds.value = groupedItems.value.map(g => g.parent.id)
+      } else {
+        selectedReturnIds.value = []
+      }
+    }
+
+    const toggleReturnItem = (itemId, isChecked) => {
+      if (isChecked) {
+        if (!selectedReturnIds.value.includes(itemId)) {
+          selectedReturnIds.value.push(itemId)
+        }
+      } else {
+        selectedReturnIds.value = selectedReturnIds.value.filter(id => id !== itemId)
+      }
     }
     let searchDebounceTimer = null
 
@@ -476,6 +556,30 @@ export default {
       exportToExcel(items.value, 'lent_out_items.xlsx')
     }
 
+    const handleBulkReturn = async () => {
+      showBulkReturnModal.value = false
+      try {
+        for (const itemId of selectedReturnIds.value) {
+          try {
+            const req = allRequests.value.find(
+              r => r.itemID === itemId && r.status === 'Approved'
+            )
+            if (req) {
+              await borrowingService.returnItem(req.id)
+            }
+          } catch (e) {
+            console.error(`Failed to return item ${itemId}:`, e)
+          }
+        }
+        selectedReturnIds.value = []
+        bulkReturnCondition.value = 'Good'
+        bulkReturnNotes.value = ''
+        await loadLentOutItems()
+      } catch (e) {
+        console.error('Failed to bulk return items:', e)
+      }
+    }
+
     onMounted(() => {
       // Apply auto-filter from dashboard navigation
       if (props.pageParams?.filter) {
@@ -518,6 +622,14 @@ export default {
       formatDate,
       isOverdue,
       daysFromNow,
+      selectedReturnIds,
+      showBulkReturnModal,
+      bulkReturnCondition,
+      bulkReturnNotes,
+      allReturnSelected,
+      toggleSelectAllReturn,
+      toggleReturnItem,
+      handleBulkReturn,
     }
   }
 }
