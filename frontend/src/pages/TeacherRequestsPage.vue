@@ -5,6 +5,26 @@
       <p class="text-sm text-secondary">Manage borrow requests for items you own</p>
     </div>
 
+    <!-- Bulk Actions for Pending Tab -->
+    <div v-if="activeTab === 'pending' && selectedPendingIds.length > 0" class="mb-4 flex gap-2">
+      <button @click="showBulkApproveModal = true" class="btn btn-outline-success">
+        Approve ({{ selectedPendingIds.length }})
+      </button>
+      <button @click="showBulkRejectModal = true" class="btn btn-outline-danger">
+        Reject ({{ selectedPendingIds.length }})
+      </button>
+    </div>
+
+    <!-- Bulk Actions for Check-Out Tab -->
+    <div v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" class="mb-4 flex gap-2">
+      <button @click="showBulkCheckoutModal = true" class="btn btn-outline-primary">
+        Borrowed Out ({{ selectedCheckoutIds.length }})
+      </button>
+      <button @click="showBulkDenyModal = true" class="btn btn-outline-danger">
+        Deny ({{ selectedCheckoutIds.length }})
+      </button>
+    </div>
+
     <!-- Tabs -->
     <div class="mb-4 flex gap-2">
       <button
@@ -40,6 +60,9 @@
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
             <tr>
+              <th class="border p-2 text-center w-10">
+                <input type="checkbox" @change="toggleSelectAllPending" :checked="allPendingSelected" />
+              </th>
               <th class="border p-2 text-left">Request ID</th>
               <th class="border p-2 text-left">Item</th>
               <th class="border p-2 text-left">Borrower</th>
@@ -52,6 +75,9 @@
           </thead>
           <tbody>
             <tr v-for="req in paginatedPending" :key="req.id || req._id">
+              <td class="border p-2 text-center">
+                <input type="checkbox" :value="req.requestId || req.id" v-model="selectedPendingIds" />
+              </td>
               <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
               <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
               <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
@@ -82,6 +108,9 @@
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
             <tr>
+              <th class="border p-2 text-center w-10">
+                <input type="checkbox" @change="toggleSelectAllCheckout" :checked="allCheckoutSelected" />
+              </th>
               <th class="border p-2 text-left">Request ID</th>
               <th class="border p-2 text-left">Item</th>
               <th class="border p-2 text-left">Borrower</th>
@@ -94,6 +123,9 @@
           </thead>
           <tbody>
             <tr v-for="req in paginatedCheckout" :key="req.id || req._id">
+              <td class="border p-2 text-center">
+                <input type="checkbox" :value="req.requestId || req.id" v-model="selectedCheckoutIds" />
+              </td>
               <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
               <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
               <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
@@ -218,6 +250,78 @@
         </div>
       </div>
     </div>
+
+    <!-- Bulk Approve Modal -->
+    <div v-if="showBulkApproveModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Bulk Approve ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-3">
+          Approve all selected requests.
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Return Date *</label>
+          <input type="date" v-model="bulkReturnDate" class="form-input" />
+        </div>
+        <div class="mb-4">
+          <label class="modal-label">Remark</label>
+          <textarea v-model="bulkApproveRemark" class="form-input" rows="2" placeholder="Add any notes..." />
+        </div>
+        <div class="flex gap-2">
+          <button @click="handleBulkApprove" class="btn btn-outline-success flex-1">Approve</button>
+          <button @click="showBulkApproveModal = false; bulkReturnDate = ''; bulkApproveRemark = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Reject Modal -->
+    <div v-if="showBulkRejectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Bulk Reject ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-3">
+          Reject all selected requests.
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Reason *</label>
+          <textarea v-model="bulkRejectReason" class="form-input" rows="3" placeholder="Enter rejection reason..." />
+        </div>
+        <div class="flex gap-2">
+          <button @click="handleBulkReject" class="btn btn-outline-danger flex-1">Reject</button>
+          <button @click="showBulkRejectModal = false; bulkRejectReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Checkout Modal -->
+    <div v-if="showBulkCheckoutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Bulk Borrowed Out ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-4">
+          Mark all selected items as borrowed out?
+        </p>
+        <div class="flex gap-2">
+          <button @click="handleBulkCheckout" class="btn btn-outline-primary flex-1">Borrowed Out</button>
+          <button @click="showBulkCheckoutModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Deny Modal -->
+    <div v-if="showBulkDenyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Bulk Deny ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-3">
+          Deny checkout for all selected items.
+        </p>
+        <div class="mb-4">
+          <label class="modal-label">Reason</label>
+          <textarea v-model="bulkDenyReason" class="form-input" rows="3" placeholder="Enter reason..." />
+        </div>
+        <div class="flex gap-2">
+          <button @click="handleBulkDeny" class="btn btn-outline-danger flex-1">Deny</button>
+          <button @click="showBulkDenyModal = false; bulkDenyReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -253,6 +357,18 @@ export default {
     const denyTarget = ref(null)
     const denyReason = ref('')
 
+    // Bulk operations
+    const selectedPendingIds = ref([])
+    const selectedCheckoutIds = ref([])
+    const showBulkApproveModal = ref(false)
+    const showBulkRejectModal = ref(false)
+    const showBulkCheckoutModal = ref(false)
+    const showBulkDenyModal = ref(false)
+    const bulkReturnDate = ref('')
+    const bulkApproveRemark = ref('')
+    const bulkRejectReason = ref('')
+    const bulkDenyReason = ref('')
+
     // Split pending requests by status
     const pendingOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending'))
     const checkoutOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending Check-Out'))
@@ -265,6 +381,14 @@ export default {
     const paginatedCheckout = computed(() => {
       const start = (currentPage.value - 1) * pageSize
       return checkoutOnly.value.slice(start, start + pageSize)
+    })
+
+    const allPendingSelected = computed(() => {
+      return pendingOnly.value.length > 0 && selectedPendingIds.value.length === pendingOnly.value.length
+    })
+
+    const allCheckoutSelected = computed(() => {
+      return checkoutOnly.value.length > 0 && selectedCheckoutIds.value.length === checkoutOnly.value.length
     })
 
     const loadPending = async () => {
@@ -387,6 +511,107 @@ export default {
       }
     }
 
+    const toggleSelectAllPending = (event) => {
+      if (event.target.checked) {
+        selectedPendingIds.value = pendingOnly.value.map(req => req.requestId || req.id)
+      } else {
+        selectedPendingIds.value = []
+      }
+    }
+
+    const toggleSelectAllCheckout = (event) => {
+      if (event.target.checked) {
+        selectedCheckoutIds.value = checkoutOnly.value.map(req => req.requestId || req.id)
+      } else {
+        selectedCheckoutIds.value = []
+      }
+    }
+
+    const handleBulkApprove = async () => {
+      if (!bulkReturnDate.value) {
+        alert('Please set a return date')
+        return
+      }
+      showBulkApproveModal.value = false
+      const returnDatetime = `${bulkReturnDate.value}T17:00:00Z`
+      try {
+        for (const reqId of selectedPendingIds.value) {
+          try {
+            await borrowingService.approveRequest(reqId, returnDatetime, '', bulkApproveRemark.value)
+          } catch (e) {
+            console.error(`Failed to approve request ${reqId}:`, e)
+          }
+        }
+        selectedPendingIds.value = []
+        bulkReturnDate.value = ''
+        bulkApproveRemark.value = ''
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to bulk approve:', e)
+        alert('Error during bulk approval')
+      }
+    }
+
+    const handleBulkReject = async () => {
+      if (!bulkRejectReason.value) {
+        alert('Please enter a rejection reason')
+        return
+      }
+      showBulkRejectModal.value = false
+      try {
+        for (const reqId of selectedPendingIds.value) {
+          try {
+            await borrowingService.rejectRequest(reqId, bulkRejectReason.value)
+          } catch (e) {
+            console.error(`Failed to reject request ${reqId}:`, e)
+          }
+        }
+        selectedPendingIds.value = []
+        bulkRejectReason.value = ''
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to bulk reject:', e)
+        alert('Error during bulk rejection')
+      }
+    }
+
+    const handleBulkCheckout = async () => {
+      showBulkCheckoutModal.value = false
+      try {
+        for (const reqId of selectedCheckoutIds.value) {
+          try {
+            await borrowingService.checkoutRequest(reqId)
+          } catch (e) {
+            console.error(`Failed to checkout request ${reqId}:`, e)
+          }
+        }
+        selectedCheckoutIds.value = []
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to bulk checkout:', e)
+        alert('Error during bulk checkout')
+      }
+    }
+
+    const handleBulkDeny = async () => {
+      showBulkDenyModal.value = false
+      try {
+        for (const reqId of selectedCheckoutIds.value) {
+          try {
+            await borrowingService.denyCheckout(reqId, bulkDenyReason.value || '')
+          } catch (e) {
+            console.error(`Failed to deny request ${reqId}:`, e)
+          }
+        }
+        selectedCheckoutIds.value = []
+        bulkDenyReason.value = ''
+        await loadPending()
+      } catch (e) {
+        console.error('Failed to bulk deny:', e)
+        alert('Error during bulk denial')
+      }
+    }
+
     onMounted(() => { loadPending() })
 
     return {
@@ -396,9 +621,14 @@ export default {
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
       denyTarget, denyReason,
+      selectedPendingIds, selectedCheckoutIds, allPendingSelected, allCheckoutSelected,
+      showBulkApproveModal, showBulkRejectModal, showBulkCheckoutModal, showBulkDenyModal,
+      bulkReturnDate, bulkApproveRemark, bulkRejectReason, bulkDenyReason,
       paginatedPending, paginatedCheckout,
       getStatusBadge, openApprove, openReject, openDeny,
       handleApprove, handleReject, handleCheckout, handleDeny,
+      toggleSelectAllPending, toggleSelectAllCheckout,
+      handleBulkApprove, handleBulkReject, handleBulkCheckout, handleBulkDeny,
       loadPending, loadHistory,
       formatDate, waitingTime
     }

@@ -57,6 +57,16 @@
       </div>
     </div>
 
+    <!-- Bulk Actions for Owned Items Tab -->
+    <div v-if="isTeacher && activeTab === 'owned' && selectedOwnedItemIds.length > 0" class="mb-4 flex gap-2">
+      <button @click="showBulkSetInuseModal = true" class="btn btn-outline-warning">
+        Set In-use ({{ selectedOwnedItemIds.length }})
+      </button>
+      <button @click="showBulkSetAvailableModal = true" class="btn btn-outline-success">
+        Set Available ({{ selectedOwnedItemIds.length }})
+      </button>
+    </div>
+
     <div v-if="loading" class="empty-state">Loading items...</div>
 
     <!-- Teacher owned items table -->
@@ -68,6 +78,9 @@
         <table class="w-full border-collapse table-striped theme-table">
           <thead>
             <tr>
+              <th class="border p-2 text-center w-10">
+                <input type="checkbox" @change="toggleSelectAllOwned" :checked="allOwnedSelected" />
+              </th>
               <th class="border p-2 text-left">Item ID</th>
               <th class="border p-2 text-left">Name</th>
               <th class="border p-2 text-left">Category</th>
@@ -79,6 +92,9 @@
           </thead>
           <tbody>
             <tr v-for="item in paginatedOwnedItems" :key="item.id" @click="showDetail(item)" class="cursor-pointer hover:bg-[color:var(--bg-tertiary)]">
+              <td class="border p-2 text-center" @click.stop>
+                <input type="checkbox" :value="item.id" v-model="selectedOwnedItemIds" />
+              </td>
               <td class="border p-2 text-sm font-semibold">{{ item.id }}</td>
               <td class="border p-2 text-sm">{{ item.name }}</td>
               <td class="border p-2 text-sm">{{ item.category }}</td>
@@ -194,6 +210,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Bulk Set In-use Modal -->
+    <div v-if="showBulkSetInuseModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Set In-use ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-4">
+          Mark all selected items as In-use?
+        </p>
+        <div class="flex gap-2">
+          <button @click="handleBulkSetInuse" class="btn btn-outline-warning flex-1">Set In-use</button>
+          <button @click="showBulkSetInuseModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Set Available Modal -->
+    <div v-if="showBulkSetAvailableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full">
+        <h3 class="modal-title">Set Available ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-4">
+          Mark all selected items as Available?
+        </p>
+        <div class="flex gap-2">
+          <button @click="handleBulkSetAvailable" class="btn btn-outline-success flex-1">Set Available</button>
+          <button @click="showBulkSetAvailableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -219,6 +263,9 @@ export default {
     const currentPage = ref(1)
     const pageSize = 15
     const activeTab = ref('owned')
+    const selectedOwnedItemIds = ref([])
+    const showBulkSetInuseModal = ref(false)
+    const showBulkSetAvailableModal = ref(false)
     let searchTimer = null
 
     const currentUser = authService.getCurrentUser()
@@ -257,6 +304,10 @@ export default {
     const paginatedBorrowedItems = computed(() => {
       const start = (currentPage.value - 1) * pageSize
       return filteredBorrowedItems.value.slice(start, start + pageSize)
+    })
+
+    const allOwnedSelected = computed(() => {
+      return filteredOwnedItems.value.length > 0 && selectedOwnedItemIds.value.length === filteredOwnedItems.value.length
     })
 
     const loadData = async () => {
@@ -308,6 +359,50 @@ export default {
       }
     }
 
+    const toggleSelectAllOwned = (event) => {
+      if (event.target.checked) {
+        selectedOwnedItemIds.value = filteredOwnedItems.value.map(item => item.id)
+      } else {
+        selectedOwnedItemIds.value = []
+      }
+    }
+
+    const handleBulkSetInuse = async () => {
+      showBulkSetInuseModal.value = false
+      try {
+        for (const itemId of selectedOwnedItemIds.value) {
+          try {
+            await inventoryService.updateItemStatus(itemId, 'In-use')
+          } catch (e) {
+            console.error(`Failed to set ${itemId} to In-use:`, e)
+          }
+        }
+        selectedOwnedItemIds.value = []
+        await loadData()
+      } catch (e) {
+        console.error('Failed to bulk set items to In-use:', e)
+        alert('Error setting items to In-use')
+      }
+    }
+
+    const handleBulkSetAvailable = async () => {
+      showBulkSetAvailableModal.value = false
+      try {
+        for (const itemId of selectedOwnedItemIds.value) {
+          try {
+            await inventoryService.updateItemStatus(itemId, 'Available')
+          } catch (e) {
+            console.error(`Failed to set ${itemId} to Available:`, e)
+          }
+        }
+        selectedOwnedItemIds.value = []
+        await loadData()
+      } catch (e) {
+        console.error('Failed to bulk set items to Available:', e)
+        alert('Error setting items to Available')
+      }
+    }
+
     onMounted(() => {
       if (props.pageParams?.filter) {
         const filterMap = { available: 'Available', 'in-use': 'In-use' }
@@ -323,7 +418,9 @@ export default {
       currentPage, pageSize, activeTab, isTeacher,
       filteredOwnedItems, filteredBorrowedItems,
       paginatedOwnedItems, paginatedBorrowedItems,
-      showDetail, changeStatus, formatDate, getStatusColor
+      selectedOwnedItemIds, showBulkSetInuseModal, showBulkSetAvailableModal, allOwnedSelected,
+      showDetail, changeStatus, toggleSelectAllOwned, handleBulkSetInuse, handleBulkSetAvailable,
+      formatDate, getStatusColor
     }
   }
 }
