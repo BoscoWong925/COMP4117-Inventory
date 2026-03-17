@@ -5,6 +5,7 @@ const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
+const { sendApprovalEmail, sendRejectionEmail } = require('../utils/emailService');
 
 /**
  * Generate next request ID
@@ -385,6 +386,21 @@ exports.approveRequest = catchAsync(async (req, res, next) => {
 
   await addAuditLog(req.user.userId, 'BORROW_REQUEST_APPROVED', `Request approved for item ${request.itemID} (pending check-out)`, request.itemID);
 
+  if (!request.parentRequestId) {
+    try {
+      const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const emailItem = item || await Item.findOne({ itemId: request.itemID }).lean();
+      const emailResult = await sendApprovalEmail({ request, borrower, item: emailItem, approver: req.user });
+      if (emailResult?.sent) {
+        await addAuditLog(req.user.userId, 'EMAIL_SENT', `Approval email sent for request ${request.requestId}`, request.itemID);
+      } else if (emailResult?.skipped) {
+        await addAuditLog(req.user.userId, 'EMAIL_SKIPPED', `Approval email skipped for request ${request.requestId}: ${emailResult.reason}`, request.itemID);
+      }
+    } catch (error) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Approval email failed for request ${request.requestId}: ${error.message}`, request.itemID);
+    }
+  }
+
   // Include auto-rejected count in response
   const autoRejectedCount = uniqueCompeting.length;
 
@@ -454,6 +470,21 @@ exports.rejectRequest = catchAsync(async (req, res, next) => {
 
   await addAuditLog(req.user.userId, 'BORROW_REQUEST_REJECTED',
     `Request rejected: ${reason || 'No reason provided'}`, request.itemID);
+
+  if (!request.parentRequestId) {
+    try {
+      const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const emailItem = await Item.findOne({ itemId: request.itemID }).lean();
+      const emailResult = await sendRejectionEmail({ request, borrower, item: emailItem, approver: req.user, reason });
+      if (emailResult?.sent) {
+        await addAuditLog(req.user.userId, 'EMAIL_SENT', `Rejection email sent for request ${request.requestId}`, request.itemID);
+      } else if (emailResult?.skipped) {
+        await addAuditLog(req.user.userId, 'EMAIL_SKIPPED', `Rejection email skipped for request ${request.requestId}: ${emailResult.reason}`, request.itemID);
+      }
+    } catch (error) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Rejection email failed for request ${request.requestId}: ${error.message}`, request.itemID);
+    }
+  }
 
   // Cascade: reject child requests
   const childRequests = await BorrowRequest.find({
