@@ -6,7 +6,7 @@
     </div>
   </div>
   <template v-else>
-    <div :class="['app-shell', darkMode ? '' : 'light-mode']" v-if="isAuthenticated">
+    <div :class="['app-shell', darkMode ? '' : 'light-mode', compactMode ? 'compact-mode' : '', reduceMotion ? 'reduce-motion' : '']" v-if="isAuthenticated">
     <!-- ===== Top Header with Nav Tabs ===== -->
     <header class="top-bar">
       <div class="top-bar-brand">
@@ -15,7 +15,7 @@
           <span class="logo-text">Inventory</span>
         </button>
         <div class="top-bar-actions">
-          <button @click="darkMode = !darkMode" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
+          <button @click="toggleTheme" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
             <svg v-if="darkMode" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
@@ -64,6 +64,28 @@
           </div>
         </div>
         <div class="dropdown-divider"></div>
+        <button @click="showSettings = !showSettings" class="dropdown-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .69.4 1.31 1.02 1.58.26.12.55.19.85.19H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="dropdown-item-text">Settings</span>
+          <svg class="settings-caret" :class="showSettings ? 'settings-caret-open' : ''" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-if="showSettings" class="settings-panel">
+          <p class="settings-label">Theme preference</p>
+          <div class="settings-options">
+            <button @click="setThemePreference('system')" :class="['settings-pill', themePreference === 'system' ? 'settings-pill-active' : '']">System</button>
+            <button @click="setThemePreference('dark')" :class="['settings-pill', themePreference === 'dark' ? 'settings-pill-active' : '']">Dark</button>
+            <button @click="setThemePreference('light')" :class="['settings-pill', themePreference === 'light' ? 'settings-pill-active' : '']">Light</button>
+          </div>
+          <label class="settings-toggle">
+            <span>Compact layout</span>
+            <input type="checkbox" v-model="compactMode" />
+          </label>
+          <label class="settings-toggle">
+            <span>Reduce motion</span>
+            <input type="checkbox" v-model="reduceMotion" />
+          </label>
+        </div>
+        <div class="dropdown-divider"></div>
         <button @click="handleLogout" class="dropdown-item dropdown-item-danger">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
@@ -107,7 +129,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuth } from './hooks/useAuth'
 import { borrowingService } from './utils/services'
 import { isOverdue, formatDate } from './utils/helpers'
@@ -175,6 +197,10 @@ export default {
     const pageParams = ref({})
     const pendingCount = ref(0)
     const darkMode = ref(true)
+    const showSettings = ref(false)
+    const themePreference = ref(localStorage.getItem('inventory_theme') || 'system')
+    const compactMode = ref(localStorage.getItem('inventory_compact') === 'true')
+    const reduceMotion = ref(localStorage.getItem('inventory_reduce_motion') === 'true')
     const showUserMenu = ref(false)
     const showOverdueWarning = ref(false)
     const overdueItems = ref([])
@@ -288,6 +314,7 @@ export default {
       pageParams.value = params || {}
       sessionStorage.setItem('inventory_last_page', page)
       showUserMenu.value = false
+      showSettings.value = false
       activeGroup.value = findGroupForPage(page)
     }
 
@@ -311,6 +338,30 @@ export default {
       }
     }
 
+    const applyThemePreference = () => {
+      if (themePreference.value === 'dark') {
+        darkMode.value = true
+        return
+      }
+      if (themePreference.value === 'light') {
+        darkMode.value = false
+        return
+      }
+      if (window.matchMedia) {
+        darkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      }
+    }
+
+    const setThemePreference = (pref) => {
+      themePreference.value = pref
+    }
+
+    const toggleTheme = () => {
+      themePreference.value = darkMode.value ? 'light' : 'dark'
+    }
+
+    let systemThemeListener = null
+
     const handleLogin = async (username, password) => {
       const ok = await login(username, password)
       if (ok) {
@@ -320,6 +371,18 @@ export default {
     }
 
     onMounted(async () => {
+      applyThemePreference()
+      if (window.matchMedia) {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+        systemThemeListener = () => {
+          if (themePreference.value === 'system') applyThemePreference()
+        }
+        if (mediaQuery.addEventListener) {
+          mediaQuery.addEventListener('change', systemThemeListener)
+        } else if (mediaQuery.addListener) {
+          mediaQuery.addListener(systemThemeListener)
+        }
+      }
       await initAuth()
       if (isAuthenticated.value) {
         activeGroup.value = findGroupForPage(currentPage.value)
@@ -371,6 +434,7 @@ export default {
 
     const handleLogout = async () => {
       showUserMenu.value = false
+      showSettings.value = false
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
       await logout()
       currentPage.value = 'home'
@@ -378,6 +442,27 @@ export default {
 
     onUnmounted(() => {
       if (pollTimer) clearInterval(pollTimer)
+      if (systemThemeListener && window.matchMedia) {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', systemThemeListener)
+        } else if (mediaQuery.removeListener) {
+          mediaQuery.removeListener(systemThemeListener)
+        }
+      }
+    })
+
+    watch(themePreference, (value) => {
+      localStorage.setItem('inventory_theme', value)
+      applyThemePreference()
+    })
+
+    watch(compactMode, (value) => {
+      localStorage.setItem('inventory_compact', value ? 'true' : 'false')
+    })
+
+    watch(reduceMotion, (value) => {
+      localStorage.setItem('inventory_reduce_motion', value ? 'true' : 'false')
     })
 
     return {
@@ -389,11 +474,17 @@ export default {
       pendingCount,
       pageParams,
       darkMode,
+      showSettings,
+      themePreference,
+      compactMode,
+      reduceMotion,
       showUserMenu,
       navGroups,
       activeGroup,
       activeSubItems,
       handleGroupClick,
+      setThemePreference,
+      toggleTheme,
       handleLogin,
       handleNavigate,
       handleLogout,
@@ -711,6 +802,78 @@ export default {
   flex-shrink: 0;
 }
 
+.dropdown-item-text {
+  flex: 1;
+  text-align: left;
+}
+
+.settings-caret {
+  transition: transform 0.15s ease;
+}
+
+.settings-caret-open {
+  transform: rotate(180deg);
+}
+
+.settings-panel {
+  padding: 0.75rem 1rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.settings-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.settings-options {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-pill {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.settings-pill:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.settings-pill-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.settings-toggle input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
 /* ===== Main Content ===== */
 .main-content {
   flex: 1;
@@ -718,6 +881,31 @@ export default {
   width: 100%;
   margin: 0 auto;
   padding-bottom: 1rem;
+}
+
+.compact-mode .top-bar-brand {
+  padding: 0.35rem 0.75rem;
+}
+
+.compact-mode .nav-group-tab {
+  padding: 0.35rem 0.6rem;
+}
+
+.compact-mode .nav-sub-tab {
+  padding: 0.3rem 0.6rem;
+}
+
+.compact-mode .main-content {
+  padding-bottom: 0.5rem;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 /* ===== Animation helpers ===== */
