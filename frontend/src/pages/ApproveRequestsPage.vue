@@ -1,7 +1,7 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Borrow requests</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">Borrow requests</h2>
       <button @click="exportRequests" class="btn">Export to Excel</button>
     </div>
 
@@ -13,14 +13,14 @@
           :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
         >
           Pending
-          <span v-if="pendingGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-red-500 text-white" style="min-width:1.5rem;text-align:center">{{ pendingGroups.length }}</span>
+          <span v-if="pendingGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingGroups.length }}</span>
         </button>
         <button
           @click="activeTab = 'checkout'; currentPage = 1"
           :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
         >
           Pending Check-Out
-          <span v-if="checkoutGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-blue-500 text-white" style="min-width:1.5rem;text-align:center">{{ checkoutGroups.length }}</span>
+          <span v-if="checkoutGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutGroups.length }}</span>
         </button>
       </div>
       <div class="flex gap-2">
@@ -44,69 +44,69 @@
       <div v-if="pendingGroups.length === 0" class="empty-state">
         No pending requests
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAllPending" :checked="allPendingSelected" />
               </th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Item Name</th>
-              <th class="border p-2 text-left">Borrower</th>
-              <th class="border p-2 text-left">Request Date</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Waiting</th>
-              <th class="border p-2 text-left">Reason</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>Request ID</th>
+              <th>Item Name</th>
+              <th>Borrower</th>
+              <th>Request Date</th>
+              <th>Status</th>
+              <th>Waiting</th>
+              <th>Reason</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="group in paginatedPending" :key="group.parent.id">
               <tr class="row-parent">
-                <td class="border p-2 text-center">
+                <td class="text-center">
                   <input type="checkbox" :value="group.parent.id" v-model="selectedPendingIds" />
                 </td>
-                <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
-                <td class="border p-2 font-semibold">
+                <td style="font-weight:600">{{ group.parent.id }}</td>
+                <td style="font-weight:600">
                   {{ group.parent.itemName }}
                   <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                     (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                   </span>
                 </td>
-                <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
+                <td>{{ group.parent.borrowerName || group.parent.borrowerID }}
                   <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                    <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
-                    <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                    <span class="inline-block w-2.5 h-2.5 rounded-full animate-pulse" style="background:var(--danger)"></span>
+                    <span class="text-xs font-semibold ml-1" style="color:var(--danger)">This user have an overdue item</span>
                   </span>
                 </td>
-                <td class="border p-2">{{ formatDate(group.parent.requestDate) }}</td>
-                <td class="border p-2">
+                <td>{{ formatDate(group.parent.requestDate) }}</td>
+                <td>
                   <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
                 </td>
-                <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.requestDate) }}</td>
-                <td class="border p-2">{{ group.parent.reason }}</td>
-                <td class="border p-2 text-center whitespace-nowrap">
+                <td style="color:var(--warning-dark);font-weight:500">{{ waitingTime(group.parent.requestDate) }}</td>
+                <td>{{ group.parent.reason }}</td>
+                <td class="text-center whitespace-nowrap">
                   <button @click="selectedRequest = group.parent.id" class="btn btn-outline-success text-sm">
                     Approve{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
                   <button @click="showRejectForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
                     Reject{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
-                  <button @click="openEmailForRequest(group.parent)" class="btn btn-outline-primary text-sm ml-2" title="Email Borrower">✉</button>
+                  <button @click="openEmailForRequest(group.parent)" class="btn btn-ghost text-sm ml-2" title="Email Borrower">✉</button>
                 </td>
               </tr>
               <tr v-for="child in group.children" :key="child.id" class="row-child">
-                <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
-                <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
-                <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
-                <td class="border p-2 text-sm">{{ formatDate(child.requestDate) }}</td>
-                <td class="border p-2 text-sm">
+                <td class="pl-6 text-sm">↳ {{ child.id }}</td>
+                <td class="pl-6 text-sm">{{ child.itemName }}</td>
+                <td class="text-sm">{{ child.borrowerName || child.borrowerID }}</td>
+                <td class="text-sm">{{ formatDate(child.requestDate) }}</td>
+                <td class="text-sm">
                   <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
                 </td>
-                <td class="border p-2 text-sm">{{ waitingTime(child.requestDate) }}</td>
-                <td class="border p-2 text-sm italic">{{ child.reason }}</td>
-                <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
+                <td class="text-sm">{{ waitingTime(child.requestDate) }}</td>
+                <td class="text-sm italic">{{ child.reason }}</td>
+                <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
               </tr>
             </template>
           </tbody>
@@ -120,70 +120,70 @@
       <div v-if="checkoutGroups.length === 0" class="empty-state">
         No items pending check-out
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAllCheckout" :checked="allCheckoutSelected" />
               </th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Item Name</th>
-              <th class="border p-2 text-left">Borrower</th>
-              <th class="border p-2 text-left">Approved Date</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Waiting</th>
-              <th class="border p-2 text-left">Return Date</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>Request ID</th>
+              <th>Item Name</th>
+              <th>Borrower</th>
+              <th>Approved Date</th>
+              <th>Status</th>
+              <th>Waiting</th>
+              <th>Return Date</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="group in paginatedCheckout" :key="group.parent.id">
               <tr class="row-parent">
-                <td class="border p-2 text-center">
+                <td class="text-center">
                   <input type="checkbox" :value="group.parent.id" v-model="selectedCheckoutIds" />
                 </td>
-                <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
-                <td class="border p-2 font-semibold">
+                <td style="font-weight:600">{{ group.parent.id }}</td>
+                <td style="font-weight:600">
                   {{ group.parent.itemName }}
                   <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                     (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                   </span>
                 </td>
-                <td class="border p-2">{{ group.parent.borrowerName || group.parent.borrowerID }}
+                <td>{{ group.parent.borrowerName || group.parent.borrowerID }}
                   <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                    <span class="inline-block w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
-                    <span class="text-xs text-red-500 font-semibold ml-1">This user have an overdue item</span>
+                    <span class="inline-block w-2.5 h-2.5 rounded-full animate-pulse" style="background:var(--danger)"></span>
+                    <span class="text-xs font-semibold ml-1" style="color:var(--danger)">This user have an overdue item</span>
                   </span>
                 </td>
-                <td class="border p-2">{{ formatDate(group.parent.approvalDate) }}</td>
-                <td class="border p-2">
+                <td>{{ formatDate(group.parent.approvalDate) }}</td>
+                <td>
                   <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-                  <span v-if="isCheckoutExpiringSoon(group.parent)" class="ml-1 text-xs text-red-500 font-semibold">(expiring soon)</span>
+                  <span v-if="isCheckoutExpiringSoon(group.parent)" class="ml-1 text-xs font-semibold" style="color:var(--danger)">(expiring soon)</span>
                 </td>
-                <td class="border p-2 text-orange-600 font-medium">{{ waitingTime(group.parent.approvalDate) }}</td>
-                <td class="border p-2">{{ formatDate(group.parent.returnDate) || '-' }}</td>
-                <td class="border p-2 text-center whitespace-nowrap">
+                <td style="color:var(--warning-dark);font-weight:500">{{ waitingTime(group.parent.approvalDate) }}</td>
+                <td>{{ formatDate(group.parent.returnDate) || '-' }}</td>
+                <td class="text-center whitespace-nowrap">
                   <button @click="handleCheckout(group.parent.id)" class="btn btn-outline-primary text-sm">
                     Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
                   <button @click="showDenyForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
                     Deny{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
-                  <button @click="openEmailForRequest(group.parent)" class="btn btn-outline-primary text-sm ml-2" title="Email Borrower">✉</button>
+                  <button @click="openEmailForRequest(group.parent)" class="btn btn-ghost text-sm ml-2" title="Email Borrower">✉</button>
                 </td>
               </tr>
               <tr v-for="child in group.children" :key="child.id" class="row-child">
-                <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
-                <td class="border p-2 pl-6 text-sm">{{ child.itemName }}</td>
-                <td class="border p-2 text-sm">{{ child.borrowerName || child.borrowerID }}</td>
-                <td class="border p-2 text-sm">{{ formatDate(child.approvalDate) }}</td>
-                <td class="border p-2 text-sm">
+                <td class="pl-6 text-sm">↳ {{ child.id }}</td>
+                <td class="pl-6 text-sm">{{ child.itemName }}</td>
+                <td class="text-sm">{{ child.borrowerName || child.borrowerID }}</td>
+                <td class="text-sm">{{ formatDate(child.approvalDate) }}</td>
+                <td class="text-sm">
                   <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
                 </td>
-                <td class="border p-2 text-sm">{{ waitingTime(child.approvalDate) }}</td>
-                <td class="border p-2 text-sm">{{ formatDate(child.returnDate) || '-' }}</td>
-                <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
+                <td class="text-sm">{{ waitingTime(child.approvalDate) }}</td>
+                <td class="text-sm">{{ formatDate(child.returnDate) || '-' }}</td>
+                <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
               </tr>
             </template>
           </tbody>
@@ -193,7 +193,7 @@
     </template>
 
     <!-- Approve Modal -->
-    <div v-if="selectedRequest" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="selectedRequest" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve Request</h3>
         <p v-if="competingCount > 0" class="text-sm text-red-500 mb-3 p-2 rounded" style="background: rgba(239,68,68,0.1);">
@@ -241,7 +241,7 @@
     </div>
 
     <!-- Reject Modal -->
-    <div v-if="showRejectForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showRejectForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Reject Request</h3>
         <div class="mb-4">
@@ -271,7 +271,7 @@
     </div>
 
     <!-- Deny Check-Out Modal -->
-    <div v-if="showDenyForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showDenyForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Deny Check-Out</h3>
         <p class="text-sm text-secondary mb-3">
@@ -304,7 +304,7 @@
     </div>
 
     <!-- Bulk Approve Modal -->
-    <div v-if="showBulkApproveForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkApproveForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
@@ -349,7 +349,7 @@
     </div>
 
     <!-- Bulk Reject Modal -->
-    <div v-if="showBulkRejectForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkRejectForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Reject {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
@@ -379,7 +379,7 @@
     </div>
 
     <!-- Bulk Checkout Modal -->
-    <div v-if="showBulkCheckoutForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkCheckoutForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Mark {{ selectedCheckoutIds.length }} Item(s) as Borrowed Out</h3>
         <p class="text-sm text-secondary mb-4">
@@ -403,7 +403,7 @@
     </div>
 
     <!-- Bulk Deny Modal -->
-    <div v-if="showBulkDenyForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkDenyForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Deny {{ selectedCheckoutIds.length }} Check-Out(s)</h3>
         <p class="text-sm text-secondary mb-3">
@@ -824,5 +824,7 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
+.row-parent td { font-size: 0.8125rem; }
+.row-child td { color: var(--muted-foreground); }
+.text-accent-subtle { color: var(--accent); opacity: 0.7; }
 </style>

@@ -7,7 +7,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        /* Semantic tokens — mapped via CSS vars for theme switching */
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+        card: { DEFAULT: 'var(--card)', foreground: 'var(--card-foreground)' },
+        popover: { DEFAULT: 'var(--popover)', foreground: 'var(--popover-foreground)' },
         accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
           50:  '#edfcff',
           100: '#d6f7ff',
           200: '#b5f0ff',
@@ -33,23 +44,30 @@ export default {
           900: '#0f172a',
           950: '#020617',
         },
+        /* Semantic colors */
+        success: { DEFAULT: 'var(--success)', light: 'var(--success-light)' },
+        danger: { DEFAULT: 'var(--danger)', light: 'var(--danger-light)' },
+        warning: { DEFAULT: 'var(--warning)', light: 'var(--warning-light)', dark: 'var(--warning-dark)' },
+        info: { DEFAULT: 'var(--info)', light: 'var(--info-light)' },
       },
       fontFamily: {
         sans: ['Inter', 'SF Pro Display', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
       },
       borderRadius: {
+        'xl': '0.875rem',
         '2xl': '1rem',
         '3xl': '1.5rem',
       },
       boxShadow: {
         'glass': '0 8px 32px rgba(0, 0, 0, 0.12)',
         'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.08)',
-        'glow': '0 0 20px rgba(6, 153, 255, 0.3)',
-        'glow-sm': '0 0 10px rgba(6, 153, 255, 0.2)',
-        'lift': '0 12px 40px rgba(0, 0, 0, 0.15)',
-      },
-      backdropBlur: {
-        'xs': '2px',
+        'glow': '0 0 20px var(--accent-glow)',
+        'glow-sm': '0 0 10px var(--accent-glow)',
+        'lift': '0 20px 60px -15px rgba(0, 0, 0, 0.3)',
+        'card': 'var(--shadow-card)',
+        'card-hover': 'var(--shadow-card-hover)',
+        'inset': 'inset 0 1px 2px rgba(0, 0, 0, 0.06)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
@@ -57,6 +75,7 @@ export default {
         'slide-down': 'slideDown 0.3s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -74,6 +93,10 @@ export default {
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
         },
       },
     },

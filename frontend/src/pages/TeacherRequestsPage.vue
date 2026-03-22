@@ -1,9 +1,9 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-start mb-4">
+  <div class="page-container">
+    <div class="page-header">
       <div>
-        <h2 class="text-2xl font-bold">My Item Requests</h2>
-        <p class="text-sm text-secondary">Manage borrow requests for items you own</p>
+        <h2 class="page-title">My Item Requests</h2>
+        <p class="page-description">Manage borrow requests for items you own</p>
       </div>
       <!-- Bulk Actions for Pending Tab -->
       <div v-if="activeTab === 'pending' && selectedPendingIds.length > 0" class="flex gap-2">
@@ -32,14 +32,14 @@
         :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
       >
         Pending
-        <span v-if="pendingOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-red-500 text-white" style="min-width:1.5rem;text-align:center">{{ pendingOnly.length }}</span>
+        <span v-if="pendingOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingOnly.length }}</span>
       </button>
       <button
         @click="activeTab = 'checkout'; currentPage = 1"
         :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
       >
         Pending Check-Out
-        <span v-if="checkoutOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold bg-blue-500 text-white" style="min-width:1.5rem;text-align:center">{{ checkoutOnly.length }}</span>
+        <span v-if="checkoutOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutOnly.length }}</span>
       </button>
       <button
         @click="activeTab = 'history'; currentPage = 1; loadHistory()"
@@ -56,41 +56,41 @@
         <p>No pending requests</p>
         <p class="text-sm mt-1">Students haven't requested any of your items yet.</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAllPending" :checked="allPendingSelected" />
               </th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Item</th>
-              <th class="border p-2 text-left">Borrower</th>
-              <th class="border p-2 text-left">Request Date</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Waiting</th>
-              <th class="border p-2 text-left">Reason</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>Request ID</th>
+              <th>Item</th>
+              <th>Borrower</th>
+              <th>Request Date</th>
+              <th>Status</th>
+              <th>Waiting</th>
+              <th>Reason</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="req in paginatedPending" :key="req.id || req._id">
-              <td class="border p-2 text-center">
+              <td class="text-center">
                 <input type="checkbox" :value="req.requestId || req.id" v-model="selectedPendingIds" />
               </td>
-              <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
-              <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(req.requestDate) }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+              <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
+              <td class="text-sm">
                 <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
               </td>
-              <td class="border p-2 text-sm text-orange-500 font-medium">{{ waitingTime(req.requestDate) }}</td>
-              <td class="border p-2 text-sm">{{ req.reason || '-' }}</td>
-              <td class="border p-2 text-center whitespace-nowrap">
+              <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.requestDate) }}</td>
+              <td class="text-sm">{{ req.reason || '-' }}</td>
+              <td class="text-center whitespace-nowrap">
                 <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
                 <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
-                <button @click="openEmailForRequest(req)" class="btn btn-outline-primary text-sm ml-1" title="Email Borrower">✉</button>
+                <button @click="openEmailForRequest(req)" class="btn btn-ghost text-sm ml-1" title="Email Borrower">✉</button>
               </td>
             </tr>
           </tbody>
@@ -105,41 +105,41 @@
       <div v-else-if="checkoutOnly.length === 0" class="empty-state">
         <p>No items pending check-out</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAllCheckout" :checked="allCheckoutSelected" />
               </th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Item</th>
-              <th class="border p-2 text-left">Borrower</th>
-              <th class="border p-2 text-left">Approved Date</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Waiting</th>
-              <th class="border p-2 text-left">Return Date</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>Request ID</th>
+              <th>Item</th>
+              <th>Borrower</th>
+              <th>Approved Date</th>
+              <th>Status</th>
+              <th>Waiting</th>
+              <th>Return Date</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="req in paginatedCheckout" :key="req.id || req._id">
-              <td class="border p-2 text-center">
+              <td class="text-center">
                 <input type="checkbox" :value="req.requestId || req.id" v-model="selectedCheckoutIds" />
               </td>
-              <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
-              <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(req.approvalDate) }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+              <td class="text-sm">{{ formatDate(req.approvalDate) }}</td>
+              <td class="text-sm">
                 <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
               </td>
-              <td class="border p-2 text-sm text-orange-500 font-medium">{{ waitingTime(req.approvalDate) }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
-              <td class="border p-2 text-center whitespace-nowrap">
+              <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.approvalDate) }}</td>
+              <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
+              <td class="text-center whitespace-nowrap">
                 <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
                 <button @click="openDeny(req)" class="btn btn-outline-danger text-sm ml-1">Deny</button>
-                <button @click="openEmailForRequest(req)" class="btn btn-outline-primary text-sm ml-1" title="Email Borrower">✉</button>
+                <button @click="openEmailForRequest(req)" class="btn btn-ghost text-sm ml-1" title="Email Borrower">✉</button>
               </td>
             </tr>
           </tbody>
@@ -160,32 +160,32 @@
       </div>
       <div v-if="loadingHistory" class="empty-state">Loading history...</div>
       <div v-else-if="historyRequests.length === 0" class="empty-state">No history records found</div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Item</th>
-              <th class="border p-2 text-left">Borrower</th>
-              <th class="border p-2 text-left">Request Date</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Return Date</th>
-              <th class="border p-2 text-left">Reason</th>
+              <th>Request ID</th>
+              <th>Item</th>
+              <th>Borrower</th>
+              <th>Request Date</th>
+              <th>Status</th>
+              <th>Return Date</th>
+              <th>Reason</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="req in historyRequests" :key="req.id || req._id">
-              <td class="border p-2 text-sm font-semibold">{{ req.requestId || req.id }}</td>
-              <td class="border p-2 text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="border p-2 text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="border p-2 text-sm">{{ formatDate(req.requestDate) }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+              <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
+              <td class="text-sm">
                 <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusBadge(req.status)}`">
                   {{ req.status }}
                 </span>
               </td>
-              <td class="border p-2 text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
-              <td class="border p-2 text-sm">{{ req.reason || '-' }}</td>
+              <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
+              <td class="text-sm">{{ req.reason || '-' }}</td>
             </tr>
           </tbody>
         </table>
@@ -194,7 +194,7 @@
     </template>
 
     <!-- Approve Modal -->
-    <div v-if="approveTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="approveTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve Request</h3>
         <p class="text-sm text-secondary mb-3">
@@ -217,7 +217,7 @@
     </div>
 
     <!-- Reject Modal -->
-    <div v-if="rejectTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="rejectTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Reject Request</h3>
         <p class="text-sm text-secondary mb-3">
@@ -236,7 +236,7 @@
     </div>
 
     <!-- Deny Check-Out Modal -->
-    <div v-if="denyTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="denyTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Deny Check-Out</h3>
         <p class="text-sm text-secondary mb-3">
@@ -254,7 +254,7 @@
     </div>
 
     <!-- Bulk Approve Modal -->
-    <div v-if="showBulkApproveModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkApproveModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Approve ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
         <p class="text-sm text-secondary mb-3">
@@ -276,7 +276,7 @@
     </div>
 
     <!-- Bulk Reject Modal -->
-    <div v-if="showBulkRejectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkRejectModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Reject ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
         <p class="text-sm text-secondary mb-3">
@@ -294,7 +294,7 @@
     </div>
 
     <!-- Bulk Checkout Modal -->
-    <div v-if="showBulkCheckoutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkCheckoutModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Borrowed Out ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
         <p class="text-sm text-secondary mb-4">
@@ -308,7 +308,7 @@
     </div>
 
     <!-- Bulk Deny Modal -->
-    <div v-if="showBulkDenyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="showBulkDenyModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Deny ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
         <p class="text-sm text-secondary mb-3">
@@ -658,5 +658,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

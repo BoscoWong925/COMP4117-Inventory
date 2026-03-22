@@ -1,6 +1,6 @@
 <template>
-  <div class="p-6">
-    <h2 class="text-2xl font-bold mb-4">New Borrow Request</h2>
+  <div class="page-container">
+    <h2 class="page-title mb-4">New Borrow Request</h2>
 
     <div v-if="submitted" class="mb-4 p-4 alert-success">
       Request submitted successfully! Please wait for admin approval.
@@ -61,7 +61,7 @@
             </div>
             
             <!-- Component Viewer - shown right under clicked item -->
-            <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 theme-section border border-[color:var(--border-color)] rounded-lg">
+            <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 theme-section border border-[color:var(--border)] rounded-lg">
               <h4 class="text-md font-bold mb-3">Components of {{ item.name }}</h4>
               <div v-if="linkedComponents.length === 0" class="text-muted text-sm">No linked components</div>
               <div v-else class="space-y-2">
@@ -79,7 +79,7 @@
       </div>
 
       <div class="lg:col-span-1">
-        <div class="theme-section p-4 border border-[color:var(--border-color)]">
+        <div class="theme-section p-4 border border-[color:var(--border)]">
           <h3 class="text-lg font-bold mb-4">Request Details</h3>
           <template v-if="selectedItem">
             <div class="mb-4 p-4 theme-card">
@@ -125,7 +125,7 @@
                   v-for="(preview, idx) in filePreviews"
                   :key="'p'+idx"
                   :src="preview"
-                  class="w-16 h-16 object-cover rounded border border-[color:var(--border-color)]"
+                  class="w-16 h-16 object-cover rounded border border-[color:var(--border)]"
                 />
               </div>
             </div>
@@ -318,5 +318,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

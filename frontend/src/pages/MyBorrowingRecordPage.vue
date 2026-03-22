@@ -1,7 +1,7 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">My Borrowing Record</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">My Borrowing Record</h2>
     </div>
 
     <div v-if="records.length === 0" class="empty-state">
@@ -107,7 +107,7 @@
 
 
     <!-- Declare Return Date Modal -->
-    <div v-if="declareReturnTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="declareReturnTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Declare Return Date</h3>
         <p class="text-sm text-muted mb-3">
@@ -266,5 +266,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

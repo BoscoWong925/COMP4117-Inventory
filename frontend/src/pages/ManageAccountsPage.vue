@@ -1,20 +1,23 @@
 <template>
-  <div class="p-6">
+  <div class="page-container">
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-bold">Manage Accounts</h2>
+      <div class="page-header">
+        <div>
+          <h2 class="page-title">Manage Accounts</h2>
+          <p class="page-description">{{ totalUsers }} accounts</p>
+        </div>
         <div class="flex gap-2">
           <button v-if="selectedUserIds.length > 0" @click="openBulkDisableModal" class="btn btn-outline-warning text-sm">
             Disable ({{ selectedUserIds.length }})
           </button>
-          <button v-if="selectedUserIds.length > 0" @click="openBulkEnableModal" class="btn btn-outline-primary text-sm">
+          <button v-if="selectedUserIds.length > 0" @click="openBulkEnableModal" class="btn btn-ghost text-sm">
             Enable ({{ selectedUserIds.length }})
           </button>
           <button v-if="selectedUserIds.length > 0" @click="openBulkDeleteModal" class="btn btn-outline-danger text-sm">
             Delete ({{ selectedUserIds.length }})
           </button>
-          <button @click="openNewUserForm" class="btn btn-outline-primary">Add New Account</button>
+          <button @click="openNewUserForm" class="btn">Add New Account</button>
         </div>
       </div>
 
@@ -76,44 +79,44 @@
       </p>
 
       <div v-if="users.length === 0" class="empty-state">No accounts found</div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
               </th>
-              <th class="border p-2 text-left">User ID</th>
-              <th class="border p-2 text-left">Name</th>
-              <th class="border p-2 text-left">Username</th>
-              <th class="border p-2 text-left">Email</th>
-              <th class="border p-2 text-left">Role</th>
-              <th class="border p-2 text-left">Department</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>User ID</th>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Department</th>
+              <th>Status</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="u in users" :key="u.userId">
-              <td class="border p-2 text-center">
+              <td class="text-center">
                 <input type="checkbox" :value="u.userId" v-model="selectedUserIds" />
               </td>
-              <td class="border p-2 text-sm font-semibold">{{ u.userId }}</td>
-              <td class="border p-2 text-sm">{{ u.name }}</td>
-              <td class="border p-2 text-sm">{{ u.username }}</td>
-              <td class="border p-2 text-sm">{{ u.email || '-' }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm" style="font-weight:600">{{ u.userId }}</td>
+              <td class="text-sm">{{ u.name }}</td>
+              <td class="text-sm">{{ u.username }}</td>
+              <td class="text-sm">{{ u.email || '-' }}</td>
+              <td class="text-sm">
                 <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getRoleBadge(u)}`">
                   {{ getDisplayRole(u) }}
                 </span>
               </td>
-              <td class="border p-2 text-sm">{{ u.department || '-' }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm">{{ u.department || '-' }}</td>
+              <td class="text-sm">
                 <span v-if="u.isActive !== false" class="px-2 py-0.5 rounded text-xs font-medium action-badge action-badge-success">Active</span>
                 <span v-else class="px-2 py-0.5 rounded text-xs font-medium action-badge action-badge-danger">Inactive</span>
               </td>
-              <td class="border p-2 text-center whitespace-nowrap">
-                <button @click="editUser(u)" class="btn btn-outline-success text-sm">Edit</button>
+              <td class="text-center whitespace-nowrap">
+                <button @click="editUser(u)" class="btn btn-ghost text-sm" style="padding:0.25rem 0.5rem;min-height:auto">Edit</button>
                 <button
                   v-if="u.isActive !== false"
                   @click="toggleStatus(u, false)"
@@ -122,10 +125,10 @@
                 <button
                   v-else
                   @click="toggleStatus(u, true)"
-                  class="btn btn-outline-primary text-sm ml-1"
+                  class="btn btn-ghost text-sm ml-1"
                 >Enable</button>
                 <button @click="confirmDelete(u)" class="btn btn-outline-danger text-sm ml-1">Delete</button>
-                <button @click="openEmailModal(u)" class="btn btn-outline-primary text-sm ml-1" title="Send Email">✉</button>
+                <button @click="openEmailModal(u)" class="btn btn-ghost text-sm ml-1" title="Send Email">✉</button>
               </td>
             </tr>
           </tbody>
@@ -136,11 +139,11 @@
 
     <!-- ========== FORM VIEW ========== -->
     <template v-if="showForm">
-      <div class="max-w-2xl mx-auto pt-8">
-        <button @click="showForm = false; resetForm()" class="text-muted hover:text-[color:var(--text-primary)] text-lg px-3 py-1 rounded hover:bg-[color:var(--row-hover)] mb-2">
+      <div class="max-w-2xl mx-auto pt-4">
+        <button @click="showForm = false; resetForm()" class="btn btn-ghost mb-2" style="padding:0.375rem 0.75rem;min-height:auto">
           &larr; Back
         </button>
-        <h2 class="text-2xl font-bold mb-6">
+        <h2 class="page-title mb-6">
           {{ editingUser ? 'Edit Account' : 'Create New Account' }}
         </h2>
 
@@ -201,8 +204,8 @@
     <div v-if="showDeleteModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Delete</h3>
-        <p class="mb-4">Are you sure you want to delete account <strong>{{ deleteTarget?.name }}</strong> ({{ deleteTarget?.userId }})?</p>
-        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete account <strong>{{ deleteTarget?.name }}</strong> ({{ deleteTarget?.userId }})?</p>
+        <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
           <button @click="handleDelete" class="btn btn-outline-danger flex-1">Delete</button>
           <button @click="showDeleteModal = false; deleteTarget = null" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -214,8 +217,8 @@
     <div v-if="showBulkDisableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Disable</h3>
-        <p class="mb-4">Are you sure you want to disable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
-        <p class="text-sm text-orange-600 mb-4">These accounts will no longer be able to access the system.</p>
+        <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to disable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
+        <p class="text-sm mb-4" style="color:var(--warning)">These accounts will no longer be able to access the system.</p>
         <div class="flex gap-2">
           <button @click="handleBulkDisable" class="btn btn-outline-warning flex-1">Disable</button>
           <button @click="showBulkDisableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -240,8 +243,8 @@
     <div v-if="showBulkDeleteModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Delete</h3>
-        <p class="mb-4">Are you sure you want to delete <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
-        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
+        <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
           <button @click="handleBulkDelete" class="btn btn-outline-danger flex-1">Delete</button>
           <button @click="showBulkDeleteModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -589,5 +592,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

@@ -15,7 +15,7 @@
         <span class="w-3 h-3 rounded-full inline-block" style="background:var(--danger)"></span> Return Due
       </span>
       <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full inline-block" style="background:#3b82f6"></span> Declared Return
+        <span class="w-3 h-3 rounded-full inline-block" style="background:var(--info)"></span> Declared Return
       </span>
     </div>
 
@@ -63,7 +63,7 @@
       <ul class="space-y-1">
         <li v-for="(evt, i) in selectedCell.events" :key="i" class="flex items-center gap-2 text-xs">
           <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="`background:${evt.color || 'var(--danger)'}`"></span>
-          <span class="font-medium" :style="`color:${evt.color === '#3b82f6' ? '#3b82f6' : 'var(--danger-dark)'}`">{{ evt.label }}</span>
+          <span class="font-medium" :style="`color:${evt.color === 'var(--info)' ? 'var(--info)' : 'var(--danger-dark)'}`">{{ evt.label }}</span>
         </li>
       </ul>
     </div>
@@ -139,7 +139,7 @@ export default {
               events.push({
                 date: new Date(req.declaredReturnDate).toDateString(),
                 type: 'declared',
-                color: '#3b82f6',
+                color: 'var(--info)',
                 label: `Declared Return: ${itemName} (${borrowerName})`
               })
             }
@@ -243,5 +243,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

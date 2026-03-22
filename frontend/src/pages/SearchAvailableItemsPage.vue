@@ -1,7 +1,7 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Search Available Items</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">Search Available Items</h2>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -69,7 +69,7 @@
           </div>
         </div>
 
-        <div v-if="item.description" class="mt-3 pt-3 border-t border-[color:var(--border-color)]">
+        <div v-if="item.description" class="mt-3 pt-3 border-t border-[color:var(--border)]">
           <p class="field-label">Description</p>
           <p class="text-sm">{{ item.description }}</p>
         </div>
@@ -274,5 +274,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

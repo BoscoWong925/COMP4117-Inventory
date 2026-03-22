@@ -25,32 +25,26 @@ export default {
   flex-direction: column;
   align-items: flex-start;
   padding: 1rem 1.125rem;
-  border-radius: 0.625rem;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--card);
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: box-shadow 0.12s, border-color 0.12s;
   text-align: left;
   min-width: 0;
 }
 .alert-card:hover {
-  box-shadow: 0 2px 8px var(--shadow-color);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* Severity variants */
-.alert-card.danger {
-  border-left: 3px solid var(--danger);
-}
+.alert-card.danger { border-left: 3px solid var(--danger); }
 .alert-card.danger .alert-card-count { color: var(--danger); }
 
-.alert-card.warning {
-  border-left: 3px solid var(--warning);
-}
+.alert-card.warning { border-left: 3px solid var(--warning); }
 .alert-card.warning .alert-card-count { color: var(--warning); }
 
-.alert-card.neutral {
-  border-left: 3px solid var(--accent);
-}
+.alert-card.neutral { border-left: 3px solid var(--accent); }
 .alert-card.neutral .alert-card-count { color: var(--accent); }
 
 .alert-card-count {
@@ -67,7 +61,7 @@ export default {
 }
 .alert-card-sub {
   font-size: 0.6875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 0.125rem;
 }
 .alert-card-action {

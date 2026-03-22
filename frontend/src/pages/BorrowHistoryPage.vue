@@ -1,12 +1,15 @@
 ﻿<template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Borrowing History</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Borrowing History</h2>
+        <p class="page-description">{{ totalHistory }} record(s)</p>
+      </div>
       <div class="flex gap-2">
         <button v-if="isAdmin && selectedHistoryIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
           Delete ({{ selectedHistoryIds.length }})
         </button>
-        <button @click="showFilters = !showFilters" class="btn btn-outline-primary">
+        <button @click="showFilters = !showFilters" class="btn btn-ghost">
           {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
         </button>
         <button @click="exportHistory" class="btn">Export to Excel</button>
@@ -83,48 +86,48 @@
     <div v-if="history.length === 0" class="empty-state">
       No records found
     </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse table-striped theme-table">
+    <div v-else class="table-responsive">
+      <table class="table-striped theme-table">
         <thead>
           <tr>
-            <th v-if="isAdmin" class="border p-2 text-center w-10">
+            <th v-if="isAdmin" class="text-center" style="width:2.5rem">
               <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
             </th>
-            <th class="border p-2 text-left">Request ID</th>
-            <th class="border p-2 text-left">Item</th>
-            <th class="border p-2 text-left">Borrower</th>
-            <th class="border p-2 text-left">Status</th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('requestDate')">
+            <th>Request ID</th>
+            <th>Item</th>
+            <th>Borrower</th>
+            <th>Status</th>
+            <th class="cursor-pointer select-none" @click="toggleSort('requestDate')">
               Request Date <span class="sort-icon">{{ getSortIcon('requestDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('approvalDate')">
+            <th class="cursor-pointer select-none" @click="toggleSort('approvalDate')">
               Approval Date <span class="sort-icon">{{ getSortIcon('approvalDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('returnDate')">
+            <th class="cursor-pointer select-none" @click="toggleSort('returnDate')">
               Return Date <span class="sort-icon">{{ getSortIcon('returnDate') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('returnedDate')">
+            <th class="cursor-pointer select-none" @click="toggleSort('returnedDate')">
               Returned <span class="sort-icon">{{ getSortIcon('returnedDate') }}</span>
             </th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="record in history" :key="record.id">
-            <td v-if="isAdmin" class="border p-2 text-center">
+            <td v-if="isAdmin" class="text-center">
               <input type="checkbox" :value="record.id" v-model="selectedHistoryIds" />
             </td>
-            <td class="border p-2">{{ record.id }}</td>
-            <td class="border p-2">{{ record.itemName }}</td>
-            <td class="border p-2">{{ record.borrowerName }} ({{ record.borrowerID }})</td>
-            <td class="border p-2">
+            <td style="font-weight:500">{{ record.id }}</td>
+            <td>{{ record.itemName }}</td>
+            <td>{{ record.borrowerName }} ({{ record.borrowerID }})</td>
+            <td>
               <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(record.status)}`">
                 {{ record.status }}
               </span>
             </td>
-            <td class="border p-2 text-sm">{{ formatDateTime(record.requestDate) }}</td>
-            <td class="border p-2 text-sm">{{ formatDateTime(record.approvalDate) }}</td>
-            <td class="border p-2 text-sm">{{ formatDateTime(record.returnDate) }}</td>
-            <td class="border p-2 text-sm">{{ formatDateTime(record.returnedDate) }}</td>
+            <td class="text-sm">{{ formatDateTime(record.requestDate) }}</td>
+            <td class="text-sm">{{ formatDateTime(record.approvalDate) }}</td>
+            <td class="text-sm">{{ formatDateTime(record.returnDate) }}</td>
+            <td class="text-sm">{{ formatDateTime(record.returnedDate) }}</td>
           </tr>
         </tbody>
       </table>
@@ -139,8 +142,8 @@
     <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Delete</h3>
-        <p class="mb-4">Are you sure you want to delete <strong>{{ selectedHistoryIds.length }}</strong> record(s)?</p>
-        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedHistoryIds.length }}</strong> record(s)?</p>
+        <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
           <button @click="handleDeleteRecords" class="btn btn-outline-danger flex-1">Delete</button>
           <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -374,7 +377,6 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 .sort-icon {
   display: inline-block;
   width: 14px;

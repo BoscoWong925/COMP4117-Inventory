@@ -1,8 +1,8 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">My Items</h2>
-      <p class="text-sm text-secondary">{{ isTeacher ? 'Items you own and borrow' : 'Items you are currently borrowing' }}</p>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">My Items</h2>
+      <p class="page-description">{{ isTeacher ? 'Items you own and borrow' : 'Items you are currently borrowing' }}</p>
     </div>
 
     <!-- Search -->
@@ -16,7 +16,7 @@
     </div>
 
     <!-- Active status filter banner -->
-    <div v-if="statusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between text-sm" style="background: var(--bg-tertiary); border: 1px solid var(--border-color);">
+    <div v-if="statusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between text-sm" style="background: var(--surface-2); border: 1px solid var(--border);">
       <span>Showing: <strong>{{ statusFilter }}</strong> items only</span>
       <button @click="statusFilter = ''" class="text-accent hover:underline font-medium">Clear Filter &times;</button>
     </div>
@@ -24,13 +24,13 @@
     <!-- Tabs for teacher -->
     <div v-if="isTeacher" class="flex gap-2 mb-4">
       <button
-        :class="['px-4 py-2 rounded-lg text-sm font-medium transition-colors', activeTab === 'owned' ? 'bg-[color:var(--accent)] text-white' : 'theme-card hover:bg-[color:var(--bg-tertiary)]']"
+        :class="`pill ${activeTab === 'owned' ? 'pill-active' : ''}`"
         @click="activeTab = 'owned'; currentPage = 1"
       >
         Owned ({{ allOwnedItems.length }})
       </button>
       <button
-        :class="['px-4 py-2 rounded-lg text-sm font-medium transition-colors', activeTab === 'borrowed' ? 'bg-[color:var(--accent)] text-white' : 'theme-card hover:bg-[color:var(--bg-tertiary)]']"
+        :class="`pill ${activeTab === 'borrowed' ? 'pill-active' : ''}`"
         @click="activeTab = 'borrowed'; currentPage = 1"
       >
         Borrowed ({{ borrowedItems.length }})
@@ -44,15 +44,15 @@
         <p class="text-xs text-muted">Total Owned</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #22c55e;">{{ allOwnedItems.filter(i => i.status === 'Available').length }}</p>
+        <p class="text-2xl font-bold" style="color:var(--success)">{{ allOwnedItems.filter(i => i.status === 'Available').length }}</p>
         <p class="text-xs text-muted">Available</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #f59e0b;">{{ allOwnedItems.filter(i => i.status === 'In-use').length }}</p>
+        <p class="text-2xl font-bold" style="color:var(--warning)">{{ allOwnedItems.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #8b5cf6;">{{ allOwnedItems.filter(i => i.canBorrow).length }}</p>
+        <p class="text-2xl font-bold" style="color:var(--info)">{{ allOwnedItems.filter(i => i.canBorrow).length }}</p>
         <p class="text-xs text-muted">Borrowable</p>
       </div>
     </div>
@@ -74,38 +74,38 @@
       <div v-if="filteredOwnedItems.length === 0" class="empty-state">
         <p>No owned items found</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-center w-10">
+              <th class="text-center" style="width:2.5rem">
                 <input type="checkbox" @change="toggleSelectAllOwned" :checked="allOwnedSelected" />
               </th>
-              <th class="border p-2 text-left">Item ID</th>
-              <th class="border p-2 text-left">Name</th>
-              <th class="border p-2 text-left">Category</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Location</th>
-              <th class="border p-2 text-left">Current Borrower</th>
-              <th class="border p-2 text-center">Actions</th>
+              <th>Item ID</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Location</th>
+              <th>Current Borrower</th>
+              <th class="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in paginatedOwnedItems" :key="item.id" @click="showDetail(item)" class="cursor-pointer hover:bg-[color:var(--bg-tertiary)]">
-              <td class="border p-2 text-center" @click.stop>
+            <tr v-for="item in paginatedOwnedItems" :key="item.id" @click="showDetail(item)" class="cursor-pointer">
+              <td class="text-center" @click.stop>
                 <input type="checkbox" :value="item.id" v-model="selectedOwnedItemIds" />
               </td>
-              <td class="border p-2 text-sm font-semibold">{{ item.id }}</td>
-              <td class="border p-2 text-sm">{{ item.name }}</td>
-              <td class="border p-2 text-sm">{{ item.category }}</td>
-              <td class="border p-2 text-sm">
+              <td class="text-sm" style="font-weight:600">{{ item.id }}</td>
+              <td class="text-sm">{{ item.name }}</td>
+              <td class="text-sm">{{ item.category }}</td>
+              <td class="text-sm">
                 <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(item.status)}`">
                   {{ item.status }}
                 </span>
               </td>
-              <td class="border p-2 text-sm">{{ item.location || '-' }}</td>
-              <td class="border p-2 text-sm">{{ item.currentBorrowerName || item.currentBorrower || '-' }}</td>
-              <td class="border p-2 text-center whitespace-nowrap" @click.stop>
+              <td class="text-sm">{{ item.location || '-' }}</td>
+              <td class="text-sm">{{ item.currentBorrowerName || item.currentBorrower || '-' }}</td>
+              <td class="text-center whitespace-nowrap" @click.stop>
                 <template v-if="item.status === 'Available'">
                   <button @click="changeStatus(item, 'In-use')" class="btn btn-outline-warning text-xs">Set In-use</button>
                 </template>
@@ -126,24 +126,24 @@
         <p>No borrowed items</p>
         <p class="text-sm mt-1">You haven't borrowed any items yet.</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-left">Item</th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Return Date</th>
+              <th>Item</th>
+              <th>Request ID</th>
+              <th>Status</th>
+              <th>Return Date</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="req in paginatedBorrowedItems" :key="req.id" class="hover:bg-[color:var(--bg-tertiary)]">
-              <td class="border p-2 text-sm font-semibold">{{ req.itemName }}</td>
-              <td class="border p-2 text-sm">{{ req.id }}</td>
-              <td class="border p-2 text-sm">
+            <tr v-for="req in paginatedBorrowedItems" :key="req.id">
+              <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
+              <td class="text-sm">{{ req.id }}</td>
+              <td class="text-sm">
                 <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Borrowed</span>
               </td>
-              <td class="border p-2 text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
+              <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
             </tr>
           </tbody>
         </table>
@@ -156,24 +156,24 @@
       <div v-if="filteredBorrowedItems.length === 0" class="empty-state">
         <p>No items currently checked out to you</p>
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th class="border p-2 text-left">Item</th>
-              <th class="border p-2 text-left">Request ID</th>
-              <th class="border p-2 text-left">Status</th>
-              <th class="border p-2 text-left">Return Date</th>
+              <th>Item</th>
+              <th>Request ID</th>
+              <th>Status</th>
+              <th>Return Date</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="req in paginatedBorrowedItems" :key="req.id" class="hover:bg-[color:var(--bg-tertiary)]">
-              <td class="border p-2 text-sm font-semibold">{{ req.itemName }}</td>
-              <td class="border p-2 text-sm">{{ req.id }}</td>
-              <td class="border p-2 text-sm">
+            <tr v-for="req in paginatedBorrowedItems" :key="req.id">
+              <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
+              <td class="text-sm">{{ req.id }}</td>
+              <td class="text-sm">
                 <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Borrowed</span>
               </td>
-              <td class="border p-2 text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
+              <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
             </tr>
           </tbody>
         </table>
@@ -427,5 +427,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

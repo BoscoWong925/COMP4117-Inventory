@@ -825,9 +825,9 @@ export default {
 }
 
 .test-container {
-  background: var(--bg-secondary);
+  background: var(--card);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   padding: 2rem;
 }
 
@@ -849,7 +849,7 @@ export default {
 
 .subtitle {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin: 0.25rem 0 0;
 }
 
@@ -881,9 +881,9 @@ export default {
 
 .clear-btn {
   padding: 0.75rem 1rem;
-  background: var(--bg-tertiary);
+  background: var(--surface-2);
   color: var(--text-secondary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   font-weight: 600;
   cursor: pointer;
@@ -891,7 +891,7 @@ export default {
 }
 
 .clear-btn:hover:not(:disabled) {
-  background: var(--border-color);
+  background: var(--border);
 }
 
 /* Stats */
@@ -907,7 +907,7 @@ export default {
   flex-direction: column;
   align-items: center;
   padding: 0.75rem;
-  background: var(--bg-tertiary);
+  background: var(--surface-2);
   border-radius: 0.5rem;
   border-top: 3px solid transparent;
 }
@@ -927,14 +927,14 @@ export default {
 
 .stat-label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 0.125rem;
 }
 
 /* Progress */
 .progress-bar {
   height: 4px;
-  background: var(--bg-tertiary);
+  background: var(--surface-2);
   border-radius: 2px;
   margin-bottom: 1.5rem;
   overflow: hidden;
@@ -956,8 +956,8 @@ export default {
 }
 
 .test-group {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   overflow: hidden;
 }
@@ -984,7 +984,7 @@ export default {
 
 .collapse-icon {
   font-size: 0.625rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   width: 1rem;
 }
 
@@ -996,8 +996,8 @@ export default {
 
 .group-count {
   font-size: 0.75rem;
-  color: var(--text-muted);
-  background: var(--bg-secondary);
+  color: var(--muted-foreground);
+  background: var(--card);
   padding: 0.125rem 0.5rem;
   border-radius: 0.25rem;
 }
@@ -1041,11 +1041,11 @@ export default {
 
 /* Test Rows */
 .group-tests {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 }
 
 .test-row {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .test-row:last-child {
@@ -1077,7 +1077,7 @@ export default {
 .test-icon.fail { color: #ef4444; }
 .test-icon.skip { color: #a3a3a3; }
 .test-icon.running { color: #3b82f6; animation: spin 1s linear infinite; }
-.test-icon.pending { color: var(--text-muted); }
+.test-icon.pending { color: var(--muted-foreground); }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -1124,7 +1124,7 @@ export default {
 
 .test-desc {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 /* Test Meta (right side) */
@@ -1150,13 +1150,13 @@ export default {
 
 .duration {
   font-size: 0.6875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .expand-icon {
   font-size: 0.5rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 /* Test Detail (expandable) */
@@ -1168,8 +1168,8 @@ export default {
 }
 
 .detail-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
   overflow: hidden;
 }
@@ -1184,9 +1184,9 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.375rem 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .detail-section.error .detail-label {
@@ -1207,7 +1207,7 @@ export default {
 }
 
 .request-info {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 /* Legend */
@@ -1215,7 +1215,7 @@ export default {
   display: flex;
   gap: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -1224,7 +1224,7 @@ export default {
   align-items: center;
   gap: 0.375rem;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .dot {

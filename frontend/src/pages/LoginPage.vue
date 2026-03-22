@@ -168,7 +168,7 @@ export default {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--background);
   padding: 1rem;
 }
 
@@ -222,8 +222,8 @@ export default {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 50%;
-  border: 1px solid var(--border-color);
-  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  background: var(--surface-glass);
   backdrop-filter: blur(12px);
   color: var(--text-secondary);
   cursor: pointer;
@@ -244,13 +244,13 @@ export default {
 }
 
 .login-card {
-  background: var(--bg-glass);
+  background: var(--surface-glass);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  border: 1px solid var(--border-glass);
-  border-radius: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
   padding: 2rem 1.5rem;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-xl);
 }
 
 @media (min-width: 640px) {
@@ -288,7 +288,7 @@ export default {
 
 .login-subtitle {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 0.25rem;
 }
 
@@ -333,9 +333,9 @@ export default {
 .input-wrapper {
   display: flex;
   align-items: center;
-  background: var(--bg-tertiary);
-  border: 1.5px solid var(--border-color);
-  border-radius: 0.75rem;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -350,7 +350,7 @@ export default {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .login-input {
@@ -365,7 +365,7 @@ export default {
 }
 
 .login-input::placeholder {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .input-eye {
@@ -373,7 +373,7 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   display: flex;
   align-items: center;
   -webkit-tap-highlight-color: transparent;
@@ -436,9 +436,9 @@ export default {
   justify-content: space-between;
   width: 100%;
   padding: 0.625rem 0.875rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -463,11 +463,10 @@ export default {
   align-items: center;
   gap: 0.625rem;
   padding: 0.5rem 0.75rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 0.625rem;
-  cursor: pointer;
+  background: var(--surface-2);
   border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
   width: 100%;
   text-align: left;
   transition: background 0.15s;
@@ -497,8 +496,8 @@ export default {
 
 .demo-creds {
   font-size: 0.8125rem;
-  color: var(--text-muted);
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
 }
 
 /* ===== Footer ===== */
@@ -506,7 +505,7 @@ export default {
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .animate-in {

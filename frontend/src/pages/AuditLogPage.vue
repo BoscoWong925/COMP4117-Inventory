@@ -1,12 +1,15 @@
 ﻿<template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Audit Log & Trail</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Audit Log & Trail</h2>
+        <p class="page-description">{{ totalLogs }} log entries</p>
+      </div>
       <div class="flex gap-2">
         <button v-if="isAdmin && selectedLogIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
           Delete ({{ selectedLogIds.length }})
         </button>
-        <button @click="showFilters = !showFilters" class="btn btn-outline-primary">
+        <button @click="showFilters = !showFilters" class="btn btn-ghost">
           {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
         </button>
         <button @click="exportLogs" class="btn">Export to Excel</button>
@@ -107,40 +110,40 @@
     <div v-if="logs.length === 0 && !loading" class="empty-state">
       No logs found
     </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse table-striped theme-table">
+    <div v-else class="table-responsive">
+      <table class="table-striped theme-table">
         <thead>
           <tr>
-            <th v-if="isAdmin" class="border p-2 text-center w-10">
+            <th v-if="isAdmin" class="text-center" style="width:2.5rem">
               <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('timestamp')">
+            <th class="cursor-pointer select-none" @click="toggleSort('timestamp')">
               Timestamp <span class="sort-icon">{{ getSortIcon('timestamp') }}</span>
             </th>
-            <th class="border p-2 text-left">User</th>
-            <th class="border p-2 text-left">Action</th>
-            <th class="border p-2 text-left">Details</th>
-            <th class="border p-2 text-left">Item ID</th>
-            <th class="border p-2 text-left">Old Value</th>
-            <th class="border p-2 text-left">New Value</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Details</th>
+            <th>Item ID</th>
+            <th>Old Value</th>
+            <th>New Value</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="log in paginatedLogs" :key="log.id">
-            <td v-if="isAdmin" class="border p-2 text-center">
+            <td v-if="isAdmin" class="text-center">
               <input type="checkbox" :value="log.logId || log.id || log._id" v-model="selectedLogIds" />
             </td>
-            <td class="border p-2 text-sm whitespace-nowrap">{{ formatDateTime(log.timestamp) }}</td>
-            <td class="border p-2 text-sm">{{ log.userID }}</td>
-            <td class="border p-2 text-sm">
+            <td class="text-sm whitespace-nowrap">{{ formatDateTime(log.timestamp) }}</td>
+            <td class="text-sm">{{ log.userID }}</td>
+            <td class="text-sm">
               <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getActionColor(log.action)}`">
                 {{ formatAction(log.action) }}
               </span>
             </td>
-            <td class="border p-2 text-sm text-secondary">{{ log.details }}</td>
-            <td class="border p-2 text-sm">{{ log.affectedItemID || '-' }}</td>
-            <td class="border p-2 text-sm">{{ log.oldValue || '-' }}</td>
-            <td class="border p-2 text-sm">{{ log.newValue || '-' }}</td>
+            <td class="text-sm text-secondary">{{ log.details }}</td>
+            <td class="text-sm">{{ log.affectedItemID || '-' }}</td>
+            <td class="text-sm">{{ log.oldValue || '-' }}</td>
+            <td class="text-sm">{{ log.newValue || '-' }}</td>
           </tr>
         </tbody>
       </table>
@@ -154,8 +157,8 @@
     <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Delete</h3>
-        <p class="mb-4">Are you sure you want to delete <strong>{{ selectedLogIds.length }}</strong> log entries?</p>
-        <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+        <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedLogIds.length }}</strong> log entries?</p>
+        <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
           <button @click="handleDeleteLogs" class="btn btn-outline-danger flex-1">Delete</button>
           <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -514,7 +517,6 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 .sort-icon {
   display: inline-block;
   width: 14px;

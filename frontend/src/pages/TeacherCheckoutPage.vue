@@ -1,8 +1,8 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Checkout / Returns</h2>
-      <p class="text-sm text-secondary">Items you've borrowed - return when done</p>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">Checkout / Returns</h2>
+      <p class="page-description">Items you've borrowed - return when done</p>
     </div>
 
     <!-- Stats -->
@@ -12,15 +12,15 @@
         <p class="text-xs text-muted">Total Borrowed</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #f59e0b;">{{ borrowedItems.filter(i => i.status === 'In-use').length }}</p>
+        <p class="text-2xl font-bold" style="color:var(--warning)">{{ borrowedItems.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #8b5cf6;">{{ borrowedItems.filter(i => i.status === 'Available').length }}</p>
+        <p class="text-2xl font-bold" style="color:var(--info)">{{ borrowedItems.filter(i => i.status === 'Available').length }}</p>
         <p class="text-xs text-muted">Available for Return</p>
       </div>
       <div class="theme-card p-4 text-center">
-        <p class="text-2xl font-bold" style="color: #ef4444;">{{ overdueCount }}</p>
+        <p class="text-2xl font-bold" style="color:var(--danger)">{{ overdueCount }}</p>
         <p class="text-xs text-muted">Overdue</p>
       </div>
     </div>
@@ -41,38 +41,38 @@
       <p>No borrowed items</p>
       <p class="text-sm mt-1">You haven't borrowed any items yet.</p>
     </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse table-striped theme-table">
+    <div v-else class="table-responsive">
+      <table class="table-striped theme-table">
         <thead>
           <tr>
-            <th class="border p-2 text-left">Item ID</th>
-            <th class="border p-2 text-left">Item Name</th>
-            <th class="border p-2 text-left">Category</th>
-            <th class="border p-2 text-left">Status</th>
-            <th class="border p-2 text-left">Borrowed Date</th>
-            <th class="border p-2 text-left">Return Date</th>
-            <th class="border p-2 text-left">Days</th>
-            <th class="border p-2 text-center">Action</th>
+            <th>Item ID</th>
+            <th>Item Name</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Borrowed Date</th>
+            <th>Return Date</th>
+            <th>Days</th>
+            <th class="text-center">Action</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in paginatedItems" :key="item.id">
-            <td class="border p-2 text-sm font-semibold">{{ item.itemId }}</td>
-            <td class="border p-2 text-sm">{{ item.itemName }}</td>
-            <td class="border p-2 text-sm">{{ item.category }}</td>
-            <td class="border p-2 text-sm">
+            <td class="text-sm" style="font-weight:600">{{ item.itemId }}</td>
+            <td class="text-sm">{{ item.itemName }}</td>
+            <td class="text-sm">{{ item.category }}</td>
+            <td class="text-sm">
               <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(item.status)}`">
                 {{ item.status }}
               </span>
             </td>
-            <td class="border p-2 text-sm">{{ formatDate(item.borrowDate || item.requestDate) }}</td>
-            <td class="border p-2 text-sm">{{ formatDate(item.returnDate) || 'Not set' }}</td>
-            <td class="border p-2 text-sm">
+            <td class="text-sm">{{ formatDate(item.borrowDate || item.requestDate) }}</td>
+            <td class="text-sm">{{ formatDate(item.returnDate) || 'Not set' }}</td>
+            <td class="text-sm">
               <span :class="`font-medium ${getDaysColor(item.daysOverdue)}`">
                 {{ item.daysOverdue > 0 ? `+${item.daysOverdue}` : '-' }}
               </span>
             </td>
-            <td class="border p-2 text-center whitespace-nowrap">
+            <td class="text-center whitespace-nowrap">
               <button 
                 @click="openReturnModal(item)" 
                 class="btn btn-outline-success text-sm"
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Return Modal -->
-    <div v-if="returnTarget" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div v-if="returnTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Return Item</h3>
         <p class="text-sm text-secondary mb-4">
@@ -265,5 +265,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

@@ -1,4 +1,6 @@
-<template>
+import { writeFileSync } from 'fs';
+
+const content = `<template>
   <div class="home-page">
     <!-- ==================== ADMIN / OPERATOR VIEW ==================== -->
     <template v-if="user?.role !== 'user'">
@@ -775,7 +777,7 @@ export default {
 
     const formatAction = (action) => {
       if (!action) return '—'
-      return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      return action.replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase())
     }
 
     // === Data Loading ===
@@ -1546,3 +1548,7 @@ export default {
 .record-date { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.125rem; }
 .record-more { text-align: center; font-size: 0.8125rem; color: var(--muted-foreground); padding-top: 0.75rem; }
 </style>
+`;
+
+writeFileSync('C:/Project/COMP4117-Inventory/frontend/src/pages/HomePage.vue', content, 'utf-8');
+console.log('HomePage.vue updated successfully');

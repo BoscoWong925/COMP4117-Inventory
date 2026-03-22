@@ -1,61 +1,70 @@
 <template>
-  <div v-if="isAuthLoading" class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-    <div class="flex flex-col items-center gap-4">
-      <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-      <p class="text-gray-500 dark:text-gray-400 font-medium text-lg">Loading...</p>
+  <div v-if="isAuthLoading" class="shell-loading" :class="darkMode ? '' : 'light-mode'">
+    <div class="shell-loading-inner">
+      <div class="shell-loading-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
+      <div class="spinner" style="width: 1.5rem; height: 1.5rem;"></div>
     </div>
   </div>
   <template v-else>
     <div :class="['app-shell', darkMode ? '' : 'light-mode', compactMode ? 'compact-mode' : '', reduceMotion ? 'reduce-motion' : '']" v-if="isAuthenticated">
-    <!-- ===== Top Header with Nav Tabs ===== -->
+    <!-- ===== Top Header ===== -->
     <header class="top-bar">
-      <div class="top-bar-brand">
-        <button @click="handleNavigate('home')" class="logo-btn">
-          <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          <span class="logo-text">Inventory</span>
-        </button>
+      <div class="top-bar-inner">
+        <div class="top-bar-brand">
+          <button @click="handleNavigate('home')" class="logo-btn">
+            <div class="logo-mark">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <span class="logo-text">COMP<span class="logo-text-accent">Inventory</span></span>
+          </button>
+          <!-- Primary nav tabs inline with brand -->
+          <nav class="nav-primary">
+            <button
+              v-for="group in navGroups"
+              :key="group.key"
+              @click="handleGroupClick(group)"
+              :class="['nav-primary-tab', activeGroup === group.key ? 'nav-primary-active' : '']"
+            >
+              <span class="nav-tab-icon" v-html="group.icon"></span>
+              <span class="nav-tab-label">{{ group.label }}</span>
+              <NotificationBadge v-if="group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
+            </button>
+          </nav>
+        </div>
         <div class="top-bar-actions">
           <button @click="toggleTheme" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
-            <svg v-if="darkMode" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg v-if="darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
           <div class="user-chip" @click="showUserMenu = !showUserMenu">
             <div class="avatar">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
             <span class="user-name hidden sm:inline">{{ user?.name }}</span>
+            <svg class="user-chip-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
       </div>
-      <nav class="top-nav">
-        <div class="nav-groups">
-          <button
-            v-for="group in navGroups"
-            :key="group.key"
-            @click="handleGroupClick(group)"
-            :class="['nav-group-tab', activeGroup === group.key ? 'nav-group-active' : '']"
-          >
-            <span class="top-nav-icon" v-html="group.icon"></span>
-            <span class="top-nav-label">{{ group.label }}</span>
-            <NotificationBadge v-if="group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
-          </button>
-        </div>
-        <div class="nav-sub" v-if="activeSubItems.length">
+      <!-- Sub-navigation row -->
+      <div class="nav-sub-row" v-if="activeSubItems.length">
+        <div class="nav-sub-inner">
           <button
             v-for="item in activeSubItems"
             :key="item.page"
             @click="handleNavigate(item.page)"
             :class="['nav-sub-tab', currentPage === item.page ? 'nav-sub-active' : '']"
           >
-            <span class="top-nav-icon" v-html="item.icon"></span>
-            <span class="top-nav-label">{{ item.label }}</span>
+            <span class="nav-tab-icon" v-html="item.icon"></span>
+            <span class="nav-tab-label">{{ item.label }}</span>
             <NotificationBadge v-if="item.page === 'approve-requests' || item.page === 'teacher-requests'" :count="pendingCount" />
           </button>
         </div>
-      </nav>
+      </div>
     </header>
 
     <!-- User dropdown -->
-    <div v-if="showUserMenu" class="user-dropdown animate-scale-in" @click.self="showUserMenu = false">
-      <div class="dropdown-card">
+    <div v-if="showUserMenu" class="user-dropdown" @click.self="showUserMenu = false">
+      <div class="dropdown-card animate-scale-in">
         <div class="dropdown-header">
           <div class="avatar avatar-lg">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
           <div>
@@ -103,26 +112,26 @@
   </template>
 
   <!-- Overdue Warning Modal -->
-  <div v-if="showOverdueWarning" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" @click.self="showOverdueWarning = false">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
-      <div class="bg-red-600 px-6 py-4 flex items-center gap-3">
+  <div v-if="showOverdueWarning" class="fixed inset-0 z-[9999] flex items-center justify-center modal-overlay" @click.self="showOverdueWarning = false">
+    <div class="modal-card max-w-lg w-full mx-4 overflow-hidden p-0">
+      <div class="px-6 py-4 flex items-center gap-3" style="background: var(--danger); color: #fff;">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <h3 class="text-white text-lg font-bold">Overdue Items Warning</h3>
+        <h3 class="text-lg font-bold">Overdue Items Warning</h3>
       </div>
       <div class="px-6 py-4">
-        <p class="text-red-600 dark:text-red-400 font-medium mb-3">You have {{ overdueItems.length }} overdue item(s) that must be returned immediately:</p>
+        <p class="font-medium mb-3" style="color: var(--danger);">You have {{ overdueItems.length }} overdue item(s) that must be returned immediately:</p>
         <ul class="space-y-2 max-h-60 overflow-y-auto">
-          <li v-for="item in overdueItems" :key="item._id" class="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+          <li v-for="item in overdueItems" :key="item._id" class="flex justify-between items-center p-3 rounded-lg" style="background: var(--danger-light); border: 1px solid var(--danger);">
             <div>
-              <span class="font-semibold text-gray-800 dark:text-gray-200">{{ item.itemID || 'N/A' }}</span>
-              <span class="text-sm text-red-500 ml-2">({{ item.itemName || 'Unknown Item' }})</span>
+              <span class="font-semibold" style="color: var(--text-primary);">{{ item.itemID || 'N/A' }}</span>
+              <span class="text-sm ml-2" style="color: var(--danger);">({{ item.itemName || 'Unknown Item' }})</span>
             </div>
-            <span class="text-sm text-red-600 dark:text-red-400 font-medium">Due: {{ formatDate(item.returnDate) }}</span>
+            <span class="text-sm font-medium" style="color: var(--danger);">Due: {{ formatDate(item.returnDate) }}</span>
           </li>
         </ul>
       </div>
-      <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-        <button @click="showOverdueWarning = false" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors">I Understand</button>
+      <div class="px-6 py-4 flex justify-end" style="border-top: 1px solid var(--border);">
+        <button @click="showOverdueWarning = false" class="btn btn-danger">I Understand</button>
       </div>
     </div>
   </div>
@@ -504,31 +513,61 @@ export default {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background 0.3s, color 0.3s;
+  background: var(--background);
+  color: var(--foreground);
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
-/* ===== Top Bar ===== */
+/* ===== Loading State ===== */
+.shell-loading {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+}
+.shell-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+.shell-loading-logo {
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+/* ===== Top Bar — Operations Console Header ===== */
 .top-bar {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--bg-glass-heavy);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-bottom: 1px solid var(--border-glass);
+  background: var(--nav-bg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--nav-border);
+  box-shadow: var(--shadow-xs);
+}
+
+.top-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  width: 100%;
+  height: 3.25rem;
 }
 
 .top-bar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 1rem;
-  max-width: 80rem;
-  margin: 0 auto;
+  gap: 1.5rem;
+  min-width: 0;
 }
 
+/* Logo */
 .logo-btn {
   display: flex;
   align-items: center;
@@ -538,128 +577,141 @@ export default {
   cursor: pointer;
   padding: 0.25rem;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
-.logo-svg {
-  color: var(--accent);
-}
-
-.logo-text {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-}
-
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.icon-btn {
-  width: 2.25rem;
-  height: 2.25rem;
+.logo-mark {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-  -webkit-tap-highlight-color: transparent;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: #fff;
 }
 
-.icon-btn:active {
-  transform: scale(0.92);
+.logo-text {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  white-space: nowrap;
 }
 
-.icon-btn svg {
-  display: block;
+.logo-text-accent {
+  color: var(--accent);
+  font-weight: 800;
 }
 
-/* ===== Nav Tabs (Two-Layer) ===== */
-.top-nav {
-  display: flex;
-  flex-direction: column;
-  max-width: 80rem;
-  margin: 0 auto;
-}
-
-.nav-groups {
+/* ===== Primary Navigation (inline with brand) ===== */
+.nav-primary {
   display: flex;
   gap: 0.125rem;
-  padding: 0 1rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
+.nav-primary::-webkit-scrollbar { display: none; }
 
-.nav-groups::-webkit-scrollbar {
-  display: none;
-}
-
-.nav-group-tab {
+.nav-primary-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
+  padding: 0.375rem 0.75rem;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   border: none;
   background: transparent;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-md);
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.12s, background 0.12s;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
+  letter-spacing: -0.01em;
 }
 
-.nav-group-tab:hover {
+.nav-primary-tab:hover {
   color: var(--text-primary);
+  background: var(--accent-surface);
 }
 
-.nav-group-active {
+.nav-primary-active {
   color: var(--accent);
+  background: var(--accent-surface);
   font-weight: 600;
-  border-bottom-color: var(--accent);
 }
 
-.nav-sub {
+/* ===== Top Bar Actions ===== */
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-btn:hover {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.icon-btn:active {
+  transform: scale(0.93);
+}
+
+.icon-btn svg { display: block; }
+
+/* ===== Sub Navigation Row ===== */
+.nav-sub-row {
+  border-top: 1px solid var(--nav-border);
+  background: var(--surface-2);
+}
+
+.nav-sub-inner {
   display: flex;
   gap: 0.125rem;
-  padding: 0 1rem;
+  padding: 0 1.25rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-glass);
 }
-
-.nav-sub::-webkit-scrollbar {
-  display: none;
-}
+.nav-sub-inner::-webkit-scrollbar { display: none; }
 
 .nav-sub-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.4375rem 0.625rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   border: none;
   background: transparent;
   border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.12s, border-color 0.12s;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
 }
 
 .nav-sub-tab:hover {
@@ -672,44 +724,46 @@ export default {
   border-bottom-color: var(--accent);
 }
 
-.top-nav-icon {
+/* Shared nav icon styles */
+.nav-tab-icon {
   display: flex;
   align-items: center;
 }
-
-.top-nav-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.top-nav-label {
-  line-height: 1;
-}
+.nav-tab-icon svg { width: 15px; height: 15px; }
+.nav-tab-label { line-height: 1; }
 
 /* ===== User Chip ===== */
 .user-chip {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  gap: 0.375rem;
+  padding: 0.1875rem;
+  padding-right: 0.5rem;
   border-radius: 9999px;
-  background: var(--bg-tertiary);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s;
+  transition: border-color 0.12s, background 0.12s;
 }
 
-.user-chip:active {
-  background: var(--border-color);
+.user-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+}
+
+.user-chip-caret {
+  color: var(--muted-foreground);
+  margin-left: -0.125rem;
 }
 
 .avatar {
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #A6B1E1, #424874);
+  background: linear-gradient(135deg, var(--accent), rgba(99, 102, 241, 0.5));
   color: #fff;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -718,9 +772,9 @@ export default {
 }
 
 .avatar-lg {
-  width: 2.75rem;
-  height: 2.75rem;
-  font-size: 1.125rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1rem;
 }
 
 .user-name {
@@ -736,42 +790,44 @@ export default {
   z-index: 45;
   display: flex;
   justify-content: flex-end;
-  padding: 3.5rem 1rem 0;
+  padding: 3.5rem 1.25rem 0;
 }
 
 .dropdown-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: 0 16px 48px var(--shadow-color);
-  width: 16rem;
+  box-shadow: var(--shadow-xl);
+  width: 15rem;
   height: fit-content;
   overflow: hidden;
-  animation: scaleIn 0.15s ease-out;
+  animation: scaleIn 0.12s ease-out;
 }
 
 .dropdown-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
 }
 
 .dropdown-name {
   font-weight: 600;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: var(--text-primary);
 }
 
 .dropdown-role {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: capitalize;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .dropdown-divider {
   height: 1px;
-  background: var(--border-color);
+  background: var(--border);
 }
 
 .dropdown-item {
@@ -779,28 +835,29 @@ export default {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   border: none;
   background: none;
   cursor: pointer;
   color: var(--text-secondary);
-  transition: background 0.15s;
+  transition: background 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
 
 .dropdown-item:hover, .dropdown-item:active {
-  background: var(--bg-tertiary);
+  background: var(--accent-surface);
 }
 
 .dropdown-item-danger {
   color: var(--danger);
 }
-
-.dropdown-item svg {
-  flex-shrink: 0;
+.dropdown-item-danger:hover {
+  background: var(--danger-light);
 }
+
+.dropdown-item svg { flex-shrink: 0; }
 
 .dropdown-item-text {
   flex: 1;
@@ -808,7 +865,7 @@ export default {
 }
 
 .settings-caret {
-  transition: transform 0.15s ease;
+  transition: transform 0.12s ease;
 }
 
 .settings-caret-open {
@@ -816,41 +873,43 @@ export default {
 }
 
 .settings-panel {
-  padding: 0.75rem 1rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  padding: 0.625rem 1rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-3);
 }
 
 .settings-label {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
   margin-bottom: 0.5rem;
+  font-weight: 600;
 }
 
 .settings-options {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.375rem;
+  margin-bottom: 0.625rem;
 }
 
 .settings-pill {
   flex: 1;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  border-radius: 9999px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: all 0.12s;
 }
 
 .settings-pill:hover {
-  background: var(--bg-glass);
+  background: var(--accent-surface);
   color: var(--text-primary);
+  border-color: transparent;
 }
 
 .settings-pill-active {
@@ -869,8 +928,8 @@ export default {
 }
 
 .settings-toggle input {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: 1rem;
+  height: 1rem;
   accent-color: var(--accent);
 }
 
@@ -880,25 +939,16 @@ export default {
   max-width: 80rem;
   width: 100%;
   margin: 0 auto;
-  padding-bottom: 1rem;
+  padding: 0 0 1.5rem;
 }
 
-.compact-mode .top-bar-brand {
-  padding: 0.35rem 0.75rem;
-}
+/* ===== Compact Mode ===== */
+.compact-mode .top-bar-inner { height: 2.75rem; }
+.compact-mode .nav-primary-tab { padding: 0.25rem 0.5rem; }
+.compact-mode .nav-sub-tab { padding: 0.3rem 0.5rem; }
+.compact-mode .main-content { padding-bottom: 0.5rem; }
 
-.compact-mode .nav-group-tab {
-  padding: 0.35rem 0.6rem;
-}
-
-.compact-mode .nav-sub-tab {
-  padding: 0.3rem 0.6rem;
-}
-
-.compact-mode .main-content {
-  padding-bottom: 0.5rem;
-}
-
+/* ===== Reduce motion ===== */
 .reduce-motion *,
 .reduce-motion *::before,
 .reduce-motion *::after {
@@ -910,16 +960,11 @@ export default {
 
 /* ===== Animation helpers ===== */
 .animate-scale-in {
-  animation: scaleIn 0.15s ease-out;
+  animation: scaleIn 0.12s ease-out;
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>

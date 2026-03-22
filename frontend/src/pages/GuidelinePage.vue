@@ -1,6 +1,6 @@
 <template>
-  <div class="p-6">
-    <h2 class="text-3xl font-bold mb-6">User Guidelines & Role Information</h2>
+  <div class="page-container">
+    <h2 class="page-title" style="font-size:1.875rem;margin-bottom:1.5rem">User Guidelines & Role Information</h2>
 
     <!-- Role Information Section -->
     <div class="mb-8">
@@ -233,5 +233,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

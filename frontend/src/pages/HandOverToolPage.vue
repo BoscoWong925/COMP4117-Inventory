@@ -1,7 +1,7 @@
 <template>
-  <div class="p-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Hand-Over Tool (Status Updates)</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">Hand-Over Tool (Status Updates)</h2>
       <button @click="exportItems" class="btn">Export to Excel</button>
     </div>
 
@@ -235,5 +235,4 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 </style>

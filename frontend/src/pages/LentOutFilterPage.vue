@@ -1,9 +1,9 @@
 ﻿<template>
-  <div class="p-6">
-    <div class="flex justify-between items-start mb-4">
-      <h2 class="text-2xl font-bold">Checked-out items</h2>
+  <div class="page-container">
+    <div class="page-header">
+      <h2 class="page-title">Checked-out items</h2>
       <div class="flex gap-2 flex-wrap">
-        <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
+        <button @click="showFilterPanel = !showFilterPanel" class="btn btn-ghost">
           {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
         </button>
         <button @click="exportFiltered" class="btn">Export to Excel</button>
@@ -100,11 +100,11 @@
     <div v-if="groupedItems.length === 0" class="empty-state">
       No checked-out items match your filters
     </div>
-    <div v-else class="overflow-x-auto">
-      <table class="w-full border-collapse table-striped theme-table">
+    <div v-else class="table-responsive">
+      <table class="table-striped theme-table">
         <thead>
           <tr>
-            <th class="border p-2 text-center w-12">
+            <th class="text-center" style="width:3rem">
               <input
                 type="checkbox"
                 :checked="allReturnSelected"
@@ -112,31 +112,31 @@
                 class="form-checkbox"
               />
             </th>
-            <th class="border p-2 text-left">ID</th>
-            <th class="border p-2 text-left">Name</th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('category')">
+            <th>ID</th>
+            <th>Name</th>
+            <th class="cursor-pointer select-none" @click="toggleSort('category')">
               Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('currentBorrower')">
+            <th class="cursor-pointer select-none" @click="toggleSort('currentBorrower')">
               Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('borrowerName')">
+            <th class="cursor-pointer select-none" @click="toggleSort('borrowerName')">
               Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('supplier')">
+            <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
               Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
             </th>
-            <th class="border p-2 text-left cursor-pointer select-none" @click="toggleSort('location')">
+            <th class="cursor-pointer select-none" @click="toggleSort('location')">
               Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
             </th>
-            <th class="border p-2 text-center">Return</th>
+            <th class="text-center">Return</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="group in paginatedGroups" :key="group.parent.id">
             <!-- Parent / standalone item row -->
             <tr class="row-parent">
-              <td class="border p-2 text-center">
+              <td class="text-center">
                 <input
                   type="checkbox"
                   :checked="selectedReturnIds.includes(group.parent.id)"
@@ -144,19 +144,19 @@
                   class="form-checkbox"
                 />
               </td>
-              <td class="border p-2 font-semibold">{{ group.parent.id }}</td>
-              <td class="border p-2 font-semibold">
+              <td style="font-weight:600">{{ group.parent.id }}</td>
+              <td style="font-weight:600">
                 {{ group.parent.name }}
                 <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
                   (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
                 </span>
               </td>
-              <td class="border p-2">{{ group.parent.category }}</td>
-              <td class="border p-2">{{ group.parent.currentBorrower }}</td>
-              <td class="border p-2">{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
-              <td class="border p-2">{{ group.parent.supplier }}</td>
-              <td class="border p-2">{{ group.parent.location }}</td>
-              <td class="border p-2 text-center">
+              <td>{{ group.parent.category }}</td>
+              <td>{{ group.parent.currentBorrower }}</td>
+              <td>{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
+              <td>{{ group.parent.supplier }}</td>
+              <td>{{ group.parent.location }}</td>
+              <td class="text-center">
                 <button
                   @click="handleReturnItem(group.parent)"
                   class="btn btn-outline-success text-sm"
@@ -166,7 +166,7 @@
                 <button
                   v-if="group.parent.currentBorrower"
                   @click="openEmailForBorrower(group.parent)"
-                  class="btn btn-outline-primary text-sm ml-1"
+                  class="btn btn-ghost text-sm ml-1"
                   title="Send email to borrower"
                 >
                   ✉
@@ -175,15 +175,15 @@
             </tr>
             <!-- Child component rows -->
             <tr v-for="child in group.children" :key="child.id" class="row-child">
-              <td class="border p-2"></td>
-              <td class="border p-2 pl-6 text-sm">↳ {{ child.id }}</td>
-              <td class="border p-2 pl-6 text-sm">{{ child.name }}</td>
-              <td class="border p-2 text-sm">{{ child.category }}</td>
-              <td class="border p-2 text-sm">{{ child.currentBorrower }}</td>
-              <td class="border p-2 text-sm">{{ getBorrowerName(child.currentBorrower, child) }}</td>
-              <td class="border p-2 text-sm">{{ child.supplier }}</td>
-              <td class="border p-2 text-sm">{{ child.location }}</td>
-              <td class="border p-2 text-center text-xs" style="color:var(--text-muted)">Auto with parent</td>
+              <td></td>
+              <td class="pl-6 text-sm">↳ {{ child.id }}</td>
+              <td class="pl-6 text-sm">{{ child.name }}</td>
+              <td class="text-sm">{{ child.category }}</td>
+              <td class="text-sm">{{ child.currentBorrower }}</td>
+              <td class="text-sm">{{ getBorrowerName(child.currentBorrower, child) }}</td>
+              <td class="text-sm">{{ child.supplier }}</td>
+              <td class="text-sm">{{ child.location }}</td>
+              <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
             </tr>
           </template>
         </tbody>
@@ -663,7 +663,6 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 .sort-icon {
   display: inline-block;
   width: 14px;

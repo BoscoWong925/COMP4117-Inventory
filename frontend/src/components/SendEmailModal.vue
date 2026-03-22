@@ -1,29 +1,29 @@
 <template>
-  <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6">
-      <h3 class="text-lg font-bold mb-4">Send Email</h3>
+  <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+    <div class="modal-card max-w-lg w-full mx-4">
+      <h3 class="modal-title">Send Email</h3>
 
-      <div v-if="recipientName" class="mb-3 text-sm text-gray-600">
-        To: <span class="font-medium text-gray-800">{{ recipientName }}</span>
-        <span v-if="recipientEmail" class="text-gray-400 ml-1">({{ recipientEmail }})</span>
+      <div v-if="recipientName" class="mb-3 text-sm text-secondary">
+        To: <span class="font-medium">{{ recipientName }}</span>
+        <span v-if="recipientEmail" class="text-muted ml-1">({{ recipientEmail }})</span>
       </div>
 
       <div class="mb-3">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-        <input v-model="subject" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Email subject" />
+        <label class="modal-label">Subject</label>
+        <input v-model="subject" type="text" class="form-input" placeholder="Email subject" />
       </div>
 
       <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Message</label>
-        <textarea v-model="message" rows="5" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none" placeholder="Type your message..."></textarea>
+        <label class="modal-label">Message</label>
+        <textarea v-model="message" rows="5" class="form-input resize-none" placeholder="Type your message..."></textarea>
       </div>
 
-      <div v-if="error" class="mb-3 text-sm text-red-600">{{ error }}</div>
-      <div v-if="success" class="mb-3 text-sm text-green-600">{{ success }}</div>
+      <div v-if="error" class="mb-3 text-sm" style="color:var(--danger)">{{ error }}</div>
+      <div v-if="success" class="mb-3 text-sm" style="color:var(--success)">{{ success }}</div>
 
       <div class="flex justify-end gap-2">
-        <button @click="close" class="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">Cancel</button>
-        <button @click="send" :disabled="sending" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50">
+        <button @click="close" class="btn btn-outline-secondary">Cancel</button>
+        <button @click="send" :disabled="sending" class="btn btn-outline-primary disabled:opacity-50">
           {{ sending ? 'Sending...' : 'Send' }}
         </button>
       </div>

@@ -1,33 +1,36 @@
 ﻿<template>
-  <div class="p-6">
+  <div class="page-container">
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-bold">Inventory items</h2>
-        <div class="gap-2 flex flex-wrap">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem">
+        <div>
+          <h2 class="page-title">Inventory items</h2>
+          <p class="page-description" v-if="totalItems">{{ totalItems }} items total</p>
+        </div>
+        <div class="flex gap-2 flex-wrap">
           <button v-if="isAdmin && selectedItemIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
             Delete ({{ selectedItemIds.length }})
           </button>
-          <button @click="showFilterPanel = !showFilterPanel" class="btn btn-outline-primary">
-            {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
+          <button @click="showFilterPanel = !showFilterPanel" class="btn btn-ghost">
+            {{ showFilterPanel ? 'Hide Filters' : 'Filters' }}
           </button>
-          <label class="btn btn-outline-primary cursor-pointer">
+          <label class="btn btn-ghost cursor-pointer">
             Import Excel
             <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
           </label>
-          <button @click="exportItems" class="btn">Export to Excel</button>
-          <button @click="openNewItemForm" class="btn btn-outline-primary">
-            Add New Item
+          <button @click="exportItems" class="btn btn-ghost">Export</button>
+          <button @click="openNewItemForm" class="btn">
+            + Add Item
           </button>
         </div>
       </div>
 
       <!-- Status Filter Banner -->
-      <div v-if="activeStatusFilter" class="mb-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-center justify-between">
-        <span class="text-yellow-800 font-medium">
+      <div v-if="activeStatusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between" style="background:var(--warning-light);border:1px solid var(--warning)">
+        <span style="color:var(--warning-dark)" class="font-medium text-sm">
           Showing: {{ activeStatusFilter === 'warranty-expired' ? 'Warranty Expired' : 'Warranty Expiring Soon' }} items
         </span>
-        <button @click="activeStatusFilter = ''" class="text-yellow-600 hover:text-yellow-800 underline text-sm">Clear Filter</button>
+        <button @click="activeStatusFilter = ''" style="color:var(--warning-dark)" class="hover:underline text-sm font-medium">Clear Filter</button>
       </div>
 
       <!-- Search Filter Panel -->
@@ -119,59 +122,59 @@
       <div v-if="items.length === 0" class="empty-state">
         No items in inventory
       </div>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse table-striped theme-table">
+      <div v-else class="table-responsive">
+        <table class="table-striped theme-table">
           <thead>
             <tr>
-              <th v-if="isAdmin" class="border p-2 text-center w-10">
+              <th v-if="isAdmin" style="width:2.5rem;text-align:center">
                 <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
               </th>
-              <th class="border p-2 text-left">ID</th>
-              <th class="border p-2 text-left">Name</th>
-              <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('type')">
+              <th>ID</th>
+              <th>Name</th>
+              <th class="cursor-pointer select-none" @click="toggleSort('type')">
                 Type <span class="sort-icon">{{ getSortIcon('type') }}</span>
               </th>
-              <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('status')">
+              <th class="cursor-pointer select-none" @click="toggleSort('status')">
                 Status <span class="sort-icon">{{ getSortIcon('status') }}</span>
               </th>
-              <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('location')">
+              <th class="cursor-pointer select-none" @click="toggleSort('location')">
                 Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
               </th>
-              <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('supplier')">
+              <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
                 Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
               </th>
-              <th class="border p-2 text-left">Ownership</th>
-              <th class="border p-2 text-left cursor-pointer select-none " @click="toggleSort('warrantyEnd')">
+              <th>Ownership</th>
+              <th class="cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
                 Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
               </th>
-              <th class="border p-2 text-center">Actions</th>
+              <th style="text-align:center">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in items" :key="item.id">
-              <td v-if="isAdmin" class="border p-2 text-center">
+              <td v-if="isAdmin" style="text-align:center">
                 <input type="checkbox" :value="item.id" v-model="selectedItemIds" />
               </td>
-              <td class="border p-2">{{ item.id }}</td>
-              <td class="border p-2">{{ item.name }}</td>
-              <td class="border p-2">{{ item.type }}</td>
-              <td class="border p-2">
+              <td class="font-medium" style="color:var(--muted-foreground);font-size:0.75rem">{{ item.id }}</td>
+              <td class="font-semibold">{{ item.name }}</td>
+              <td>{{ item.type }}</td>
+              <td>
                 <span :class="['status-badge', getStatusColor(item.status)]">
                   {{ normalizeItemStatus(item.status) }}
                 </span>
               </td>
-              <td class="border p-2">{{ item.location }}</td>
-              <td class="border p-2">{{ item.supplier }}</td>
-              <td class="border p-2">
-                <span :class="item.owner === 'department' ? 'px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'">
+              <td>{{ item.location }}</td>
+              <td>{{ item.supplier }}</td>
+              <td>
+                <span :class="['badge', item.owner === 'department' ? 'badge-info' : 'badge-muted']">
                   {{ getOwnerName(item.owner) }}
                 </span>
               </td>
-              <td class="border p-2">{{ formatDate(item.warrantyEnd) }}</td>
-              <td class="border p-2 text-center">
+              <td>{{ formatDate(item.warrantyEnd) }}</td>
+              <td style="text-align:center">
                 <button
                   @click="handleEdit(item)"
-                  class="btn btn-outline-success text-sm"
+                  class="btn btn-ghost" style="padding:0.25rem 0.75rem;min-height:auto;font-size:0.75rem"
                 >
                   Edit
                 </button>
@@ -197,8 +200,8 @@
       <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
         <div class="modal-card max-w-md w-full">
           <h3 class="modal-title">Confirm Delete</h3>
-          <p class="mb-4">Are you sure you want to delete <strong>{{ selectedItemIds.length }}</strong> item(s)?</p>
-          <p class="text-sm text-red-500 mb-4">This action cannot be undone.</p>
+          <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedItemIds.length }}</strong> item(s)?</p>
+          <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
           <div class="flex gap-2">
             <button @click="handleDeleteItems" class="btn btn-outline-danger flex-1">Delete</button>
             <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
@@ -209,9 +212,9 @@
 
     <!-- ========== FULL-PAGE FORM VIEW ========== -->
     <template v-if="showForm">
-      <div class="max-w-3xl mx-auto pt-8">
-        <div class="flex items-center justify-between mb-2">
-          <button @click="showForm = false; resetForm()" class="text-muted hover:text-[color:var(--text-primary)] text-lg px-3 py-1 rounded hover:bg-[color:var(--row-hover)]">
+      <div class="max-w-3xl mx-auto pt-4">
+        <div class="flex items-center justify-between mb-4">
+          <button @click="showForm = false; resetForm()" class="btn btn-ghost" style="padding:0.375rem 0.75rem;min-height:auto">
             &larr; Back
           </button>
           <button
@@ -219,12 +222,12 @@
             type="button"
             @click="deleteWhileEditing"
             title="Delete this item"
-            class="btn btn-outline-danger text-sm"
+            class="btn btn-outline-danger" style="font-size:0.8125rem"
           >
             Delete Item
           </button>
         </div>
-        <h2 class="text-2xl font-bold mb-6">
+        <h2 class="page-title mb-6">
           {{ editingItem ? 'Edit Item' : 'Add New Item' }}
         </h2>
 
@@ -263,7 +266,7 @@
             @dragover.prevent="isDraggingInvoice = true"
             @dragleave="isDraggingInvoice = false"
             :class="`p-8 border-3 border-dashed rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-[color:var(--accent)]' : ''}`"
-            :style="isDraggingInvoice ? 'background:var(--accent-glow)' : 'border-color:var(--border-color);background:var(--filter-bg)'"
+            :style="isDraggingInvoice ? 'background:var(--accent-surface)' : 'border-color:var(--border);background:var(--filter-bg)'"
           >
             <input 
               type="file" 
@@ -1473,13 +1476,12 @@ export default {
 </script>
 
 <style scoped>
-@import '../index.css';
 .sort-icon {
   display: inline-block;
   width: 14px;
   text-align: center;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 thead th:hover .sort-icon {
   color: var(--text-primary);
