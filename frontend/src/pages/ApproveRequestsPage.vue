@@ -93,6 +93,7 @@
                   <button @click="showRejectForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
                     Reject{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
+                  <button @click="openEmailForRequest(group.parent)" class="btn btn-outline-primary text-sm ml-2" title="Email Borrower">✉</button>
                 </td>
               </tr>
               <tr v-for="child in group.children" :key="child.id" class="row-child">
@@ -169,6 +170,7 @@
                   <button @click="showDenyForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
                     Deny{{ group.children.length > 0 ? ' All' : '' }}
                   </button>
+                  <button @click="openEmailForRequest(group.parent)" class="btn btn-outline-primary text-sm ml-2" title="Email Borrower">✉</button>
                 </td>
               </tr>
               <tr v-for="child in group.children" :key="child.id" class="row-child">
@@ -432,6 +434,15 @@
         </div>
       </div>
     </div>
+
+    <SendEmailModal
+      :visible="showEmailModal"
+      :recipientId="emailTarget?.borrowerID"
+      :recipientName="emailTarget?.borrowerName"
+      :recipientEmail="emailTarget?.borrowerEmail"
+      :defaultSubject="emailTarget ? 'Regarding Request ' + emailTarget.id : ''"
+      @close="showEmailModal = false"
+    />
   </div>
 </template>
 
@@ -442,9 +453,10 @@ import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/help
 import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import RemarkBox from '../components/RemarkBox.vue'
+import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
-  components: { PaginationControl, DropdownWithOther, RemarkBox },
+  components: { PaginationControl, DropdownWithOther, RemarkBox, SendEmailModal },
   setup() {
     const requests = ref([])
     const allApprovedRequests = ref([])
@@ -474,6 +486,8 @@ export default {
     const bulkApproveRemark = ref('')
     const bulkRejectReason = ref('')
     const bulkDenyReason = ref('')
+    const showEmailModal = ref(false)
+    const emailTarget = ref(null)
 
     // Borrowers with overdue items
     const overdueBorrowerIDs = computed(() => {
@@ -747,6 +761,11 @@ export default {
       loadPendingRequests()
     })
 
+    const openEmailForRequest = (req) => {
+      emailTarget.value = req
+      showEmailModal.value = true
+    }
+
     return {
       requests,
       activeTab,
@@ -796,6 +815,9 @@ export default {
       overdueBorrowerIDs,
       isCheckoutExpiringSoon,
       countCompetingRequests,
+      showEmailModal,
+      emailTarget,
+      openEmailForRequest,
     }
   }
 }

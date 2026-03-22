@@ -5,6 +5,7 @@ const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
+const { sendItemStatusChangeEmail } = require('../utils/emailService');
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
@@ -592,6 +593,28 @@ exports.updateItemStatus = catchAsync(async (req, res, next) => {
     oldStatus,
     status
   );
+
+  // Email: notify owner/operators about important status changes
+  if (oldStatus !== status) {
+    try {
+      const recipients = [];
+      if (item.owner && item.owner !== 'department') {
+        const owner = await User.findOne({ userId: item.owner }).lean();
+        if (owner?.email) recipients.push(owner);
+      }
+      const ops = await User.find({ role: { $in: ['admin', 'operator'] }, isActive: true }).select('userId name email').lean();
+      for (const op of ops) {
+        if (op.email && !recipients.find(r => r.userId === op.userId)) recipients.push(op);
+      }
+      // Don't email the person who made the change
+      const filtered = recipients.filter(r => r.userId !== req.user.userId);
+      if (filtered.length > 0) {
+        await sendItemStatusChangeEmail({ item, oldStatus, newStatus: status, changedBy: req.user, recipients: filtered });
+      }
+    } catch (emailErr) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Status change email failed: ${emailErr.message}`, item.itemId);
+    }
+  }
 
   res.status(200).json({
     success: true,

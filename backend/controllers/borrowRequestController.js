@@ -5,7 +5,26 @@ const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
-const { sendApprovalEmail, sendRejectionEmail } = require('../utils/emailService');
+const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail } = require('../utils/emailService');
+
+/** Helper: get notification recipients for an item (owner + operators) */
+const getItemNotifyRecipients = async (itemID) => {
+  const item = await Item.findOne({ itemId: itemID }).lean();
+  const recipients = [];
+  // If item has an owner that is a teacher user, notify them
+  if (item && item.owner && item.owner !== 'department') {
+    const owner = await User.findOne({ userId: item.owner }).lean();
+    if (owner?.email) recipients.push(owner);
+  }
+  // Always notify operators
+  const operators = await User.find({ role: { $in: ['admin', 'operator'] }, isActive: true }).select('userId name email').lean();
+  for (const op of operators) {
+    if (op.email && !recipients.find(r => r.userId === op.userId)) {
+      recipients.push(op);
+    }
+  }
+  return recipients;
+};
 
 /**
  * Generate next request ID
@@ -272,6 +291,18 @@ exports.createRequest = catchAsync(async (req, res, next) => {
   }
 
   await addAuditLog(borrowerID, 'BORROW_REQUEST_CREATED', `Request created for item ${itemID}`, itemID);
+
+  // Email: notify item owner + operators about new request
+  try {
+    const borrower = await User.findOne({ userId: borrowerID }).lean();
+    const recipients = await getItemNotifyRecipients(itemID);
+    const emailResult = await sendNewRequestEmail({ request: parentRequest, borrower, item, recipients });
+    if (emailResult?.sent) {
+      await addAuditLog(borrowerID, 'EMAIL_SENT', `New request email sent for ${parentRequestId}`, itemID);
+    }
+  } catch (emailErr) {
+    await addAuditLog(borrowerID, 'EMAIL_FAILED', `New request email failed: ${emailErr.message}`, itemID);
+  }
 
   // Auto-create child requests for fixed components
   const childRequests = [];
@@ -551,6 +582,19 @@ exports.checkoutRequest = catchAsync(async (req, res, next) => {
   await addAuditLog(req.user.userId, 'BORROW_CHECKED_OUT',
     `Item ${request.itemID} checked out to ${request.borrowerID}`, request.itemID);
 
+  // Email: notify borrower about checkout
+  if (!request.parentRequestId) {
+    try {
+      const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const emailResult = await sendCheckoutEmail({ request, borrower, item, operator: req.user });
+      if (emailResult?.sent) {
+        await addAuditLog(req.user.userId, 'EMAIL_SENT', `Checkout email sent for ${request.requestId}`, request.itemID);
+      }
+    } catch (emailErr) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Checkout email failed: ${emailErr.message}`, request.itemID);
+    }
+  }
+
   // Cascade: checkout child requests
   const childRequests = await BorrowRequest.find({
     parentRequestId: req.params.id,
@@ -634,6 +678,20 @@ exports.returnRequest = catchAsync(async (req, res, next) => {
   }
 
   await addAuditLog(req.user.userId, 'ITEM_RETURNED', `Item returned: ${request.itemID}`, request.itemID);
+
+  // Email: notify owner/operators about return
+  if (!request.parentRequestId) {
+    try {
+      const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const recipients = await getItemNotifyRecipients(request.itemID);
+      const emailResult = await sendReturnEmail({ request, borrower, item, recipients });
+      if (emailResult?.sent) {
+        await addAuditLog(req.user.userId, 'EMAIL_SENT', `Return email sent for ${request.requestId}`, request.itemID);
+      }
+    } catch (emailErr) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Return email failed: ${emailErr.message}`, request.itemID);
+    }
+  }
 
   // Cascade: return child requests
   const childRequests = await BorrowRequest.find({
@@ -785,6 +843,20 @@ exports.denyCheckout = catchAsync(async (req, res, next) => {
 
   await addAuditLog(req.user.userId, 'BORROW_CHECKOUT_DENIED',
     `Pending check-out denied for item ${request.itemID}: ${reason || 'No reason'}`, request.itemID);
+
+  // Email: notify borrower about checkout denied
+  if (!request.parentRequestId) {
+    try {
+      const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const emailItem = await Item.findOne({ itemId: request.itemID }).lean();
+      const emailResult = await sendCheckoutDeniedEmail({ request, borrower, item: emailItem, operator: req.user, reason });
+      if (emailResult?.sent) {
+        await addAuditLog(req.user.userId, 'EMAIL_SENT', `Checkout denied email sent for ${request.requestId}`, request.itemID);
+      }
+    } catch (emailErr) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Checkout denied email failed: ${emailErr.message}`, request.itemID);
+    }
+  }
 
   // Cascade: deny child requests
   const childRequests = await BorrowRequest.find({

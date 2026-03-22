@@ -19,6 +19,11 @@ router.get('/', authorize('admin', 'operator'), userController.getAllUsers);
 router.post('/', authorize('admin'), userController.createUser);
 
 /**
+ * POST /api/users/send-email - Send custom email to a user (admin/operator/teacher)
+ */
+router.post('/send-email', userController.sendEmailToUser);
+
+/**
  * GET /api/users/teachers - Get all teachers (for owner selection)
  */
 router.get('/teachers', userController.getTeachers);

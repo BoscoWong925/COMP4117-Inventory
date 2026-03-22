@@ -125,6 +125,7 @@
                   class="btn btn-outline-primary text-sm ml-1"
                 >Enable</button>
                 <button @click="confirmDelete(u)" class="btn btn-outline-danger text-sm ml-1">Delete</button>
+                <button @click="openEmailModal(u)" class="btn btn-outline-primary text-sm ml-1" title="Send Email">✉</button>
               </td>
             </tr>
           </tbody>
@@ -253,6 +254,14 @@
       {{ message }}
       <button @click="message = ''" class="ml-2 font-bold">&times;</button>
     </div>
+
+    <SendEmailModal
+      :visible="showEmailModal"
+      :recipientId="emailTarget?.userId"
+      :recipientName="emailTarget?.name"
+      :recipientEmail="emailTarget?.email"
+      @close="showEmailModal = false"
+    />
   </div>
 </template>
 
@@ -260,9 +269,10 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { userService } from '../utils/services'
 import PaginationControl from '../components/PaginationControl.vue'
+import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
-  components: { PaginationControl },
+  components: { PaginationControl, SendEmailModal },
   setup() {
     const users = ref([])
     const showForm = ref(false)
@@ -283,6 +293,8 @@ export default {
     const showBulkDisableModal = ref(false)
     const showBulkEnableModal = ref(false)
     const showBulkDeleteModal = ref(false)
+    const showEmailModal = ref(false)
+    const emailTarget = ref(null)
     let searchDebounceTimer = null
 
     const formData = ref({
@@ -551,6 +563,11 @@ export default {
       setTimeout(() => { message.value = '' }, 4000)
     }
 
+    const openEmailModal = (u) => {
+      emailTarget.value = u
+      showEmailModal.value = true
+    }
+
     onMounted(() => { loadUsers(); loadAllCounts() })
 
     return {
@@ -559,11 +576,13 @@ export default {
       currentPage, pageSize, totalUsers, message, messageSuccess, formData,
       allCounts, selectedUserIds, showBulkDisableModal,
       showBulkEnableModal, showBulkDeleteModal,
+      showEmailModal, emailTarget,
       getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
       confirmDelete, handleDelete, toggleStatus, loadUsers,
       allSelected, toggleSelectAll, openBulkDisableModal, openBulkEnableModal,
-      openBulkDeleteModal, handleBulkDisable, handleBulkEnable, handleBulkDelete
+      openBulkDeleteModal, handleBulkDisable, handleBulkEnable, handleBulkDelete,
+      openEmailModal
     }
   }
 }

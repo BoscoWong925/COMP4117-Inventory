@@ -163,6 +163,14 @@
                 >
                   Return{{ group.children.length > 0 ? ' All' : '' }}
                 </button>
+                <button
+                  v-if="group.parent.currentBorrower"
+                  @click="openEmailForBorrower(group.parent)"
+                  class="btn btn-outline-primary text-sm ml-1"
+                  title="Send email to borrower"
+                >
+                  ✉
+                </button>
               </td>
             </tr>
             <!-- Child component rows -->
@@ -240,6 +248,14 @@
         </div>
       </div>
     </div>
+    <!-- Send Email Modal -->
+    <SendEmailModal
+      :visible="showEmailModal"
+      :recipientId="emailTarget?.currentBorrower"
+      :recipientName="emailTarget?.currentBorrowerName || emailTarget?.currentBorrower"
+      :defaultSubject="emailTarget ? `Regarding item ${emailTarget.id} - ${emailTarget.name}` : ''"
+      @close="showEmailModal = false"
+    />
   </div>
 </template>
 
@@ -248,9 +264,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, isDueSoon, daysFromNow } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
+import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
-  components: { PaginationControl },
+  components: { PaginationControl, SendEmailModal },
   props: {
     pageParams: { type: Object, default: () => ({}) }
   },
@@ -356,6 +373,13 @@ export default {
       return [...defaults, 'Other']
     }
     const locationOptions = ref(loadLocations())
+
+    const showEmailModal = ref(false)
+    const emailTarget = ref(null)
+    const openEmailForBorrower = (item) => {
+      emailTarget.value = item
+      showEmailModal.value = true
+    }
 
     const getBorrowerName = (id, item) => {
       if (!id) return '-'
@@ -630,6 +654,9 @@ export default {
       toggleSelectAllReturn,
       toggleReturnItem,
       handleBulkReturn,
+      showEmailModal,
+      emailTarget,
+      openEmailForBorrower,
     }
   }
 }

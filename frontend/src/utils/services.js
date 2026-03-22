@@ -459,6 +459,14 @@ export const userService = {
   searchUsers: async (query) => {
     const data = await apiRequest(`/users/search/${encodeURIComponent(query)}`);
     return data.users || [];
+  },
+
+  sendEmail: async (recipientId, subject, message) => {
+    const data = await apiRequest('/users/send-email', {
+      method: 'POST',
+      body: JSON.stringify({ recipientId, subject, message })
+    });
+    return data;
   }
 };
 

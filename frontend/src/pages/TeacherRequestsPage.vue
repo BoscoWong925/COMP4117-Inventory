@@ -90,6 +90,7 @@
               <td class="border p-2 text-center whitespace-nowrap">
                 <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
                 <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
+                <button @click="openEmailForRequest(req)" class="btn btn-outline-primary text-sm ml-1" title="Email Borrower">✉</button>
               </td>
             </tr>
           </tbody>
@@ -138,6 +139,7 @@
               <td class="border p-2 text-center whitespace-nowrap">
                 <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
                 <button @click="openDeny(req)" class="btn btn-outline-danger text-sm ml-1">Deny</button>
+                <button @click="openEmailForRequest(req)" class="btn btn-outline-primary text-sm ml-1" title="Email Borrower">✉</button>
               </td>
             </tr>
           </tbody>
@@ -322,6 +324,15 @@
         </div>
       </div>
     </div>
+
+    <SendEmailModal
+      :visible="showEmailModal"
+      :recipientId="emailTarget?.borrowerID"
+      :recipientName="emailTarget?.borrowerName"
+      :recipientEmail="emailTarget?.borrowerEmail"
+      :defaultSubject="emailTarget ? 'Regarding Request ' + emailTarget.id : ''"
+      @close="showEmailModal = false"
+    />
   </div>
 </template>
 
@@ -330,9 +341,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate, waitingTime } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
+import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
-  components: { PaginationControl },
+  components: { PaginationControl, SendEmailModal },
   setup() {
     const activeTab = ref('pending')
     const pendingRequests = ref([])
@@ -368,6 +380,8 @@ export default {
     const bulkApproveRemark = ref('')
     const bulkRejectReason = ref('')
     const bulkDenyReason = ref('')
+    const showEmailModal = ref(false)
+    const emailTarget = ref(null)
 
     // Split pending requests by status
     const pendingOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending'))
@@ -614,6 +628,11 @@ export default {
 
     onMounted(() => { loadPending() })
 
+    const openEmailForRequest = (req) => {
+      emailTarget.value = req
+      showEmailModal.value = true
+    }
+
     return {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
       historyStatus, currentPage, pageSize, totalHistory,
@@ -625,12 +644,14 @@ export default {
       showBulkApproveModal, showBulkRejectModal, showBulkCheckoutModal, showBulkDenyModal,
       bulkReturnDate, bulkApproveRemark, bulkRejectReason, bulkDenyReason,
       paginatedPending, paginatedCheckout,
+      showEmailModal, emailTarget,
       getStatusBadge, openApprove, openReject, openDeny,
       handleApprove, handleReject, handleCheckout, handleDeny,
       toggleSelectAllPending, toggleSelectAllCheckout,
       handleBulkApprove, handleBulkReject, handleBulkCheckout, handleBulkDeny,
       loadPending, loadHistory,
-      formatDate, waitingTime
+      formatDate, waitingTime,
+      openEmailForRequest
     }
   }
 }

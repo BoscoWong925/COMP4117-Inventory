@@ -2,6 +2,7 @@ const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
+const { sendWelcomeEmail, sendAccountDeactivatedEmail, sendAccountActivatedEmail, sendRoleChangedEmail } = require('../utils/emailService');
 
 /**
  * Helper: Format user response (exclude password)
@@ -120,12 +121,14 @@ exports.createUser = catchAsync(async (req, res, next) => {
   });
 
   // Log to audit
-  await addAuditLog({
-    action: 'USER_CREATED',
-    details: `User ${user.name} (${user.userId}) created`,
-    userID: req.user.userId,
-    affectedItemID: user.userId
-  });
+  await addAuditLog(req.user.userId, 'USER_CREATED', `User ${user.name} (${user.userId}) created`, user.userId);
+
+  // Email: send welcome email
+  try {
+    await sendWelcomeEmail({ user, createdBy: req.user });
+  } catch (emailErr) {
+    await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Welcome email failed for ${user.userId}: ${emailErr.message}`, user.userId);
+  }
 
   res.status(201).json({
     success: true,
@@ -173,10 +176,15 @@ exports.updateUser = catchAsync(async (req, res, next) => {
     return next(ApiError.forbidden('Only admins can change user roles'));
   }
 
+  // Track role change for email notification
+  const oldRole = user.role + (user.subRole ? ` (${user.subRole})` : '');
+
   // Update allowed fields
   if (name) user.name = name;
   if (email) user.email = email.toLowerCase();
   if (department) user.department = department;
+  const roleChanged = (role && req.user.role === 'admin' && role !== user.role) ||
+                      (req.body.subRole && req.user.role === 'admin' && req.body.subRole !== user.subRole);
   if (role && req.user.role === 'admin') user.role = role;
   if (req.body.subRole && req.user.role === 'admin') user.subRole = req.body.subRole;
 
@@ -190,12 +198,17 @@ exports.updateUser = catchAsync(async (req, res, next) => {
   await user.save();
 
   // Log to audit
-  await addAuditLog({
-    action: 'USER_UPDATED',
-    details: `User ${user.name} (${user.userId}) updated`,
-    userID: req.user.userId,
-    affectedItemID: user.userId
-  });
+  await addAuditLog(req.user.userId, 'USER_UPDATED', `User ${user.name} (${user.userId}) updated`, user.userId);
+
+  // Email: notify user if role changed
+  if (roleChanged) {
+    const newRole = user.role + (user.subRole ? ` (${user.subRole})` : '');
+    try {
+      await sendRoleChangedEmail({ user, oldRole, newRole });
+    } catch (emailErr) {
+      await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Role change email failed for ${user.userId}: ${emailErr.message}`, user.userId);
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -215,12 +228,7 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   }
 
   // Log to audit
-  await addAuditLog({
-    action: 'USER_DELETED',
-    details: `User ${user.name} (${user.userId}) deleted`,
-    userID: req.user.userId,
-    affectedItemID: user.userId
-  });
+  await addAuditLog(req.user.userId, 'USER_DELETED', `User ${user.name} (${user.userId}) deleted`, user.userId);
 
   res.status(200).json({
     success: true,
@@ -249,12 +257,23 @@ exports.toggleUserStatus = catchAsync(async (req, res, next) => {
   await user.save();
 
   // Log to audit
-  await addAuditLog({
-    action: isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
-    details: `User ${user.name} (${user.userId}) ${isActive ? 'activated' : 'deactivated'}`,
-    userID: req.user.userId,
-    affectedItemID: user.userId
-  });
+  await addAuditLog(
+    req.user.userId,
+    isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
+    `User ${user.name} (${user.userId}) ${isActive ? 'activated' : 'deactivated'}`,
+    user.userId
+  );
+
+  // Email: notify user about account status change
+  try {
+    if (isActive) {
+      await sendAccountActivatedEmail({ user });
+    } else {
+      await sendAccountDeactivatedEmail({ user });
+    }
+  } catch (emailErr) {
+    await addAuditLog(req.user.userId, 'EMAIL_FAILED', `Account status email failed for ${user.userId}: ${emailErr.message}`, user.userId);
+  }
 
   res.status(200).json({
     success: true,
@@ -302,5 +321,55 @@ exports.getTeachers = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     users: teachers.map(formatUserResponse)
+  });
+});
+
+/**
+ * POST /api/users/send-email
+ * Send a custom email to a user (admin/operator/teacher).
+ */
+exports.sendEmailToUser = catchAsync(async (req, res, next) => {
+  const { recipientId, subject, message } = req.body;
+
+  // Only admin, operator, or teacher can send
+  const isTeacher = req.user.role === 'user' && req.user.subRole === 'teacher';
+  if (req.user.role !== 'admin' && req.user.role !== 'operator' && !isTeacher) {
+    return next(ApiError.forbidden('You do not have permission to send emails'));
+  }
+
+  if (!recipientId || !subject || !message) {
+    return next(ApiError.badRequest('recipientId, subject, and message are required'));
+  }
+
+  const recipient = await User.findOne({ userId: recipientId }).lean();
+  if (!recipient) {
+    return next(ApiError.notFound(`User ${recipientId} not found`));
+  }
+  if (!recipient.email) {
+    return next(ApiError.badRequest('Recipient has no email address'));
+  }
+
+  const { sendCustomEmail } = require('../utils/emailService');
+  const result = await sendCustomEmail({
+    to: recipient.email,
+    subject,
+    message,
+    senderName: req.user.name || req.user.userId
+  });
+
+  if (result.skipped) {
+    return res.status(200).json({ success: false, message: result.reason });
+  }
+
+  await addAuditLog(
+    req.user.userId,
+    'EMAIL_SENT',
+    `Custom email sent to ${recipient.name} (${recipient.userId}): ${subject}`,
+    recipient.userId
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Email sent successfully'
   });
 });
