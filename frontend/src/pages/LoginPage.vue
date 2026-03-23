@@ -18,10 +18,10 @@
         <!-- Logo + Title -->
         <div class="login-header">
           <div class="login-logo">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="login-logo-img" />
+            <img v-else :src="logoDark" alt="Department Logo" class="login-logo-img" />
           </div>
-          <h1 class="login-title">Inventory</h1>
-          <p class="login-subtitle">COMP Department</p>
+          <h1 class="login-title">Inventory System</h1>
         </div>
 
         <!-- Error -->
@@ -104,6 +104,8 @@
 
 <script>
 import { ref } from 'vue'
+import logoDark from '@/Assetes/logo_650.svg'
+import logoWhite from '@/Assetes/logo_white_650.svg'
 
 export default {
   props: {
@@ -120,7 +122,7 @@ export default {
     const showPassword = ref(false)
     const loading = ref(false)
 
-    const handleSubmit = async () => {
+    async function handleSubmit() {
       if (!username.value || !password.value) {
         error.value = 'Please enter username and password'
         return
@@ -140,21 +142,15 @@ export default {
       }
     }
 
-    const fillDemo = (u, p) => {
+    function fillDemo(u, p) {
       username.value = u
       password.value = p
     }
 
     return {
-      username,
-      password,
-      error,
-      showDemoCredentials,
-      showDemoExpanded,
-      showPassword,
-      loading,
-      handleSubmit,
-      fillDemo,
+      username, password, error, showDemoCredentials, showDemoExpanded, showPassword, loading,
+      logoDark, logoWhite,
+      handleSubmit, fillDemo,
     }
   }
 }
@@ -266,16 +262,16 @@ export default {
 }
 
 .login-logo {
-  margin-bottom: 0.5rem;
-  color: var(--accent);
-  animation: logoPulse 3s ease-in-out infinite;
+  margin-bottom: 0.75rem;
   display: flex;
   justify-content: center;
 }
 
-@keyframes logoPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+.login-logo-img {
+  height: 2.5rem;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .login-title {
@@ -284,12 +280,6 @@ export default {
   color: var(--text-primary);
   letter-spacing: -0.03em;
   line-height: 1.2;
-}
-
-.login-subtitle {
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  margin-top: 0.25rem;
 }
 
 /* ===== Error ===== */

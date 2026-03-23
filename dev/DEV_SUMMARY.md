@@ -70,3 +70,172 @@ Completely redesigned the admin/operator dashboard (`HomePage.vue`) from a KPI a
 - CSS: 75.54 KB (13.96 KB gzipped)
 - JS: 1,170.95 KB (358.19 KB gzipped)
 - Build time: ~5s
+
+## Dashboard Refinement Pass — 2025-07-20
+
+Refined the admin/operator dashboard across 5 phases to improve interaction, clarity, consistency, and usefulness. No redesign — iterative improvements on the existing operations layout.
+
+### Phase 1: Checkbox Selection + Bulk Actions + Pagination
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Checkbox column** | Added `UiCheckbox` (new component) to each table row + header with indeterminate state |
+| 2 | **Row selection state** | `selectedRows` reactive Set, `toggleRow()`, `toggleSelectAll()`, `isAllPageSelected`, `isSomePageSelected` |
+| 3 | **Bulk action bar** | Appears when rows selected — shows count, context-sensitive actions (Approve All / Reject All for requests tab, View in Lent-Out for returns), Clear button |
+| 4 | **Pagination** | 8 rows per page, visible page buttons, prev/next, "View full queue" link to dedicated page |
+| 5 | **Page reset on tab change** | `watch(attentionActiveTab)` resets page to 1 and clears selection |
+
+### Phase 2: Visual Noise Reduction + Priority Rebalancing
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Type column removed** | Merged into Item column as a small muted `outline` badge (`typeShort`: Overdue, Due Soon, Request, Checkout, Missing, Warranty) |
+| 2 | **All type badges use `outline` variant** | Reduces visual noise — only Status and Priority badges carry color meaning |
+| 3 | **`whitespace-nowrap` on all badges** | Prevents multiline wrapping of chip text |
+| 4 | **Tiered priority system** | Replaces flat High/Medium/Low with context-aware tiers: Overdue >30d=Critical (urgent), 8-30d=High, 1-7d=Medium; Requests >7d=High, 4-7d=Medium, ≤3d=Low; Due Soon ≤1d=High, else Low; Missing=High; Warranty=Low |
+| 5 | **Fixed table column widths** | `table-layout: fixed` with percentage widths for stable columns across tabs |
+
+### Phase 3: Sidebar Panel Improvements
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Inventory Status** | Added percentage display next to each count, wider count column |
+| 2 | **Recent Activity** | Replaced badge-based layout with icon-based layout using `getLogIcon()` (Plus/Trash2/Edit/ShieldCheck/AlertTriangle/LogOut/RotateCcw/Activity icons); reduced to 5 items; added "View all activity →" link |
+| 3 | **Quick Actions** | Replaced "Audit Log" with "Register Return" (hand-over-tool navigation) for operations focus |
+
+### Phase 4: Card Wording & Summary Refinements
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Requests Waiting** | "Pending" → "New", "Checkout" → "Ready for pickup", "Long wait" → "Waiting >3 days" |
+| 2 | **Returns Follow-up** | Renamed to "Returns to Chase"; "Due ≤7d" → "Due within 7 days" |
+| 3 | **Inventory Available** | Changed hero number from raw count to availability rate percentage; "Unavailable" → "Other" |
+| 4 | **Inventory Exceptions** | Renamed to "Missing Items" — hero number is now `stats.missingItems` only; icon turns danger when missing>0; sub-metrics: warranty alerts, disposed, transferred |
+| 5 | **Summary text** | Changed from repetitive "X items tracked · Y requests pending · Z overdue" to action-oriented "X items · Y to review, Z overdue" or "X items tracked — all clear" |
+
+### Phase 5: Calendar Removed
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Return Calendar section removed** | Was unfinished/placeholder; removed from template, removed `showCalendar` ref, removed `DashboardCalendar` import and `CalendarDays` icon |
+
+### New UI Components Created
+
+| Component | Path | Description |
+|---|---|---|
+| `UiCheckbox` | `frontend/src/components/ui/Checkbox.vue` | shadcn-style checkbox with checked/indeterminate/disabled states, SVG check/dash icons |
+| `UiSeparator` | `frontend/src/components/ui/Separator.vue` | Horizontal/vertical separator using `bg-border` |
+
+### Build Output (Phase 5)
+- CSS: 79.28 KB (14.46 KB gzipped)
+- JS: 1,172.40 KB (358.63 KB gzipped)
+- Build time: ~5s
+
+---
+
+## Dashboard Refinement Pass 2 — Comprehensive 17-Point Update
+
+### New UI Components
+
+| Component | Path | Description |
+|---|---|---|
+| `UiDropdownMenu` | `frontend/src/components/ui/DropdownMenu.vue` | Teleport-based dropdown with click-outside/Escape handling, configurable align (start/end) and side (bottom/top), scaleIn animation |
+| `UiDropdownMenuItem` | `frontend/src/components/ui/DropdownMenuItem.vue` | Item variants: regular, label (section header), separator, checkable (with check SVG), destructive; disabled state support |
+
+### Phase 6: Layout & Width
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Page max-width** | 72rem → 90rem for wider desktop utilization |
+| 2 | **Responsive padding** | Added 640px and 1280px breakpoints for progressive gutters |
+| 3 | **Summary cards grid** | Changed from fixed 2-col to responsive 1→2→4 columns (480px/768px breakpoints) |
+| 4 | **Sidebar width** | 300px → 340px (1024px) / 380px (1280px) |
+
+### Phase 7: Row Actions → Kebab Dropdown Menu
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Removed inline action buttons** | Approve/Reject/Check Out/View buttons removed from every table row |
+| 2 | **Added kebab menu** | MoreVertical icon button per row opens `DropdownMenu` with tab-specific actions |
+| 3 | **Context-sensitive options** | Returns: View Details / Send Reminder / Mark Reviewed; Requests: Approve / Reject / View Details; Checkout: Check Out / View Details; Inventory: View Item / Mark Unavailable / Transfer |
+| 4 | **Removed `.inline-action-btn`** | All inline action button CSS deleted |
+
+### Phase 8: Toolbar — Bulk Actions, Filter, Columns
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Toolbar bar** | New `ops-toolbar` between tabs and table with left (bulk actions) and right (filter, columns) sections |
+| 2 | **Bulk actions dropdown** | Tab-specific: universal View/Export; returns Send Reminder/Mark Reviewed; requests Approve/Reject/Mark Checkout-Ready; inventory Mark Unavailable/Transfer |
+| 3 | **Filter dropdown** | Priority filter (All/Critical/High/Medium/Low) + Status filter (All/Overdue/Due Soon/Pending/Checkout/Missing) with Clear All |
+| 4 | **Filter tags** | Active filters shown as dismissible tags below toolbar |
+| 5 | **Customize columns** | Checkable dropdown to toggle Item/User/Status/Date/Priority/Type columns |
+| 6 | **`finalFilteredItems` computed** | New computed property applies toolbar filters on top of tab-based `filteredAttentionItems` |
+| 7 | **Page size** | Changed from 8 to 10 items per page |
+
+### Phase 9: Promoted Inventory Status
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Larger card** | Promoted from small sidebar card to `ops-inv-status-card` with hero availability rate display (2rem font, success color) |
+| 2 | **Wider bars** | Status bar tracks 8px tall, dots 8px, label column 90px |
+| 3 | **Exception highlighting** | Missing and Not Available rows get bold text via `status-bar-row--exception` class |
+| 4 | **`isException` flag** | Added to `inventoryStatusBars` computed entries |
+
+### Phase 10: Table & Miscellaneous Refinements
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Table layout** | Removed `table-layout: fixed` + width percentages → auto layout |
+| 2 | **Table font** | 0.75rem → 0.8125rem; cell padding 0.5rem → 0.625rem 0.75rem |
+| 3 | **Type column** | Moved to separate column (no longer merged with Item cell) |
+| 4 | **Card labels** | "Returns to Chase" → "Returns Follow-up"; "Waiting >3 days" → "Waiting >3d" |
+| 5 | **Missing Items card** | Reordered: Disposed/Transferred first, warranty alerts last |
+| 6 | **Quick Actions** | "Lent Out" → "Process Checkout"; "Inventory" → "View Missing" (AlertTriangle icon, navigates to manage-items with missing filter) |
+| 7 | **Activity feed** | Larger icon wrap (1.625rem), more gap (0.75rem), larger entity font |
+
+### Build Output (Refinement Pass 2)
+- CSS: 82.91 KB (14.98 KB gzipped)
+- JS: 1,188.89 KB (362.96 KB gzipped)
+- Build time: ~3.8s
+
+---
+
+## Branding & Shell/Layout Overhaul — 2025-07-21
+
+### Round 1–3: Institutional Branding
+
+| # | Change | Details |
+|---|---|---|
+| 1 | **Navbar logo** | Replaced accent-colored cube icon with institutional SVG logos (`logo_650.svg` for light, `logo_white_650.svg` for dark) using `v-if="darkMode"` switching |
+| 2 | **Login page logo** | Replaced 48×48 cube SVG with institutional SVG; removed "COMP Department" subtitle |
+| 3 | **COMPInventory text removed** | Removed `.logo-text` / `.logo-text-accent` from navbar — SVG already contains department name |
+| 4 | **Logo sizing** | Navbar: `height: 1.5rem`, max-width 20rem; Login: `height: 2.5rem` |
+
+### Round 4: Shell/Layout Unification (11-point fix)
+
+| # | Point | Change |
+|---|---|---|
+| 1 | **Unified horizontal grid** | All shell layers (top-bar, sub-nav, main-content, page-container) aligned to `max-width: 90rem` with consistent `1.25rem` horizontal padding |
+| 2 | **Navbar left-side grouping** | Added `.nav-divider` (1px vertical line with `--border-strong`) between logo block and primary nav for visual separation |
+| 3 | **Logo refinement** | Kept at `1.5rem` height; `flex-shrink: 0` on logo-btn ensures stability; divider provides breathing room |
+| 4 | **Softer active nav** | Replaced accent-colored active state (`color: --accent; background: --accent-surface`) with neutral pill (`color: --text-primary; background: --surface-2; box-shadow: inset 0 0 0 1px --border-strong`) |
+| 5 | **Nav spacing** | Primary nav gap: `0.125rem → 0.25rem`; tab padding: `0.75rem → 0.625rem`; sub-nav gap: `0.125rem → 0.25rem` |
+| 6 | **Sub-nav alignment** | `.nav-sub-inner` max-width: `80rem → 90rem`; padding matches top-bar (`0 1.25rem`) |
+| 7 | **Page header alignment** | `.page-container` max-width: `80rem → 90rem`; `.main-content` max-width: `80rem → 90rem`; HomePage padding aligned to `1.25rem` |
+| 8 | **Dark mode layered contrast** | Top-bar: `--nav-bg` raised to `rgba(14, 16, 30, 0.95)`, `--nav-border` raised to `rgba(..., 0.10)`; sub-nav uses `--surface-1` (was `--surface-2`) for clear layering |
+| 9 | **Branding subtle** | No text branding — institutional SVG only; divider separates logo from navigation |
+| 10 | **Cross-page consistency** | All pages using `.page-container` now share the same 90rem grid |
+| 11 | **Hover states** | Nav tab hover changed from `--accent-surface` to `--surface-2` for neutral feel |
+
+### Files Changed
+
+| File | Changes |
+|---|---|
+| `frontend/src/App.vue` | Template: added `.nav-divider`; Styles: grid widths, nav-divider, softer active state, sub-nav surface, main-content width |
+| `frontend/src/index.css` | `--nav-bg`/`--nav-border` dark-mode token refinement; `.page-container` max-width 90rem, consistent padding |
+| `frontend/src/pages/HomePage.vue` | Horizontal padding aligned to `1.25rem` at all breakpoints |
+
+### Build Output
+- CSS: 82.78 KB (15.00 KB gzipped)
+- JS: 1,188.11 KB (362.96 KB gzipped)
+- Build time: ~4.5s

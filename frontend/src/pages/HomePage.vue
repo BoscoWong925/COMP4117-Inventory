@@ -30,9 +30,9 @@
           </div>
           <p class="ops-card-label">Requests Waiting</p>
           <div class="ops-card-metrics">
-            <span>Pending <strong>{{ pendingPureCount }}</strong></span>
-            <span>Checkout <strong>{{ pendingCheckoutCount }}</strong></span>
-            <span v-if="longWaitCount > 0" class="metric-danger">Long wait <strong>{{ longWaitCount }}</strong></span>
+            <span>New <strong>{{ pendingPureCount }}</strong></span>
+            <span>Ready for pickup <strong>{{ pendingCheckoutCount }}</strong></span>
+            <span v-if="longWaitCount > 0" class="metric-danger">Waiting &gt;3d <strong>{{ longWaitCount }}</strong></span>
           </div>
         </Card>
 
@@ -48,7 +48,7 @@
           <div class="ops-card-metrics">
             <span class="metric-danger">Overdue <strong>{{ overdueItems.length }}</strong></span>
             <span>Due today <strong>{{ dueTodayCount }}</strong></span>
-            <span>Due ≤7d <strong>{{ dueSoonItems.length }}</strong></span>
+            <span>Due within 7d <strong>{{ dueSoonItems.length }}</strong></span>
           </div>
         </Card>
 
@@ -58,49 +58,52 @@
             <div class="ops-card-icon ops-card-icon--success">
               <Package :size="18" />
             </div>
-            <span class="ops-card-value">{{ stats.availableItems }}</span>
+            <span class="ops-card-value">{{ availabilityRate }}%</span>
           </div>
-          <p class="ops-card-label">Inventory Available</p>
+          <p class="ops-card-label">Availability Rate</p>
           <div class="ops-card-metrics">
+            <span>Available <strong>{{ stats.availableItems }}</strong></span>
             <span>In-use <strong>{{ stats.lentOutItems }}</strong></span>
-            <span>Unavailable <strong>{{ notAvailableCount }}</strong></span>
-            <span class="metric-success">Rate <strong>{{ availabilityRate }}%</strong></span>
+            <span>Other <strong>{{ notAvailableCount }}</strong></span>
           </div>
         </Card>
 
-        <!-- Inventory Exceptions -->
+        <!-- Missing Items -->
         <Card class="ops-summary-card" @click="$emit('navigate', 'manage-items', { filter: 'missing' })">
           <div class="ops-card-header">
-            <div class="ops-card-icon ops-card-icon--muted">
+            <div class="ops-card-icon" :class="stats.missingItems > 0 ? 'ops-card-icon--danger' : 'ops-card-icon--muted'">
               <AlertTriangle :size="18" />
             </div>
-            <span class="ops-card-value">{{ exceptionCount }}</span>
+            <span class="ops-card-value">{{ stats.missingItems }}</span>
           </div>
-          <p class="ops-card-label">Inventory Exceptions</p>
+          <p class="ops-card-label">Missing Items</p>
           <div class="ops-card-metrics">
-            <span class="metric-danger">Missing <strong>{{ stats.missingItems }}</strong></span>
             <span>Disposed <strong>{{ stats.disposedItems }}</strong></span>
-            <span v-if="warrantyAlertCount > 0">Warranty <strong>{{ warrantyAlertCount }}</strong></span>
+            <span>Transferred <strong>{{ transferredCount }}</strong></span>
+            <span v-if="warrantyAlertCount > 0">Warranty alerts <strong>{{ warrantyAlertCount }}</strong></span>
           </div>
         </Card>
       </div>
 
-      <!-- Main 2-column layout -->
+      <!-- Main content row: table + sidebar -->
       <div class="ops-main animate-in delay-2">
-        <!-- LEFT: Needs Attention -->
+        <!-- LEFT: Needs Attention Table -->
         <div class="ops-attention">
           <Card class="ops-attention-card">
+            <!-- Attention header: title + tabs -->
             <div class="ops-attention-header">
-              <h3 class="ops-section-title">
-                <AlertCircle :size="16" /> Needs Attention
-                <Badge v-if="attentionItems.length > 0" variant="accent" class="ml-2">{{ attentionItems.length }}</Badge>
-              </h3>
+              <div class="ops-attention-title-row">
+                <h3 class="ops-section-title">
+                  <AlertCircle :size="16" /> Needs Attention
+                  <Badge v-if="attentionItems.length > 0" variant="accent" class="ml-2">{{ attentionItems.length }}</Badge>
+                </h3>
+              </div>
               <div class="ops-attention-tabs">
                 <button
                   v-for="tab in attentionFilterTabs"
                   :key="tab.key"
                   :class="['ops-tab', { active: attentionActiveTab === tab.key }]"
-                  @click="attentionActiveTab = tab.key"
+                  @click="attentionActiveTab = tab.key; selectedRows.clear()"
                 >
                   {{ tab.label }}
                   <span v-if="tab.count > 0" class="ops-tab-count">{{ tab.count }}</span>
@@ -108,50 +111,256 @@
               </div>
             </div>
 
-            <div v-if="filteredAttentionItems.length > 0" class="table-responsive">
-              <table class="ops-table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Item</th>
-                    <th>User</th>
-                    <th>Status</th>
-                    <th>Due / Date</th>
-                    <th>Priority</th>
-                    <th class="text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in filteredAttentionItems.slice(0, 15)" :key="row.type + '-' + row.id">
-                    <td><Badge :variant="row.typeVariant">{{ row.type }}</Badge></td>
-                    <td class="font-semibold cell-ellip">{{ row.name }}</td>
-                    <td class="cell-ellip">
-                      {{ row.user }}
-                      <span v-if="row.hasOverdue" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                        <span class="overdue-dot"></span>
-                      </span>
-                    </td>
-                    <td><Badge :variant="row.statusVariant">{{ row.status }}</Badge></td>
-                    <td class="whitespace-nowrap">{{ row.dateLabel }}</td>
-                    <td><Badge :variant="row.priorityVariant">{{ row.priority }}</Badge></td>
-                    <td class="text-center whitespace-nowrap">
-                      <template v-if="row.actionType === 'approve'">
-                        <button @click="inlineApproveId = row.id" class="inline-action-btn success">Approve</button>
-                        <button @click="inlineRejectId = row.id" class="inline-action-btn danger">Reject</button>
+            <!-- Table toolbar: bulk actions + filter + columns -->
+            <div class="ops-toolbar">
+              <div class="ops-toolbar-left">
+                <!-- Bulk actions (visible when rows selected) -->
+                <template v-if="selectedRows.size > 0">
+                  <span class="bulk-count">{{ selectedRows.size }} selected</span>
+                  <DropdownMenu align="start">
+                    <template #trigger>
+                      <button class="toolbar-btn">
+                        <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem label>Bulk Actions</DropdownMenuItem>
+                      <!-- Universal -->
+                      <DropdownMenuItem @click="close()">
+                        <Eye :size="12" /> View Selected
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @click="close()">
+                        <Download :size="12" /> Export Selected
+                      </DropdownMenuItem>
+                      <!-- Returns-specific -->
+                      <template v-if="attentionActiveTab === 'returns' || attentionActiveTab === 'all'">
+                        <DropdownMenuItem separator />
+                        <DropdownMenuItem @click="close()">
+                          <Bell :size="12" /> Send Reminder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="close()">
+                          <CheckCircle2 :size="12" /> Mark Reviewed
+                        </DropdownMenuItem>
                       </template>
-                      <template v-else-if="row.actionType === 'checkout'">
-                        <button @click="handleInlineCheckout(row.id)" class="inline-action-btn primary">Check Out</button>
+                      <!-- Requests-specific -->
+                      <template v-if="attentionActiveTab === 'requests' || attentionActiveTab === 'all'">
+                        <DropdownMenuItem separator />
+                        <DropdownMenuItem @click="bulkApproveSelected(); close()">
+                          <CheckCircle2 :size="12" /> Approve Selected
+                        </DropdownMenuItem>
+                        <DropdownMenuItem destructive @click="bulkRejectSelected(); close()">
+                          <XCircle :size="12" /> Reject Selected
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="close()">
+                          <Package :size="12" /> Mark Checkout-Ready
+                        </DropdownMenuItem>
                       </template>
-                      <template v-else-if="row.actionType === 'view-lent'">
-                        <button @click="$emit('navigate', 'lent-out-filter')" class="inline-action-btn primary">View</button>
+                      <!-- Inventory-specific -->
+                      <template v-if="attentionActiveTab === 'inventory' || attentionActiveTab === 'all'">
+                        <DropdownMenuItem separator />
+                        <DropdownMenuItem @click="close()">
+                          <Ban :size="12" /> Mark Unavailable
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="close()">
+                          <ArrowUpDown :size="12" /> Transfer Selected
+                        </DropdownMenuItem>
                       </template>
-                      <template v-else>
-                        <button @click="$emit('navigate', 'manage-items')" class="inline-action-btn primary">View</button>
-                      </template>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </template>
+                  </DropdownMenu>
+                  <button class="bulk-clear" @click="selectedRows.clear()">Clear</button>
+                </template>
+              </div>
+              <div class="ops-toolbar-right">
+                <!-- Filter -->
+                <DropdownMenu align="end">
+                  <template #trigger>
+                    <button :class="['toolbar-btn', { 'toolbar-btn--active': hasActiveFilters }]">
+                      <Filter :size="12" /> Filter
+                      <span v-if="hasActiveFilters" class="toolbar-dot"></span>
+                    </button>
+                  </template>
+                  <template #default="{ close }">
+                    <DropdownMenuItem label>Priority</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterPriority === ''" @click="filterPriority = ''; close()">All Priorities</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterPriority === 'Critical'" @click="filterPriority = 'Critical'; close()">Critical</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterPriority === 'High'" @click="filterPriority = 'High'; close()">High</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterPriority === 'Medium'" @click="filterPriority = 'Medium'; close()">Medium</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterPriority === 'Low'" @click="filterPriority = 'Low'; close()">Low</DropdownMenuItem>
+                    <DropdownMenuItem separator />
+                    <DropdownMenuItem label>Status</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === ''" @click="filterStatus = ''; close()">All Statuses</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === 'Overdue'" @click="filterStatus = 'Overdue'; close()">Overdue</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === 'Due Soon'" @click="filterStatus = 'Due Soon'; close()">Due Soon</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === 'Pending'" @click="filterStatus = 'Pending'; close()">Pending</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === 'Checkout'" @click="filterStatus = 'Checkout'; close()">Checkout</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="filterStatus === 'Missing'" @click="filterStatus = 'Missing'; close()">Missing</DropdownMenuItem>
+                    <template v-if="hasActiveFilters">
+                      <DropdownMenuItem separator />
+                      <DropdownMenuItem destructive @click="filterPriority = ''; filterStatus = ''; close()">
+                        <XCircle :size="12" /> Clear All Filters
+                      </DropdownMenuItem>
+                    </template>
+                  </template>
+                </DropdownMenu>
+
+                <!-- Customize columns -->
+                <DropdownMenu align="end">
+                  <template #trigger>
+                    <button class="toolbar-btn">
+                      <SlidersHorizontal :size="12" /> Columns
+                    </button>
+                  </template>
+                  <template #default>
+                    <DropdownMenuItem label>Show Columns</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.item" @click="visibleColumns.item = !visibleColumns.item">Item</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.user" @click="visibleColumns.user = !visibleColumns.user">User</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.status" @click="visibleColumns.status = !visibleColumns.status">Status</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.date" @click="visibleColumns.date = !visibleColumns.date">Due / Date</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.priority" @click="visibleColumns.priority = !visibleColumns.priority">Priority</DropdownMenuItem>
+                    <DropdownMenuItem checkable :checked="visibleColumns.type" @click="visibleColumns.type = !visibleColumns.type">Type</DropdownMenuItem>
+                  </template>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            <!-- Active filters indicator -->
+            <div v-if="hasActiveFilters" class="ops-active-filters">
+              <span v-if="filterPriority" class="filter-tag">
+                Priority: {{ filterPriority }}
+                <button @click="filterPriority = ''" class="filter-tag-x">&times;</button>
+              </span>
+              <span v-if="filterStatus" class="filter-tag">
+                Status: {{ filterStatus }}
+                <button @click="filterStatus = ''" class="filter-tag-x">&times;</button>
+              </span>
+            </div>
+
+            <div v-if="finalFilteredItems.length > 0">
+              <div class="table-responsive ops-table-scroll">
+                <table class="ops-table">
+                  <thead>
+                    <tr>
+                      <th class="th-checkbox">
+                        <Checkbox
+                          :checked="isAllPageSelected"
+                          :indeterminate="isSomePageSelected && !isAllPageSelected"
+                          @update:checked="toggleSelectAll"
+                        />
+                      </th>
+                      <th v-if="visibleColumns.item">Item</th>
+                      <th v-if="visibleColumns.type">Type</th>
+                      <th v-if="visibleColumns.user">User</th>
+                      <th v-if="visibleColumns.status">Status</th>
+                      <th v-if="visibleColumns.date">Due / Date</th>
+                      <th v-if="visibleColumns.priority">Priority</th>
+                      <th class="th-action"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in paginatedAttentionItems"
+                      :key="row.type + '-' + row.id"
+                      :class="{ 'row-selected': selectedRows.has(row.id) }"
+                    >
+                      <td class="td-checkbox">
+                        <Checkbox :checked="selectedRows.has(row.id)" @update:checked="toggleRow(row.id)" />
+                      </td>
+                      <td v-if="visibleColumns.item" class="cell-item">
+                        <span class="cell-item-name">{{ row.name }}</span>
+                      </td>
+                      <td v-if="visibleColumns.type">
+                        <Badge variant="outline" class="cell-type-badge whitespace-nowrap">{{ row.typeShort }}</Badge>
+                      </td>
+                      <td v-if="visibleColumns.user" class="cell-ellip">
+                        {{ row.user }}
+                        <span v-if="row.hasOverdue" class="overdue-dot-wrap" title="This borrower has overdue items">
+                          <span class="overdue-dot"></span>
+                        </span>
+                      </td>
+                      <td v-if="visibleColumns.status"><Badge :variant="row.statusVariant" class="whitespace-nowrap">{{ row.status }}</Badge></td>
+                      <td v-if="visibleColumns.date" class="whitespace-nowrap cell-date">{{ row.dateLabel }}</td>
+                      <td v-if="visibleColumns.priority"><Badge :variant="row.priorityVariant" class="whitespace-nowrap">{{ row.priority }}</Badge></td>
+                      <td class="td-action">
+                        <DropdownMenu align="end">
+                          <template #trigger>
+                            <button class="kebab-btn" aria-label="Row actions">
+                              <MoreVertical :size="14" />
+                            </button>
+                          </template>
+                          <template #default="{ close }">
+                            <!-- Returns rows -->
+                            <template v-if="row.actionType === 'view-lent'">
+                              <DropdownMenuItem @click="$emit('navigate', 'lent-out-filter'); close()">
+                                <Eye :size="12" /> View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @click="close()">
+                                <Bell :size="12" /> Send Reminder
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @click="close()">
+                                <CheckCircle2 :size="12" /> Mark Reviewed
+                              </DropdownMenuItem>
+                            </template>
+                            <!-- Approve rows -->
+                            <template v-else-if="row.actionType === 'approve'">
+                              <DropdownMenuItem @click="inlineApproveId = row.id; close()">
+                                <CheckCircle2 :size="12" /> Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem destructive @click="inlineRejectId = row.id; close()">
+                                <XCircle :size="12" /> Reject
+                              </DropdownMenuItem>
+                              <DropdownMenuItem separator />
+                              <DropdownMenuItem @click="$emit('navigate', 'approve-requests'); close()">
+                                <Eye :size="12" /> View Details
+                              </DropdownMenuItem>
+                            </template>
+                            <!-- Checkout rows -->
+                            <template v-else-if="row.actionType === 'checkout'">
+                              <DropdownMenuItem @click="handleInlineCheckout(row.id); close()">
+                                <Package :size="12" /> Check Out
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @click="$emit('navigate', 'approve-requests'); close()">
+                                <Eye :size="12" /> View Details
+                              </DropdownMenuItem>
+                            </template>
+                            <!-- Inventory rows (missing, warranty) -->
+                            <template v-else>
+                              <DropdownMenuItem @click="$emit('navigate', 'manage-items'); close()">
+                                <Eye :size="12" /> View Item
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @click="close()">
+                                <Ban :size="12" /> Mark Unavailable
+                              </DropdownMenuItem>
+                              <DropdownMenuItem @click="close()">
+                                <ArrowUpDown :size="12" /> Transfer
+                              </DropdownMenuItem>
+                            </template>
+                          </template>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <div class="ops-pagination">
+                <span class="ops-pagination-info">
+                  {{ (attentionPage - 1) * attentionPageSize + 1 }}–{{ Math.min(attentionPage * attentionPageSize, finalFilteredItems.length) }}
+                  of {{ finalFilteredItems.length }}
+                </span>
+                <div class="ops-pagination-btns">
+                  <button :disabled="attentionPage <= 1" @click="attentionPage--" class="ops-page-btn">‹</button>
+                  <button
+                    v-for="p in attentionVisiblePages" :key="p"
+                    :class="['ops-page-btn', { active: p === attentionPage }]"
+                    @click="attentionPage = p"
+                  >{{ p }}</button>
+                  <button :disabled="attentionPage >= attentionTotalPages" @click="attentionPage++" class="ops-page-btn">›</button>
+                </div>
+                <button class="ops-view-full" @click="$emit('navigate', attentionActiveTab === 'requests' ? 'approve-requests' : 'lent-out-filter')">
+                  View full queue →
+                </button>
+              </div>
             </div>
 
             <div v-else class="empty-state">
@@ -161,16 +370,22 @@
           </Card>
         </div>
 
-        <!-- RIGHT: Sidebar -->
+        <!-- RIGHT: Support Rail -->
         <div class="ops-sidebar">
-          <!-- Inventory Status Overview -->
-          <Card class="ops-sidebar-card">
-            <h3 class="ops-sidebar-title">
-              <BarChart3 :size="14" /> Inventory Status
-            </h3>
-            <div class="ops-total-badge">{{ stats.totalItems }} total items</div>
+          <!-- Inventory Status Overview — promoted to larger module -->
+          <Card class="ops-inv-status-card">
+            <div class="ops-inv-header">
+              <h3 class="ops-inv-title">
+                <BarChart3 :size="16" /> Inventory Status
+              </h3>
+              <span class="ops-inv-total">{{ stats.totalItems }} items</span>
+            </div>
+            <div class="ops-inv-rate">
+              <span class="ops-inv-rate-val">{{ availabilityRate }}%</span>
+              <span class="ops-inv-rate-label">Available</span>
+            </div>
             <div class="status-bars">
-              <div v-for="s in inventoryStatusBars" :key="s.label" class="status-bar-row">
+              <div v-for="s in inventoryStatusBars" :key="s.label" class="status-bar-row" :class="{ 'status-bar-row--exception': s.isException && s.count > 0 }">
                 <div class="status-bar-label">
                   <span class="status-dot" :style="{ background: s.color }"></span>
                   {{ s.label }}
@@ -178,7 +393,7 @@
                 <div class="status-bar-track">
                   <div class="status-bar-fill" :style="{ width: Math.max(s.percent, s.count > 0 ? 2 : 0) + '%', background: s.color }"></div>
                 </div>
-                <span class="status-bar-count">{{ s.count }}</span>
+                <span class="status-bar-count">{{ s.count }} <span class="status-bar-pct">({{ Math.round(s.percent) }}%)</span></span>
               </div>
             </div>
           </Card>
@@ -189,14 +404,17 @@
               <Activity :size="14" /> Recent Activity
             </h3>
             <div class="activity-list">
-              <div v-for="log in filteredLogs.slice(0, 8)" :key="log._id || log.id" class="activity-item">
-                <Badge :variant="getLogVariant(log.action)" class="activity-badge">{{ formatAction(log.action) }}</Badge>
+              <div v-for="log in filteredLogs.slice(0, 5)" :key="log._id || log.id" class="activity-item">
+                <div class="activity-icon-wrap" :class="'activity-icon--' + getLogVariant(log.action)">
+                  <component :is="getLogIcon(log.action)" :size="12" />
+                </div>
                 <div class="activity-detail">
-                  <span class="activity-entity">{{ log.entityName || log.entityId || '—' }}</span>
+                  <span class="activity-entity">{{ formatAction(log.action) }} — {{ log.entityName || log.entityId || '—' }}</span>
                   <span class="activity-meta">{{ log.userName || log.userId || '' }} · {{ relativeTime(log.createdAt || log.timestamp) }}</span>
                 </div>
               </div>
               <div v-if="filteredLogs.length === 0" class="empty-state-sm">No recent activity</div>
+              <button v-else class="activity-view-all" @click="$emit('navigate', 'audit-log')">View all activity →</button>
             </div>
           </Card>
 
@@ -209,33 +427,18 @@
               <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'approve-requests')">
                 <ClipboardCheck :size="14" /> Review Requests
               </Button>
+              <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'hand-over-tool')">
+                <RotateCcw :size="14" /> Register Return
+              </Button>
               <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'lent-out-filter')">
-                <ArrowUpDown :size="14" /> Lent Out
+                <Package :size="14" /> Process Checkout
               </Button>
-              <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'manage-items')">
-                <Package :size="14" /> Inventory
-              </Button>
-              <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'audit-log')">
-                <FileText :size="14" /> Audit Log
+              <Button variant="outline" size="sm" class="ops-quick-btn" @click="$emit('navigate', 'manage-items', { filter: 'missing' })">
+                <AlertTriangle :size="14" /> View Missing
               </Button>
             </div>
           </Card>
         </div>
-      </div>
-
-      <!-- Calendar (collapsed by default) -->
-      <div class="ops-calendar animate-in delay-3">
-        <Card>
-          <button class="section-toggle" @click="showCalendar = !showCalendar">
-            <h3 class="ops-sidebar-title" style="margin-bottom: 0">
-              <CalendarDays :size="14" /> Return Calendar
-            </h3>
-            <span class="toggle-arrow" :class="{ open: showCalendar }">▸</span>
-          </button>
-          <div v-if="showCalendar" style="margin-top: 0.75rem;">
-            <DashboardCalendar />
-          </div>
-        </Card>
       </div>
 
       <!-- Inline Approve Modal -->
@@ -463,28 +666,35 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime, isOverdue, isDueSoon, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
 import {
   ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
   AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
-  ArrowUpDown, FileText, CalendarDays
+  ArrowUpDown, FileText, Edit, Trash2, ShieldCheck, LogOut,
+  MoreVertical, Eye, Bell, XCircle, Ban, Filter, SlidersHorizontal,
+  ChevronDown, Download
 } from 'lucide-vue-next'
-import DashboardCalendar from '../components/DashboardCalendar.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import RemarkBox from '../components/RemarkBox.vue'
-import { UiCard as Card, UiBadge as Badge, UiButton as Button } from '../components/ui'
+import {
+  UiCard as Card, UiBadge as Badge, UiButton as Button,
+  UiCheckbox as Checkbox, UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem
+} from '../components/ui'
 
 export default {
   components: {
-    DashboardCalendar, StatusBadge, DropdownWithOther, RemarkBox,
-    Card, Badge, Button,
+    StatusBadge, DropdownWithOther, RemarkBox,
+    Card, Badge, Button, Checkbox, DropdownMenu, DropdownMenuItem,
     ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
     AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
-    ArrowUpDown, FileText, CalendarDays
+    ArrowUpDown, FileText, Edit, Trash2, ShieldCheck, LogOut,
+    MoreVertical, Eye, Bell, XCircle, Ban, Filter, SlidersHorizontal,
+    ChevronDown, Download
   },
   emits: ['navigate'],
   setup() {
@@ -502,7 +712,6 @@ export default {
     const allApprovedRequests = ref([])
     const pendingRequests = ref([])
     const pendingRequestsCount = ref(0)
-    const showCalendar = ref(false)
 
     // Teacher data
     const teacherOwnedItems = ref([])
@@ -512,8 +721,27 @@ export default {
     const teacherAvailableForBorrow = ref(0)
     const teacherActiveTab = ref('all')
 
-    // Attention tab & inline modal state
+    // Attention tab, pagination & selection state
     const attentionActiveTab = ref('all')
+    const attentionPage = ref(1)
+    const attentionPageSize = 10
+    const selectedRows = reactive(new Set())
+
+    // Filter state
+    const filterPriority = ref('')
+    const filterStatus = ref('')
+
+    // Visible columns state
+    const visibleColumns = reactive({
+      item: true,
+      type: true,
+      user: true,
+      status: true,
+      date: true,
+      priority: true
+    })
+
+    // Inline modal state
     const inlineApproveId = ref(null)
     const inlineReturnDate = ref('')
     const inlineRemark = ref('')
@@ -522,10 +750,18 @@ export default {
     const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
     const inlineLocation = ref('Lab A')
 
+    // Reset page when tab or filters change
+    watch([attentionActiveTab, filterPriority, filterStatus], () => {
+      attentionPage.value = 1
+      selectedRows.clear()
+    })
+
     // === Computed ===
     const todayLabel = computed(() => {
       return new Date().toLocaleDateString('en-HK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     })
+
+    const hasActiveFilters = computed(() => filterPriority.value !== '' || filterStatus.value !== '')
 
     // Attention lists
     const overdueItems = computed(() => allApprovedRequests.value.filter(r => isOverdue(r.returnDate)))
@@ -544,17 +780,17 @@ export default {
     const notAvailableCount = computed(() => allItems.value.filter(i => i.status === 'Not Available').length)
     const transferredCount = computed(() => allItems.value.filter(i => i.status === 'Transferred').length)
     const warrantyAlertCount = computed(() => warrantyExpiredItems.value.length + warrantyExpiringSoonItems.value.length)
-    const exceptionCount = computed(() => stats.value.missingItems + stats.value.disposedItems + warrantyAlertCount.value)
     const availabilityRate = computed(() => {
       const total = stats.value.totalItems || 1
       return Math.round((stats.value.availableItems / total) * 100)
     })
     const summaryText = computed(() => {
-      const parts = []
-      parts.push(stats.value.totalItems + ' items tracked')
-      if (pendingRequestsCount.value > 0) parts.push(pendingRequestsCount.value + ' requests pending')
-      if (overdueItems.value.length > 0) parts.push(overdueItems.value.length + ' overdue')
-      return parts.join(' · ')
+      const total = stats.value.totalItems
+      const actionParts = []
+      if (pendingRequestsCount.value > 0) actionParts.push(pendingRequestsCount.value + ' to review')
+      if (overdueItems.value.length > 0) actionParts.push(overdueItems.value.length + ' overdue')
+      if (actionParts.length === 0) return total + ' items tracked — all clear'
+      return total + ' items · ' + actionParts.join(', ')
     })
 
     // Borrowers with overdue items
@@ -570,84 +806,118 @@ export default {
     const inventoryStatusBars = computed(() => {
       const total = stats.value.totalItems || 1
       return [
-        { label: 'Available', count: stats.value.availableItems, color: 'var(--success)', percent: (stats.value.availableItems / total) * 100 },
-        { label: 'In-use', count: stats.value.lentOutItems, color: 'var(--info)', percent: (stats.value.lentOutItems / total) * 100 },
-        { label: 'Missing', count: stats.value.missingItems, color: 'var(--danger)', percent: (stats.value.missingItems / total) * 100 },
-        { label: 'Not Available', count: notAvailableCount.value, color: 'var(--warning)', percent: (notAvailableCount.value / total) * 100 },
-        { label: 'Transferred', count: transferredCount.value, color: 'var(--surface-400)', percent: (transferredCount.value / total) * 100 },
-        { label: 'Disposed', count: stats.value.disposedItems, color: 'var(--muted-foreground)', percent: (stats.value.disposedItems / total) * 100 },
+        { label: 'Available', count: stats.value.availableItems, color: 'var(--success)', percent: (stats.value.availableItems / total) * 100, isException: false },
+        { label: 'In-use', count: stats.value.lentOutItems, color: 'var(--info)', percent: (stats.value.lentOutItems / total) * 100, isException: false },
+        { label: 'Missing', count: stats.value.missingItems, color: 'var(--danger)', percent: (stats.value.missingItems / total) * 100, isException: true },
+        { label: 'Not Available', count: notAvailableCount.value, color: 'var(--warning)', percent: (notAvailableCount.value / total) * 100, isException: true },
+        { label: 'Transferred', count: transferredCount.value, color: 'var(--surface-400)', percent: (transferredCount.value / total) * 100, isException: false },
+        { label: 'Disposed', count: stats.value.disposedItems, color: 'var(--muted-foreground)', percent: (stats.value.disposedItems / total) * 100, isException: false },
       ]
     })
+
+    // === Tiered priority logic ===
+    const getPriority = (type, dateVal) => {
+      if (type === 'overdue') {
+        const days = daysFromNow(dateVal) || 0
+        if (days > 30) return { label: 'Critical', variant: 'urgent' }
+        if (days > 7) return { label: 'High', variant: 'destructive' }
+        return { label: 'Medium', variant: 'warning' }
+      }
+      if (type === 'due-soon') {
+        const daysLeft = Math.abs(daysFromNow(dateVal) || 0)
+        if (daysLeft <= 1) return { label: 'High', variant: 'destructive' }
+        return { label: 'Low', variant: 'outline' }
+      }
+      if (type === 'request') {
+        const waited = daysFromNow(dateVal) || 0
+        if (waited > 7) return { label: 'High', variant: 'destructive' }
+        if (waited > 3) return { label: 'Medium', variant: 'warning' }
+        return { label: 'Low', variant: 'outline' }
+      }
+      if (type === 'missing') return { label: 'High', variant: 'destructive' }
+      return { label: 'Low', variant: 'outline' }
+    }
 
     // Unified attention items
     const attentionItems = computed(() => {
       const items = []
 
       overdueItems.value.forEach(r => {
+        const p = getPriority('overdue', r.returnDate)
         items.push({
-          type: 'Overdue Return', typeVariant: 'urgent',
+          type: 'Overdue Return', typeShort: 'Overdue',
+          typeVariant: 'outline',
           name: r.itemName, user: r.borrowerName || r.borrowerID,
           hasOverdue: false,
           status: 'Overdue', statusVariant: 'destructive',
           date: r.returnDate, dateLabel: daysFromNow(r.returnDate) + 'd overdue',
-          priority: 'High', priorityVariant: 'destructive',
-          id: r.id, actionType: 'view-lent'
+          priority: p.label, priorityVariant: p.variant,
+          id: r.id, actionType: 'view-lent',
+          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
         })
       })
 
       dueSoonItems.value.forEach(r => {
+        const p = getPriority('due-soon', r.returnDate)
         items.push({
-          type: 'Due Soon', typeVariant: 'warning',
+          type: 'Due Soon', typeShort: 'Due Soon',
+          typeVariant: 'outline',
           name: r.itemName, user: r.borrowerName || r.borrowerID,
           hasOverdue: false,
           status: 'Due Soon', statusVariant: 'warning',
           date: r.returnDate, dateLabel: Math.abs(daysFromNow(r.returnDate)) + 'd left',
-          priority: 'Medium', priorityVariant: 'warning',
-          id: r.id, actionType: 'view-lent'
+          priority: p.label, priorityVariant: p.variant,
+          id: r.id, actionType: 'view-lent',
+          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
         })
       })
 
       pendingRequests.value.forEach(r => {
-        const isLongWait = daysFromNow(r.requestDate) > 3
+        const p = getPriority('request', r.requestDate)
         items.push({
           type: r.status === 'Pending' ? 'Pending Request' : 'Pending Checkout',
-          typeVariant: r.status === 'Pending' ? 'warning' : 'info',
+          typeShort: r.status === 'Pending' ? 'Request' : 'Checkout',
+          typeVariant: 'outline',
           name: r.itemName, user: r.borrowerName || r.borrowerID,
           hasOverdue: overdueBorrowerIDs.value.has(r.borrowerID),
-          status: r.status, statusVariant: r.status === 'Pending' ? 'warning' : 'info',
+          status: r.status === 'Pending' ? 'Pending' : 'Checkout', statusVariant: r.status === 'Pending' ? 'warning' : 'info',
           date: r.requestDate, dateLabel: waitingTime(r.requestDate),
-          priority: isLongWait ? 'High' : 'Medium',
-          priorityVariant: isLongWait ? 'destructive' : 'warning',
-          id: r.id, actionType: r.status === 'Pending' ? 'approve' : 'checkout'
+          priority: p.label, priorityVariant: p.variant,
+          id: r.id, actionType: r.status === 'Pending' ? 'approve' : 'checkout',
+          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
         })
       })
 
       allItems.value.filter(i => i.status === 'Missing').slice(0, 10).forEach(item => {
+        const p = getPriority('missing')
         items.push({
-          type: 'Missing Item', typeVariant: 'destructive',
+          type: 'Missing Item', typeShort: 'Missing',
+          typeVariant: 'outline',
           name: item.name || item.itemName, user: item.currentBorrowerName || '—',
           hasOverdue: false,
           status: 'Missing', statusVariant: 'destructive',
           date: null, dateLabel: '—',
-          priority: 'High', priorityVariant: 'destructive',
-          id: item.id, actionType: 'view-item'
+          priority: p.label, priorityVariant: p.variant,
+          id: item.id, actionType: 'view-item',
+          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
         })
       })
 
       warrantyExpiredItems.value.slice(0, 5).forEach(item => {
         items.push({
-          type: 'Warranty Expired', typeVariant: 'outline',
+          type: 'Warranty Expired', typeShort: 'Warranty',
+          typeVariant: 'outline',
           name: item.name || item.itemName, user: item.supplier || '—',
           hasOverdue: false,
           status: 'Expired', statusVariant: 'outline',
           date: item.warrantyEnd, dateLabel: formatDate(item.warrantyEnd),
           priority: 'Low', priorityVariant: 'outline',
-          id: item.id, actionType: 'view-item'
+          id: item.id, actionType: 'view-item',
+          _sortOrder: 3
         })
       })
 
-      const priorityOrder = { High: 0, Medium: 1, Low: 2 }
-      items.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+      items.sort((a, b) => a._sortOrder - b._sortOrder)
       return items
     })
 
@@ -666,6 +936,54 @@ export default {
       if (attentionActiveTab.value === 'inventory') return attentionItems.value.filter(i => i.type === 'Missing Item' || i.type === 'Warranty Expired')
       return attentionItems.value
     })
+
+    // Apply toolbar filters on top of tab filter
+    const finalFilteredItems = computed(() => {
+      let items = filteredAttentionItems.value
+      if (filterPriority.value) {
+        items = items.filter(i => i.priority === filterPriority.value)
+      }
+      if (filterStatus.value) {
+        items = items.filter(i => i.status === filterStatus.value)
+      }
+      return items
+    })
+
+    // Pagination — uses finalFilteredItems
+    const attentionTotalPages = computed(() => Math.max(1, Math.ceil(finalFilteredItems.value.length / attentionPageSize)))
+    const paginatedAttentionItems = computed(() => {
+      const start = (attentionPage.value - 1) * attentionPageSize
+      return finalFilteredItems.value.slice(start, start + attentionPageSize)
+    })
+    const attentionVisiblePages = computed(() => {
+      const pages = []
+      const total = attentionTotalPages.value
+      let start = Math.max(1, attentionPage.value - 2)
+      let end = Math.min(total, start + 4)
+      start = Math.max(1, end - 4)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    })
+
+    // Selection
+    const isAllPageSelected = computed(() => {
+      if (paginatedAttentionItems.value.length === 0) return false
+      return paginatedAttentionItems.value.every(r => selectedRows.has(r.id))
+    })
+    const isSomePageSelected = computed(() => {
+      return paginatedAttentionItems.value.some(r => selectedRows.has(r.id))
+    })
+    const toggleSelectAll = () => {
+      if (isAllPageSelected.value) {
+        paginatedAttentionItems.value.forEach(r => selectedRows.delete(r.id))
+      } else {
+        paginatedAttentionItems.value.forEach(r => selectedRows.add(r.id))
+      }
+    }
+    const toggleRow = (id) => {
+      if (selectedRows.has(id)) selectedRows.delete(id)
+      else selectedRows.add(id)
+    }
 
     // Filtered logs (remove login/logout)
     const filteredLogs = computed(() =>
@@ -744,6 +1062,14 @@ export default {
       loadDashboardData()
     }
 
+    // Bulk actions
+    const bulkApproveSelected = () => {
+      alert('Bulk approve is not yet supported from dashboard. Please use the Review Requests page for batch operations.')
+    }
+    const bulkRejectSelected = () => {
+      alert('Bulk reject is not yet supported from dashboard. Please use the Review Requests page for batch operations.')
+    }
+
     // Helpers
     const relativeTime = (dateStr) => {
       if (!dateStr) return ''
@@ -763,14 +1089,24 @@ export default {
     const getLogVariant = (action) => {
       if (!action) return 'default'
       const upper = action.toUpperCase()
-      if (upper.includes('CREATE') || upper.includes('ADD')) return 'success'
-      if (upper.includes('DELETE') || upper.includes('REMOVE')) return 'destructive'
-      if (upper.includes('UPDATE') || upper.includes('EDIT')) return 'info'
-      if (upper.includes('APPROVE')) return 'success'
-      if (upper.includes('REJECT')) return 'destructive'
+      if (upper.includes('CREATE') || upper.includes('ADD') || upper.includes('APPROVE')) return 'success'
+      if (upper.includes('DELETE') || upper.includes('REMOVE') || upper.includes('REJECT')) return 'destructive'
+      if (upper.includes('UPDATE') || upper.includes('EDIT') || upper.includes('RETURN')) return 'info'
       if (upper.includes('CHECKOUT') || upper.includes('BORROW')) return 'accent'
-      if (upper.includes('RETURN')) return 'info'
       return 'default'
+    }
+
+    const getLogIcon = (action) => {
+      if (!action) return Activity
+      const upper = action.toUpperCase()
+      if (upper.includes('CREATE') || upper.includes('ADD')) return Plus
+      if (upper.includes('DELETE') || upper.includes('REMOVE')) return Trash2
+      if (upper.includes('UPDATE') || upper.includes('EDIT')) return Edit
+      if (upper.includes('APPROVE')) return ShieldCheck
+      if (upper.includes('REJECT')) return AlertTriangle
+      if (upper.includes('CHECKOUT') || upper.includes('BORROW')) return LogOut
+      if (upper.includes('RETURN')) return RotateCcw
+      return Activity
     }
 
     const formatAction = (action) => {
@@ -851,12 +1187,19 @@ export default {
     return {
       user, stats, recentLogs, filteredLogs, myBorrows, allItems,
       pendingRequests, pendingRequestsCount, overdueItems, dueSoonItems,
-      warrantyExpiredItems, warrantyExpiringSoonItems, showCalendar, todayLabel,
+      warrantyExpiredItems, warrantyExpiringSoonItems, todayLabel,
       summaryText, dueTodayCount, pendingPureCount, pendingCheckoutCount,
       longWaitCount, notAvailableCount, transferredCount,
-      warrantyAlertCount, exceptionCount, availabilityRate,
+      warrantyAlertCount, availabilityRate,
       inventoryStatusBars, attentionItems, filteredAttentionItems,
-      attentionActiveTab, attentionFilterTabs,
+      finalFilteredItems, attentionActiveTab, attentionFilterTabs,
+      attentionPage, attentionPageSize, attentionTotalPages,
+      paginatedAttentionItems, attentionVisiblePages,
+      selectedRows, isAllPageSelected, isSomePageSelected,
+      toggleSelectAll, toggleRow,
+      bulkApproveSelected, bulkRejectSelected,
+      filterPriority, filterStatus, hasActiveFilters,
+      visibleColumns,
       inlineApproveId, inlineReturnDate, inlineRemark,
       inlineRejectId, inlineRejectReason,
       locationOptions, inlineLocation, addLocation,
@@ -864,7 +1207,7 @@ export default {
       confirmInlineReject, cancelInlineReject,
       handleInlineCheckout, handleTeacherCheckout,
       formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime,
-      overdueBorrowerIDs, relativeTime, getLogVariant, formatAction,
+      overdueBorrowerIDs, relativeTime, getLogVariant, getLogIcon, formatAction,
       teacherOwnedItems, teacherPendingCount, teacherPendingRequests,
       teacherCheckedOutCount, teacherActiveTab, teacherAttentionTabs, teacherActiveTabEmpty,
     }
@@ -873,13 +1216,14 @@ export default {
 </script>
 
 <style scoped>
-/* ===== Page ===== */
+/* ===== Page — wider layout for desktop ===== */
 .home-page {
-  padding: 1.5rem 1rem 2rem;
-  max-width: 72rem;
+  padding: 1.5rem 1.25rem 2rem;
+  max-width: 90rem;
   margin: 0 auto;
 }
-@media (min-width: 640px) { .home-page { padding: 2rem 1.5rem; } }
+@media (min-width: 640px) { .home-page { padding: 2rem 1.25rem; } }
+@media (min-width: 1280px) { .home-page { padding: 2rem 1.25rem; } }
 
 /* ===== Header ===== */
 .ops-header {
@@ -887,7 +1231,7 @@ export default {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
 .ops-title {
@@ -909,17 +1253,18 @@ export default {
   flex-shrink: 0;
 }
 
-/* ===== Summary Cards ===== */
+/* ===== Summary Cards — responsive grid ===== */
 .ops-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.625rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
+@media (min-width: 480px) { .ops-cards { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 768px) { .ops-cards { grid-template-columns: repeat(4, 1fr); } }
 
 .ops-summary-card {
-  padding: 1rem 1.125rem;
+  padding: 1.125rem 1.25rem;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
@@ -934,11 +1279,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 .ops-card-icon {
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -951,7 +1296,7 @@ export default {
 .ops-card-icon--muted { background: var(--surface-100); color: var(--muted-foreground); }
 
 .ops-card-value {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -964,14 +1309,15 @@ export default {
   color: var(--muted-foreground);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 .ops-card-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
+  gap: 0.25rem 0.875rem;
   font-size: 0.6875rem;
   color: var(--muted-foreground);
+  line-height: 1.6;
 }
 .ops-card-metrics strong {
   font-weight: 700;
@@ -979,18 +1325,19 @@ export default {
 }
 .metric-danger { color: var(--danger); }
 .metric-danger strong { color: var(--danger); }
-.metric-success { color: var(--success); }
-.metric-success strong { color: var(--success); }
 
-/* ===== Main Grid ===== */
+/* ===== Main Grid — wider on desktop ===== */
 .ops-main {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 @media (min-width: 1024px) {
-  .ops-main { grid-template-columns: 1fr 300px; }
+  .ops-main { grid-template-columns: 1fr 340px; }
+}
+@media (min-width: 1280px) {
+  .ops-main { grid-template-columns: 1fr 380px; }
 }
 
 /* ===== Attention Card ===== */
@@ -1000,16 +1347,23 @@ export default {
 }
 .ops-attention-header {
   padding: 1rem 1.25rem 0;
+  margin-bottom: 0;
+}
+.ops-attention-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 .ops-section-title {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  margin-bottom: 0.75rem;
 }
 .ops-attention-tabs {
   display: flex;
@@ -1050,15 +1404,117 @@ export default {
   color: var(--accent);
 }
 
+/* ===== Toolbar ===== */
+.ops-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-height: 2.25rem;
+}
+.ops-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.ops-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+  position: relative;
+}
+.toolbar-btn:hover { background: var(--surface-100); color: var(--text-secondary); }
+.toolbar-btn--active { border-color: var(--accent); color: var(--accent); }
+.toolbar-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+/* Active filters */
+.ops-active-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+}
+.filter-tag-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--accent);
+  padding: 0;
+  line-height: 1;
+}
+.filter-tag-x:hover { opacity: 0.7; }
+
+/* ===== Bulk Actions ===== */
+.bulk-count {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 0.125rem;
+}
+.bulk-clear {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.bulk-clear:hover { color: var(--text-secondary); }
+
 /* ===== Ops Table ===== */
+.ops-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .ops-table {
   width: 100%;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   border-collapse: collapse;
 }
 .ops-table th {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   font-weight: 700;
   color: var(--muted-foreground);
   text-transform: uppercase;
@@ -1066,15 +1522,53 @@ export default {
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border);
   background: var(--surface-50);
+  white-space: nowrap;
 }
 .ops-table td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
+.ops-table tbody tr { transition: background 0.1s; }
 .ops-table tbody tr:hover td { background: var(--surface-50); }
+.ops-table tbody tr.row-selected td { background: var(--accent-surface); }
 
+/* Column widths */
+.th-checkbox, .td-checkbox { width: 2.25rem; text-align: center; }
+.th-action { width: 2.5rem; text-align: center; }
+.td-action { text-align: center; }
+
+/* Item cell */
+.cell-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.cell-item-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.cell-type-badge {
+  flex-shrink: 0;
+  font-size: 0.5625rem !important;
+  padding: 0.0625rem 0.3125rem !important;
+  opacity: 0.7;
+}
+.cell-date {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+
+.overdue-dot-wrap {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+}
 .overdue-dot {
   display: inline-block;
   width: 0.5rem;
@@ -1088,13 +1582,177 @@ export default {
   50% { opacity: 0.4; }
 }
 
+/* Kebab action button */
+.kebab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.kebab-btn:hover { background: var(--surface-100); color: var(--text-primary); }
+
+/* ===== Pagination ===== */
+.ops-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1.25rem;
+  border-top: 1px solid var(--border);
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.ops-pagination-info {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.ops-pagination-btns {
+  display: flex;
+  gap: 0.125rem;
+}
+.ops-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.625rem;
+  height: 1.625rem;
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ops-page-btn:hover:not(:disabled) { background: var(--surface-100); }
+.ops-page-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.ops-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ops-view-full {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.ops-view-full:hover { text-decoration: underline; }
+
 /* ===== Sidebar ===== */
 .ops-sidebar {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
-.ops-sidebar-card { padding: 1rem; }
+
+/* Promoted Inventory Status card */
+.ops-inv-status-card {
+  padding: 1.25rem 1.5rem;
+}
+.ops-inv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.ops-inv-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.ops-inv-total {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.ops-inv-rate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.ops-inv-rate-val {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--success);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ops-inv-rate-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+/* Status bars */
+.status-bars { display: flex; flex-direction: column; gap: 0.625rem; }
+.status-bar-row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 0.625rem;
+}
+.status-bar-row--exception .status-bar-label { font-weight: 700; }
+.status-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-bar-track {
+  height: 8px;
+  background: var(--surface-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.status-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+.status-bar-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status-bar-pct {
+  font-weight: 500;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+/* Sidebar cards */
+.ops-sidebar-card { padding: 1.125rem; }
 .ops-sidebar-title {
   font-size: 0.75rem;
   font-weight: 700;
@@ -1102,78 +1760,39 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.ops-total-badge {
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-  margin-bottom: 0.75rem;
-  font-weight: 600;
-}
-
-/* Status bars */
-.status-bars { display: flex; flex-direction: column; gap: 0.5rem; }
-.status-bar-row {
-  display: grid;
-  grid-template-columns: 80px 1fr 28px;
-  align-items: center;
-  gap: 0.5rem;
-}
-.status-bar-label {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-bar-track {
-  height: 6px;
-  background: var(--surface-100);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.status-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-  min-width: 2px;
-}
-.status-bar-count {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
 
 /* Activity */
-.activity-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.activity-list { display: flex; flex-direction: column; gap: 0.75rem; }
 .activity-item {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
 }
-.activity-badge {
+.activity-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
-  font-size: 0.5625rem !important;
-  padding: 0.125rem 0.375rem !important;
 }
+.activity-icon--success { background: var(--success-light); color: var(--success); }
+.activity-icon--destructive { background: var(--danger-light); color: var(--danger); }
+.activity-icon--info { background: var(--info-light, var(--accent-surface)); color: var(--info, var(--accent)); }
+.activity-icon--accent { background: var(--accent-surface); color: var(--accent); }
+.activity-icon--default { background: var(--surface-100); color: var(--muted-foreground); }
 .activity-detail {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 .activity-entity {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -1181,28 +1800,41 @@ export default {
   text-overflow: ellipsis;
 }
 .activity-meta {
-  font-size: 0.5625rem;
+  font-size: 0.625rem;
   color: var(--muted-foreground);
+  margin-top: 0.0625rem;
 }
+.activity-view-all {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding-top: 0.625rem;
+  margin-top: 0.375rem;
+  border-top: 1px solid var(--border);
+}
+.activity-view-all:hover { text-decoration: underline; }
 
 /* Quick actions */
 .ops-quick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.375rem;
+  gap: 0.5rem;
 }
 .ops-quick-btn {
   justify-content: flex-start !important;
   font-size: 0.6875rem !important;
 }
 
-/* Calendar */
-.ops-calendar { margin-bottom: 0.75rem; }
-
 /* ===== Shared: Empty State ===== */
 .empty-state {
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 2.5rem 1rem;
   color: var(--muted-foreground);
   font-size: 0.8125rem;
 }
@@ -1217,26 +1849,6 @@ export default {
   margin: 0 auto 0.5rem;
   display: block;
 }
-
-/* ===== Inline Actions ===== */
-.inline-action-btn {
-  padding: 0.1875rem 0.375rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent;
-  cursor: pointer;
-  margin-left: 0.125rem;
-  transition: all 0.12s;
-}
-.inline-action-btn:active { transform: scale(0.96); }
-.inline-action-btn.success { color: var(--success); border-color: var(--success); }
-.inline-action-btn.success:hover { background: var(--success-light); }
-.inline-action-btn.danger { color: var(--danger); border-color: var(--danger); }
-.inline-action-btn.danger:hover { background: var(--danger-light); }
-.inline-action-btn.primary { color: var(--accent); border-color: var(--accent); }
-.inline-action-btn.primary:hover { background: var(--accent-surface); }
 
 /* ===== Modal ===== */
 .modal-overlay {
@@ -1269,31 +1881,13 @@ export default {
   margin-bottom: 0.375rem;
 }
 
-/* ===== Toggle ===== */
-.section-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-.toggle-arrow {
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  transition: transform 0.2s;
-}
-.toggle-arrow.open { transform: rotate(90deg); }
-
 /* ===== Table helpers ===== */
 .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .font-semibold { font-weight: 600; }
 .text-center { text-align: center; }
 .whitespace-nowrap { white-space: nowrap; }
 .cell-ellip {
-  max-width: 10rem;
+  max-width: 12rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1304,7 +1898,6 @@ export default {
 .flex-1 { flex: 1; }
 .gap-2 { gap: 0.5rem; }
 .text-accent { color: var(--accent); }
-
 /* ===== Teacher / Student shared styles ===== */
 .hero-section { margin-bottom: 1.5rem; }
 .hero-title {
@@ -1494,10 +2087,6 @@ export default {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
-.text-danger-em { color: var(--danger); font-weight: 600; }
-.text-warning-em { color: var(--warning); font-weight: 600; }
-.row-danger td { background: var(--danger-light); }
-.row-warning td { background: var(--warning-light); }
 
 /* Quick actions (student) */
 .quick-actions {

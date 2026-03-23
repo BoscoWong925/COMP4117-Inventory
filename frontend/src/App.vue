@@ -2,7 +2,8 @@
   <div v-if="isAuthLoading" class="shell-loading" :class="darkMode ? '' : 'light-mode'">
     <div class="shell-loading-inner">
       <div class="shell-loading-logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="loading-logo-img" />
+        <img v-else :src="logoDark" alt="Department Logo" class="loading-logo-img" />
       </div>
       <div class="spinner" style="width: 1.5rem; height: 1.5rem;"></div>
     </div>
@@ -14,11 +15,10 @@
       <div class="top-bar-inner">
         <div class="top-bar-brand">
           <button @click="handleNavigate('home')" class="logo-btn">
-            <div class="logo-mark">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-            </div>
-            <span class="logo-text">COMP<span class="logo-text-accent">Inventory</span></span>
+            <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="logo-img" />
+            <img v-else :src="logoDark" alt="Department Logo" class="logo-img" />
           </button>
+          <div class="nav-divider" aria-hidden="true"></div>
           <!-- Primary nav tabs inline with brand -->
           <nav class="nav-primary">
             <button
@@ -140,6 +140,8 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuth } from './hooks/useAuth'
+import logoDark from '@/Assetes/logo_650.svg'
+import logoWhite from '@/Assetes/logo_white_650.svg'
 import { borrowingService } from './utils/services'
 import { isOverdue, formatDate } from './utils/helpers'
 import LoginPage from './pages/LoginPage.vue'
@@ -483,6 +485,8 @@ export default {
       pendingCount,
       pageParams,
       darkMode,
+      logoDark,
+      logoWhite,
       showSettings,
       themePreference,
       compactMode,
@@ -536,6 +540,10 @@ export default {
   color: var(--accent);
   opacity: 0.7;
 }
+.loading-logo-img {
+  height: 2rem;
+  width: auto;
+}
 
 /* ===== Top Bar — Operations Console Header ===== */
 .top-bar {
@@ -554,7 +562,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.25rem;
-  max-width: 80rem;
+  max-width: 90rem;
   margin: 0 auto;
   width: 100%;
   height: 3.25rem;
@@ -563,7 +571,7 @@ export default {
 .top-bar-brand {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
   min-width: 0;
 }
 
@@ -571,43 +579,38 @@ export default {
 .logo-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.625rem;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0.25rem 0.25rem 0.25rem 0;
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;
 }
 
-.logo-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.875rem;
-  height: 1.875rem;
-  border-radius: 0.5rem;
-  background: var(--accent);
-  color: #fff;
+.logo-img {
+  height: 1.5rem;
+  width: auto;
+  max-width: 20rem;
+  object-fit: contain;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.logo-text {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-}
-
-.logo-text-accent {
-  color: var(--accent);
-  font-weight: 800;
+/* Divider between logo and nav */
+.nav-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--border-strong);
+  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 /* ===== Primary Navigation (inline with brand) ===== */
 .nav-primary {
   display: flex;
-  gap: 0.125rem;
+  gap: 0.25rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -618,7 +621,7 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
+  padding: 0.375rem 0.625rem;
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -627,20 +630,21 @@ export default {
   border-radius: var(--radius-md);
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.12s, background 0.12s;
+  transition: color 0.15s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
   letter-spacing: -0.01em;
 }
 
 .nav-primary-tab:hover {
   color: var(--text-primary);
-  background: var(--accent-surface);
+  background: var(--surface-2);
 }
 
 .nav-primary-active {
-  color: var(--accent);
-  background: var(--accent-surface);
+  color: var(--text-primary);
+  background: var(--surface-2);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 /* ===== Top Bar Actions ===== */
@@ -681,14 +685,14 @@ export default {
 /* ===== Sub Navigation Row ===== */
 .nav-sub-row {
   border-top: 1px solid var(--nav-border);
-  background: var(--surface-2);
+  background: var(--surface-1);
 }
 
 .nav-sub-inner {
   display: flex;
-  gap: 0.125rem;
+  gap: 0.25rem;
   padding: 0 1.25rem;
-  max-width: 80rem;
+  max-width: 90rem;
   margin: 0 auto;
   width: 100%;
   overflow-x: auto;
@@ -936,7 +940,7 @@ export default {
 /* ===== Main Content ===== */
 .main-content {
   flex: 1;
-  max-width: 80rem;
+  max-width: 90rem;
   width: 100%;
   margin: 0 auto;
   padding: 0 0 1.5rem;

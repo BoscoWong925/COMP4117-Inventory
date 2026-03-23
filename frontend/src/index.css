@@ -69,8 +69,8 @@
   --row-hover: rgba(99, 102, 241, 0.06);
 
   /* Component tokens */
-  --nav-bg: rgba(12, 14, 26, 0.92);
-  --nav-border: rgba(124, 132, 166, 0.08);
+  --nav-bg: rgba(14, 16, 30, 0.95);
+  --nav-border: rgba(124, 132, 166, 0.10);
   --toolbar-bg: #181c32;
   --filter-bg: #1a1e35;
   --filter-border: var(--border);
@@ -526,11 +526,11 @@ body {
 
 .page-container {
   padding: 1.5rem 1.25rem 2rem;
-  max-width: 80rem;
+  max-width: 90rem;
   margin: 0 auto;
 }
 @media (min-width: 640px) {
-  .page-container { padding: 2rem 1.5rem; }
+  .page-container { padding: 2rem 1.25rem; }
 }
 
 .page-header { margin-bottom: 1.5rem; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
