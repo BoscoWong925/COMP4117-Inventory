@@ -480,14 +480,16 @@ export default {
     }
 
     const allSelected = computed(() => {
-      return users.value.length > 0 && selectedUserIds.value.length === users.value.length
+      return users.value.length > 0 && users.value.every(user => selectedUserIds.value.includes(user.userId))
     })
 
     const toggleSelectAll = (event) => {
+      const pageIds = users.value.map(user => user.userId)
       if (event.target.checked) {
-        selectedUserIds.value = users.value.map(user => user.userId)
+        const newSet = new Set([...selectedUserIds.value, ...pageIds])
+        selectedUserIds.value = Array.from(newSet)
       } else {
-        selectedUserIds.value = []
+        selectedUserIds.value = selectedUserIds.value.filter(id => !pageIds.includes(id))
       }
     }
 

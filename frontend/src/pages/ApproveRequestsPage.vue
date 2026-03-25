@@ -536,11 +536,11 @@ export default {
     })
 
     const allPendingSelected = computed(() => {
-      return pendingGroups.value.length > 0 && selectedPendingIds.value.length === pendingGroups.value.length
+      return paginatedPending.value.length > 0 && paginatedPending.value.every(g => selectedPendingIds.value.includes(g.parent.id))
     })
 
     const allCheckoutSelected = computed(() => {
-      return checkoutGroups.value.length > 0 && selectedCheckoutIds.value.length === checkoutGroups.value.length
+      return paginatedCheckout.value.length > 0 && paginatedCheckout.value.every(g => selectedCheckoutIds.value.includes(g.parent.id))
     })
 
     const isCheckoutExpiringSoon = (req) => {
@@ -649,18 +649,22 @@ export default {
     }
 
     const toggleSelectAllPending = (event) => {
+      const pageIds = paginatedPending.value.map(group => group.parent.id)
       if (event.target.checked) {
-        selectedPendingIds.value = pendingGroups.value.map(group => group.parent.id)
+        const newSet = new Set([...selectedPendingIds.value, ...pageIds])
+        selectedPendingIds.value = Array.from(newSet)
       } else {
-        selectedPendingIds.value = []
+        selectedPendingIds.value = selectedPendingIds.value.filter(id => !pageIds.includes(id))
       }
     }
 
     const toggleSelectAllCheckout = (event) => {
+      const pageIds = paginatedCheckout.value.map(group => group.parent.id)
       if (event.target.checked) {
-        selectedCheckoutIds.value = checkoutGroups.value.map(group => group.parent.id)
+        const newSet = new Set([...selectedCheckoutIds.value, ...pageIds])
+        selectedCheckoutIds.value = Array.from(newSet)
       } else {
-        selectedCheckoutIds.value = []
+        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => !pageIds.includes(id))
       }
     }
 

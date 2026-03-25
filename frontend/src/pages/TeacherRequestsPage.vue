@@ -398,11 +398,11 @@ export default {
     })
 
     const allPendingSelected = computed(() => {
-      return pendingOnly.value.length > 0 && selectedPendingIds.value.length === pendingOnly.value.length
+      return paginatedPending.value.length > 0 && paginatedPending.value.every(req => selectedPendingIds.value.includes(req.requestId || req.id))
     })
 
     const allCheckoutSelected = computed(() => {
-      return checkoutOnly.value.length > 0 && selectedCheckoutIds.value.length === checkoutOnly.value.length
+      return paginatedCheckout.value.length > 0 && paginatedCheckout.value.every(req => selectedCheckoutIds.value.includes(req.requestId || req.id))
     })
 
     const loadPending = async () => {
@@ -526,18 +526,22 @@ export default {
     }
 
     const toggleSelectAllPending = (event) => {
+      const pageIds = paginatedPending.value.map(req => req.requestId || req.id)
       if (event.target.checked) {
-        selectedPendingIds.value = pendingOnly.value.map(req => req.requestId || req.id)
+        const newSet = new Set([...selectedPendingIds.value, ...pageIds])
+        selectedPendingIds.value = Array.from(newSet)
       } else {
-        selectedPendingIds.value = []
+        selectedPendingIds.value = selectedPendingIds.value.filter(id => !pageIds.includes(id))
       }
     }
 
     const toggleSelectAllCheckout = (event) => {
+      const pageIds = paginatedCheckout.value.map(req => req.requestId || req.id)
       if (event.target.checked) {
-        selectedCheckoutIds.value = checkoutOnly.value.map(req => req.requestId || req.id)
+        const newSet = new Set([...selectedCheckoutIds.value, ...pageIds])
+        selectedCheckoutIds.value = Array.from(newSet)
       } else {
-        selectedCheckoutIds.value = []
+        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => !pageIds.includes(id))
       }
     }
 

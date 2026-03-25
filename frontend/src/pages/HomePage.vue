@@ -260,10 +260,10 @@
                     <tr
                       v-for="row in paginatedAttentionItems"
                       :key="row.type + '-' + row.id"
-                      :class="{ 'row-selected': selectedRows.has(row.id) }"
+                      :class="{ 'row-selected': selectedRows.has(row.type + '-' + row.id) }"
                     >
                       <td class="td-checkbox">
-                        <Checkbox :checked="selectedRows.has(row.id)" @update:checked="toggleRow(row.id)" />
+                        <Checkbox :checked="selectedRows.has(row.type + '-' + row.id)" @update:checked="toggleRow(row.type + '-' + row.id)" />
                       </td>
                       <td v-if="visibleColumns.item" class="cell-item">
                         <span class="cell-item-name">{{ row.name }}</span>
@@ -968,21 +968,21 @@ export default {
     // Selection
     const isAllPageSelected = computed(() => {
       if (paginatedAttentionItems.value.length === 0) return false
-      return paginatedAttentionItems.value.every(r => selectedRows.has(r.id))
+      return paginatedAttentionItems.value.every(r => selectedRows.has(r.type + '-' + r.id))
     })
     const isSomePageSelected = computed(() => {
-      return paginatedAttentionItems.value.some(r => selectedRows.has(r.id))
+      return paginatedAttentionItems.value.some(r => selectedRows.has(r.type + '-' + r.id))
     })
     const toggleSelectAll = () => {
       if (isAllPageSelected.value) {
-        paginatedAttentionItems.value.forEach(r => selectedRows.delete(r.id))
+        paginatedAttentionItems.value.forEach(r => selectedRows.delete(r.type + '-' + r.id))
       } else {
-        paginatedAttentionItems.value.forEach(r => selectedRows.add(r.id))
+        paginatedAttentionItems.value.forEach(r => selectedRows.add(r.type + '-' + r.id))
       }
     }
-    const toggleRow = (id) => {
-      if (selectedRows.has(id)) selectedRows.delete(id)
-      else selectedRows.add(id)
+    const toggleRow = (rowKey) => {
+      if (selectedRows.has(rowKey)) selectedRows.delete(rowKey)
+      else selectedRows.add(rowKey)
     }
 
     // Filtered logs (remove login/logout)
