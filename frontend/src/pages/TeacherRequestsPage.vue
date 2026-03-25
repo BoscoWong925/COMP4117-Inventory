@@ -32,14 +32,14 @@
         :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
       >
         Pending
-        <span v-if="pendingOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingOnly.length }}</span>
+        <span v-if="pendingCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingCount }}</span>
       </button>
       <button
         @click="activeTab = 'checkout'; currentPage = 1"
         :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
       >
         Pending Check-Out
-        <span v-if="checkoutOnly.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutOnly.length }}</span>
+        <span v-if="checkoutCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutCount }}</span>
       </button>
       <button
         @click="activeTab = 'history'; currentPage = 1; loadHistory()"
@@ -52,7 +52,7 @@
     <!-- ========== PENDING TAB ========== -->
     <template v-if="activeTab === 'pending'">
       <div v-if="loadingPending" class="empty-state">Loading pending requests...</div>
-      <div v-else-if="pendingOnly.length === 0" class="empty-state">
+      <div v-else-if="pendingRequests.length === 0" class="empty-state">
         <p>No pending requests</p>
         <p class="text-sm mt-1">Students haven't requested any of your items yet.</p>
       </div>
@@ -74,7 +74,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="req in paginatedPending" :key="req.id || req._id">
+            <tr v-for="req in pendingRequests" :key="req.id || req._id">
               <td class="text-center">
                 <input type="checkbox" :value="req.requestId || req.id" v-model="selectedPendingIds" />
               </td>
@@ -95,14 +95,14 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingOnly.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingCount" :pageSize="pageSize" />
       </div>
     </template>
 
     <!-- ========== PENDING CHECK-OUT TAB ========== -->
     <template v-if="activeTab === 'checkout'">
       <div v-if="loadingPending" class="empty-state">Loading...</div>
-      <div v-else-if="checkoutOnly.length === 0" class="empty-state">
+      <div v-else-if="pendingRequests.length === 0" class="empty-state">
         <p>No items pending check-out</p>
       </div>
       <div v-else class="table-responsive">
@@ -123,7 +123,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="req in paginatedCheckout" :key="req.id || req._id">
+            <tr v-for="req in pendingRequests" :key="req.id || req._id">
               <td class="text-center">
                 <input type="checkbox" :value="req.requestId || req.id" v-model="selectedCheckoutIds" />
               </td>
@@ -144,7 +144,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutOnly.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -384,31 +384,27 @@ export default {
     const emailTarget = ref(null)
 
     // Split pending requests by status
-    const pendingOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending'))
-    const checkoutOnly = computed(() => pendingRequests.value.filter(r => r.status === 'Pending Check-Out'))
-
-    const paginatedPending = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return pendingOnly.value.slice(start, start + pageSize)
-    })
-
-    const paginatedCheckout = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return checkoutOnly.value.slice(start, start + pageSize)
-    })
+    const pendingCount = ref(0)
+    const checkoutCount = ref(0)
 
     const allPendingSelected = computed(() => {
-      return paginatedPending.value.length > 0 && paginatedPending.value.every(req => selectedPendingIds.value.includes(req.requestId || req.id))
+      return pendingRequests.value.length > 0 && selectedPendingIds.value.length === pendingRequests.value.length
     })
 
     const allCheckoutSelected = computed(() => {
-      return paginatedCheckout.value.length > 0 && paginatedCheckout.value.every(req => selectedCheckoutIds.value.includes(req.requestId || req.id))
+      return pendingRequests.value.length > 0 && selectedCheckoutIds.value.length === pendingRequests.value.length
     })
 
     const loadPending = async () => {
       loadingPending.value = true
       try {
-        pendingRequests.value = await borrowingService.getTeacherPendingRequests()
+        selectedPendingIds.value = []
+        selectedCheckoutIds.value = []
+        const status = activeTab.value === 'pending' ? 'Pending' : 'Pending Check-Out'
+        const response = await borrowingService.getTeacherPendingRequests({ page: currentPage.value, pageSize, status })
+        pendingRequests.value = response.requests || []
+        pendingCount.value = response.pendingCount || 0
+        checkoutCount.value = response.checkoutCount || 0
       } catch (e) {
         console.error('Failed to load teacher pending requests:', e)
       }
@@ -432,10 +428,12 @@ export default {
       loadingHistory.value = false
     }
 
-    // Watch status filter and page changes when on history tab
-    watch([historyStatus, currentPage], () => {
+    // Watch status filter and page changes
+    watch([historyStatus, currentPage, activeTab], () => {
       if (activeTab.value === 'history') {
         loadHistory()
+      } else {
+        loadPending()
       }
     })
 
@@ -526,7 +524,7 @@ export default {
     }
 
     const toggleSelectAllPending = (event) => {
-      const pageIds = paginatedPending.value.map(req => req.requestId || req.id)
+      const pageIds = pendingRequests.value.map(req => req.requestId || req.id)
       if (event.target.checked) {
         const newSet = new Set([...selectedPendingIds.value, ...pageIds])
         selectedPendingIds.value = Array.from(newSet)
@@ -536,7 +534,7 @@ export default {
     }
 
     const toggleSelectAllCheckout = (event) => {
-      const pageIds = paginatedCheckout.value.map(req => req.requestId || req.id)
+      const pageIds = pendingRequests.value.map(req => req.requestId || req.id)
       if (event.target.checked) {
         const newSet = new Set([...selectedCheckoutIds.value, ...pageIds])
         selectedCheckoutIds.value = Array.from(newSet)
@@ -640,14 +638,13 @@ export default {
     return {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
       historyStatus, currentPage, pageSize, totalHistory,
-      pendingOnly, checkoutOnly,
+      pendingCount, checkoutCount,
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
       denyTarget, denyReason,
       selectedPendingIds, selectedCheckoutIds, allPendingSelected, allCheckoutSelected,
       showBulkApproveModal, showBulkRejectModal, showBulkCheckoutModal, showBulkDenyModal,
       bulkReturnDate, bulkApproveRemark, bulkRejectReason, bulkDenyReason,
-      paginatedPending, paginatedCheckout,
       showEmailModal, emailTarget,
       getStatusBadge, openApprove, openReject, openDeny,
       handleApprove, handleReject, handleCheckout, handleDeny,

@@ -241,23 +241,26 @@ export const borrowingService = {
     return { requests: data.requests || [], total: data.total || 0 };
   },
 
-  getRequestsForUser: async (borrowerID) => {
-    const data = await apiRequest(`/borrow-requests/my?pageSize=1000`);
-    return data.requests || [];
+  getRequestsForUser: async (borrowerID, params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams({ ...params, pageSize: params.pageSize || 1000 })).toString();
+    const data = await apiRequest(`/borrow-requests/my?${query}`);
+    return data;
   },
 
-  getPendingRequests: async () => {
-    const data = await apiRequest('/borrow-requests/pending');
-    return data.requests || [];
+  getPendingRequests: async (params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
+    const data = await apiRequest(`/borrow-requests/pending?${query}`);
+    return data;
   },
 
   getTopLevelPendingRequests: async () => {
-    const data = await apiRequest('/borrow-requests/pending');
+    // Legacy support: fetch some data if they still want the array here.
+    const data = await apiRequest('/borrow-requests/pending?pageSize=10000');
     return (data.requests || []).filter(r => !r.parentRequestId);
   },
 
   getTopLevelPendingCount: async () => {
-    const data = await apiRequest('/borrow-requests/pending');
+    const data = await apiRequest('/borrow-requests/pending?pageSize=1');
     return data.count || 0;
   },
 
@@ -344,9 +347,10 @@ export const borrowingService = {
     return data.request;
   },
 
-  getTeacherPendingRequests: async () => {
-    const data = await apiRequest('/borrow-requests/teacher-pending');
-    return data.requests || [];
+  getTeacherPendingRequests: async (params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams({ ...params, pageSize: params.pageSize || 10 })).toString();
+    const data = await apiRequest(`/borrow-requests/teacher-pending?${query}`);
+    return data;
   },
 
   getTeacherRequestHistory: async (params = {}) => {

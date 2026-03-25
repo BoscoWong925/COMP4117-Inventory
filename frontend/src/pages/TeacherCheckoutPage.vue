@@ -83,7 +83,7 @@
           </tr>
         </tbody>
       </table>
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredItems.length" :pageSize="pageSize" />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
     </div>
 
     <!-- Return Modal -->
@@ -125,7 +125,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -138,23 +138,15 @@ export default {
     const searchText = ref('')
     const currentPage = ref(1)
     const pageSize = 10
+    const totalItems = ref(0)
 
     const returnTarget = ref(null)
     const returnCondition = ref('')
     const returnNotes = ref('')
 
-    const filteredItems = computed(() => {
-      const q = searchText.value.toLowerCase()
-      return borrowedItems.value.filter(item =>
-        (item.itemName || '').toLowerCase().includes(q) ||
-        (item.itemId || '').toLowerCase().includes(q)
-      )
-    })
+    const filteredItems = computed(() => borrowedItems.value)
 
-    const paginatedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredItems.value.slice(start, start + pageSize)
-    })
+    const paginatedItems = computed(() => filteredItems.value)
 
     const overdueCount = computed(() => {
       return borrowedItems.value.filter(item => {
@@ -182,13 +174,20 @@ export default {
     const loadBorrowedItems = async () => {
       loading.value = true
       try {
-        // Get user's borrowing records
-        const records = await borrowingService.getRequestsForUser()
+        const params = {
+          page: currentPage.value,
+          pageSize,
+          status: 'Approved'
+        }
+        if (searchText.value?.trim()) {
+          params.search = searchText.value.trim()
+        }
+
+        const response = await borrowingService.getRequestsForUser(undefined, params)
+        const records = response.requests || []
+        totalItems.value = response.total || 0
         
-        // Filter for items currently borrowed (status might be Approved or in-use)
-        // Calculate days overdue
         borrowedItems.value = records
-          .filter(r => r.status === 'Approved' || r.status === 'In-use')
           .map(r => ({
             ...r,
             daysOverdue: r.returnDate ? Math.floor((new Date() - new Date(r.returnDate)) / (1000 * 60 * 60 * 24)) : 0,
@@ -241,12 +240,22 @@ export default {
       loadBorrowedItems()
     })
 
+    watch(searchText, () => {
+      currentPage.value = 1
+      if (currentPage.value === 1) loadBorrowedItems()
+    })
+
+    watch(currentPage, () => {
+      loadBorrowedItems()
+    })
+
     return {
       borrowedItems,
       loading,
       searchText,
       currentPage,
       pageSize,
+      totalItems,
       returnTarget,
       returnCondition,
       returnNotes,

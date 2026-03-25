@@ -13,14 +13,14 @@
           :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
         >
           Pending
-          <span v-if="pendingGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingGroups.length }}</span>
+          <span v-if="pendingCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingCount }}</span>
         </button>
         <button
           @click="activeTab = 'checkout'; currentPage = 1"
           :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
         >
           Pending Check-Out
-          <span v-if="checkoutGroups.length" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutGroups.length }}</span>
+          <span v-if="checkoutCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutCount }}</span>
         </button>
       </div>
       <div class="flex gap-2">
@@ -111,7 +111,7 @@
             </template>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingGroups.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -188,7 +188,7 @@
             </template>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutGroups.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -447,7 +447,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -526,13 +526,11 @@ export default {
     })
 
     const paginatedPending = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return pendingGroups.value.slice(start, start + pageSize)
+      return pendingGroups.value
     })
 
     const paginatedCheckout = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return checkoutGroups.value.slice(start, start + pageSize)
+      return checkoutGroups.value
     })
 
     const allPendingSelected = computed(() => {
@@ -555,12 +553,18 @@ export default {
       }
     }
 
+    const pendingCount = ref(0)
+    const checkoutCount = ref(0)
+
     const loadPendingRequests = async () => {
       try {
         // Trigger auto-expire first
         try { await borrowingService.autoExpirePendingCheckouts() } catch (e) { /* ignore */ }
-        const pendingReqs = await borrowingService.getPendingRequests()
-        requests.value = pendingReqs
+        const status = activeTab.value === 'pending' ? 'Pending' : 'Pending Check-Out'
+        const data = await borrowingService.getPendingRequests({ page: currentPage.value, pageSize, status })
+        requests.value = data.requests || []
+        pendingCount.value = data.pendingCount || 0
+        checkoutCount.value = data.checkoutCount || 0
       } catch (e) {
         console.error('Failed to load pending requests:', e)
       }
@@ -761,6 +765,10 @@ export default {
       exportToExcel(requests.value, 'borrow_requests.xlsx')
     }
 
+    watch([currentPage, activeTab], () => {
+      loadPendingRequests()
+    })
+
     onMounted(() => {
       loadPendingRequests()
     })
@@ -773,6 +781,8 @@ export default {
     return {
       requests,
       activeTab,
+      pendingCount,
+      checkoutCount,
       pendingGroups,
       checkoutGroups,
       selectedRequest,

@@ -308,12 +308,12 @@ export default {
 
     const refreshPendingCount = async () => {
       try {
-        if (user.value?.role !== 'user') {
-          const requests = await borrowingService.getTopLevelPendingRequests()
-          pendingCount.value = requests.length
-        } else if (user.value?.subRole === 'teacher') {
-          const requests = await borrowingService.getTeacherPendingRequests()
-          pendingCount.value = requests.length
+        if (user.value?.subRole === 'teacher') {
+          const data = await borrowingService.getTeacherPendingRequests({ pageSize: 1 })
+          pendingCount.value = (data.pendingCount || 0) + (data.checkoutCount || 0)
+        } else if (user.value?.role !== 'user') {
+          const count = await borrowingService.getTopLevelPendingCount()
+          pendingCount.value = count
         }
       } catch (e) {
         pendingCount.value = 0
@@ -337,7 +337,7 @@ export default {
       // Check for overdue borrows for user role
       if (user.value?.role === 'user') {
         try {
-          const requests = await borrowingService.getRequestsForUser(user.value.username)
+          const requests = await borrowingService.getRequestsForUser(user.value.username).then(r => r.requests || [])
           const overdue = requests.filter(r => (r.status === 'approved' || r.status === 'Approved') && isOverdue(r.returnDate))
           if (overdue.length > 0) {
             overdueItems.value = overdue

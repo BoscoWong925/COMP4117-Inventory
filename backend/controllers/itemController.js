@@ -173,7 +173,7 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
 exports.getLentOutItems = catchAsync(async (req, res) => {
   const {
     search, category, location, type, vendor,
-    borrowerId, borrowerName, year,
+    borrowerId, borrowerName, year, statusFilter,
     page = 1, pageSize = 10,
     sortBy = 'itemId', sortDir = 'asc'
   } = req.query;
@@ -186,6 +186,24 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   if (vendor) filter.vendor = vendor;
   if (borrowerId) filter.currentBorrower = borrowerId;
   if (year) filter.warrantyEnd = { $regex: year };
+
+  if (statusFilter) {
+    const BorrowRequest = require('../models/BorrowRequest');
+    const now = new Date();
+    if (statusFilter === 'overdue') {
+      const overdueReqs = await BorrowRequest.find({ status: 'Approved', returnDate: { $lt: now } });
+      const overdueItemIds = overdueReqs.map(r => r.itemID);
+      filter.itemId = { $in: overdueItemIds };
+    } else if (statusFilter === 'due-soon') {
+      const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const dueSoonReqs = await BorrowRequest.find({
+        status: 'Approved',
+        returnDate: { $gte: now, $lte: nextWeek }
+      });
+      const dueSoonItemIds = dueSoonReqs.map(r => r.itemID);
+      filter.itemId = { $in: dueSoonItemIds };
+    }
+  }
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');
@@ -496,10 +514,14 @@ exports.getInvoice = catchAsync(async (req, res, next) => {
  * Get items owned by a specific user or department.
  */
 exports.getItemsByOwner = catchAsync(async (req, res) => {
-  const { search, page = 1, pageSize = 100 } = req.query;
+  const { search, status, page = 1, pageSize = 100 } = req.query;
   const ownerId = req.params.ownerId;
 
   const filter = { owner: ownerId };
+
+  if (status) {
+    filter.status = status;
+  }
 
   if (search) {
     const searchRegex = new RegExp(search, 'i');

@@ -116,7 +116,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredOwnedItems.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="ownedCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -147,7 +147,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredBorrowedItems.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="borrowedCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -177,7 +177,7 @@
             </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredBorrowedItems.length" :pageSize="pageSize" />
+        <PaginationControl v-model:currentPage="currentPage" :totalItems="borrowedCount" :pageSize="pageSize" />
       </div>
     </template>
 
@@ -273,37 +273,22 @@ export default {
 
     const getOwnerId = () => currentUser ? (currentUser.userId || currentUser.id) : null
 
+    const ownedCount = ref(0)
+    const borrowedCount = ref(0)
     const filteredOwnedItems = computed(() => {
-      let result = allOwnedItems.value
-      if (statusFilter.value) {
-        result = result.filter(i => i.status === statusFilter.value)
-      }
-      if (!searchText.value) return result
-      const q = searchText.value.toLowerCase()
-      return result.filter(i =>
-        (i.name || '').toLowerCase().includes(q) ||
-        (i.id || '').toLowerCase().includes(q) ||
-        (i.description || '').toLowerCase().includes(q)
-      )
+      return allOwnedItems.value
     })
 
     const filteredBorrowedItems = computed(() => {
-      if (!searchText.value) return borrowedItems.value
-      const q = searchText.value.toLowerCase()
-      return borrowedItems.value.filter(r =>
-        (r.itemName || '').toLowerCase().includes(q) ||
-        (r.id || '').toLowerCase().includes(q)
-      )
+      return borrowedItems.value
     })
 
     const paginatedOwnedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredOwnedItems.value.slice(start, start + pageSize)
+      return filteredOwnedItems.value
     })
 
     const paginatedBorrowedItems = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return filteredBorrowedItems.value.slice(start, start + pageSize)
+      return filteredBorrowedItems.value
     })
 
     const allOwnedSelected = computed(() => {
@@ -314,24 +299,32 @@ export default {
       loading.value = true
       try {
         // Load owned items (teacher only)
-        if (isTeacher.value) {
+        if (isTeacher.value && activeTab.value === 'owned') {
           const ownerId = getOwnerId()
           if (ownerId) {
-            const { items: data } = await inventoryService.getItemsByOwner(ownerId, { pageSize: 9999 })
+            const params = { page: currentPage.value, pageSize }
+            if (searchText.value) params.search = searchText.value
+            if (statusFilter.value) params.status = statusFilter.value
+            
+            const { items: data, total } = await inventoryService.getItemsByOwner(ownerId, params)
             allOwnedItems.value = data
             ownedItems.value = data
+            ownedCount.value = total
           }
         }
 
         // Load borrowed items (both teacher and student)
-        if (currentUser) {
-          const requests = await borrowingService.getRequestsForUser(currentUser.id)
-          // Only show items with status 'Approved' (physically checked out)
-          borrowedItems.value = requests.filter(r => r.status === 'Approved')
+        if (currentUser && activeTab.value === 'borrowed') {
+          const params = { page: currentPage.value, pageSize, status: 'Approved' }
+          if (searchText.value) params.search = searchText.value
+
+          const response = await borrowingService.getRequestsForUser(currentUser.id, params)
+          borrowedItems.value = response.requests || []
+          borrowedCount.value = response.total || 0
         }
 
         // Student defaults to borrowed tab
-        if (!isTeacher.value) {
+        if (!isTeacher.value && activeTab.value === 'owned') {
           activeTab.value = 'borrowed'
         }
       } catch (e) {
@@ -340,10 +333,11 @@ export default {
       loading.value = false
     }
 
-    watch(searchText, () => {
-      currentPage.value = 1
+    watch([searchText, statusFilter, currentPage, activeTab], () => {
       clearTimeout(searchTimer)
-      searchTimer = setTimeout(() => {}, 400)
+      searchTimer = setTimeout(() => {
+        loadData()
+      }, 400)
     })
 
     const showDetail = (item) => {
@@ -418,6 +412,7 @@ export default {
     return {
       allOwnedItems, borrowedItems, searchText, statusFilter, selectedItem, loading,
       currentPage, pageSize, activeTab, isTeacher,
+      ownedCount, borrowedCount,
       filteredOwnedItems, filteredBorrowedItems,
       paginatedOwnedItems, paginatedBorrowedItems,
       selectedOwnedItemIds, showBulkSetInuseModal, showBulkSetAvailableModal, allOwnedSelected,

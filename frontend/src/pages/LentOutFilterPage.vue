@@ -190,7 +190,7 @@
       </table>
       <PaginationControl
         v-model:currentPage="currentPage"
-        :totalItems="sortedGroups.length"
+        :totalItems="totalItems"
         :pageSize="pageSize"
       />
     </div>
@@ -279,6 +279,7 @@ export default {
     const vendors = ref([])
     const years = ref([])
     const currentPage = ref(1)
+    const totalItems = ref(0);
     const pageSize = 10
     const showLocationCard = ref(false)
     const returnedItem = ref(null)
@@ -391,13 +392,14 @@ export default {
 
     const buildQueryParams = () => {
       const f = searchFilters.value
-      const params = { pageSize: 9999 }
+      const params = { page: currentPage.value, pageSize: pageSize }
       if (f.category) params.category = f.category
       if (f.location) params.location = f.location
       if (f.type || typeFilter.value) params.type = f.type || typeFilter.value
       if (f.vendor || vendorFilter.value) params.vendor = f.vendor || vendorFilter.value
       if (f.year || yearFilter.value) params.year = f.year || yearFilter.value
       if (f.borrowerId) params.borrowerId = f.borrowerId
+      if (activeStatusFilter.value) params.statusFilter = activeStatusFilter.value
       // Combine text searches
       const textParts = [f.id, f.name, f.borrowerName].filter(Boolean)
       if (textParts.length > 0) params.search = textParts.join(' ')
@@ -413,6 +415,7 @@ export default {
         const params = buildQueryParams()
         const result = await inventoryService.getLentOutItems(params)
         items.value = result.items
+        totalItems.value = result.total || 0
         vendors.value = getUniqueVendors(result.items)
         years.value = [...new Set(result.items.map(item => {
           if (item.warrantyStartDate) return item.warrantyStartDate.split('-')[0]
@@ -435,6 +438,10 @@ export default {
       loadLentOutItems()
     })
 
+    watch(currentPage, () => {
+      loadLentOutItems()
+    })
+
     // Debounced watcher for text inputs
     const textFields = computed(() => {
       const f = searchFilters.value
@@ -453,30 +460,20 @@ export default {
       let allItems = items.value
       const reqs = allRequests.value
 
-      // Apply overdue/due-soon filter client-side (needs cross-reference with requests)
-      if (activeStatusFilter.value) {
-        if (activeStatusFilter.value === 'overdue') {
-          const overdueItemIds = new Set(
-            reqs.filter(r => r.status === 'Approved' && isOverdue(r.returnDate))
-              .map(r => r.itemID)
-          )
-          allItems = allItems.filter(i => overdueItemIds.has(i.id))
-        } else if (activeStatusFilter.value === 'due-soon') {
-          const dueSoonItemIds = new Set(
-            reqs.filter(r => r.status === 'Approved' && isDueSoon(r.returnDate, 7))
-              .map(r => r.itemID)
-          )
-          allItems = allItems.filter(i => dueSoonItemIds.has(i.id))
-        }
-      }
-
       const childItemIds = new Set()
 
       // Find items whose approved request has a parentRequestId
       allItems.forEach(item => {
         const req = reqs.find(r => r.itemID === item.id && r.status === 'Approved')
         if (req && req.parentRequestId) {
-          childItemIds.add(item.id)
+          // Verify parent item is also in our paged list
+          const parentReq = reqs.find(r => (r.requestId || r.id) === req.parentRequestId && r.status === 'Approved')
+          if (parentReq) {
+            const parentItem = allItems.find(i => i.id === parentReq.itemID)
+            if (parentItem) {
+              childItemIds.add(item.id)
+            }
+          }
         }
       })
 
@@ -518,8 +515,7 @@ export default {
     })
 
     const paginatedGroups = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return sortedGroups.value.slice(start, start + pageSize)
+      return sortedGroups.value
     })
 
     const handleReturnItem = async (item) => {
@@ -616,6 +612,7 @@ export default {
 
     return {
       items,
+      totalItems,
       vendorFilter,
       yearFilter,
       vendors,

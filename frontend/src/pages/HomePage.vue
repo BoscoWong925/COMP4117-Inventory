@@ -1150,7 +1150,7 @@ export default {
         } catch (e) { console.error('Failed to load approved requests:', e) }
 
         try {
-          const pending = await borrowingService.getPendingRequests()
+          const pending = await borrowingService.getPendingRequests().then(r => r.requests || [])
           pendingRequests.value = pending
         } catch (e) { console.error('Failed to load pending requests:', e) }
 
@@ -1163,7 +1163,7 @@ export default {
       try {
         const currentUser = authService.getCurrentUser()
         if (currentUser) {
-          const userRequests = await borrowingService.getRequestsForUser(currentUser.id)
+          const userRequests = await borrowingService.getRequestsForUser(currentUser.id).then(r => r.requests || [])
           myBorrows.value = userRequests
 
           if (currentUser.subRole === 'teacher') {
@@ -1172,7 +1172,7 @@ export default {
               teacherOwnedItems.value = ownedItems
             } catch (te) { console.error('Failed to load teacher owned items:', te) }
             try {
-              const tPending = await borrowingService.getTeacherPendingRequests()
+              const tPending = await borrowingService.getTeacherPendingRequests().then(r => r.requests || [])
               teacherPendingRequests.value = tPending
               teacherPendingCount.value = tPending.length
             } catch (te) { console.error('Failed to load teacher pending:', te) }

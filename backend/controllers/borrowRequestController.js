@@ -144,14 +144,22 @@ exports.getAllRequests = catchAsync(async (req, res) => {
   const sort = {};
   sort[sortBy] = sortDir === 'desc' ? -1 : 1;
 
+  // We only paginate parent/top-level requests, then include their children 
+  const parentFilter = { ...combinedFilter, parentRequestId: null };
+
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
-  const total = await BorrowRequest.countDocuments(combinedFilter);
-  const requests = await BorrowRequest.find(combinedFilter)
+  const total = await BorrowRequest.countDocuments(parentFilter);
+  const parentRequests = await BorrowRequest.find(parentFilter)
     .sort(sort)
     .skip(skip)
     .limit(parseInt(pageSize));
 
-  const populated = await populateRequests(requests);
+  const parentIds = parentRequests.map(r => r.requestId);
+  const childRequests = await BorrowRequest.find({ parentRequestId: { $in: parentIds } }).sort(sort);
+
+  // Merge them (frontend handles grouping)
+  const allRequests = [...parentRequests, ...childRequests];
+  const populated = await populateRequests(allRequests);
 
   res.status(200).json({
     success: true,
@@ -167,20 +175,44 @@ exports.getAllRequests = catchAsync(async (req, res) => {
  * Get pending requests + top-level count for notification badge.
  */
 exports.getPendingRequests = catchAsync(async (req, res) => {
-  const requests = await BorrowRequest.find({ status: { $in: ['Pending', 'Pending Check-Out'] } }).sort({ requestDate: -1 });
-  const populated = await populateRequests(requests);
+  const { page = 1, pageSize = 10, status } = req.query;
 
-  // Count only top-level (no parent) for badge
-  const topLevelCount = await BorrowRequest.countDocuments({
-    status: { $in: ['Pending', 'Pending Check-Out'] },
+  // We only count top-level (no parent) for badge
+  const pendingCount = await BorrowRequest.countDocuments({
+    status: 'Pending',
     parentRequestId: null
   });
+  const checkoutCount = await BorrowRequest.countDocuments({
+    status: 'Pending Check-Out',
+    parentRequestId: null
+  });
+  
+  // If no status is provided, default to both for backward compatibility
+  const currentStatus = status ? status : { $in: ['Pending', 'Pending Check-Out'] };
+
+  // Paginate parent requests
+  const parentFilter = { status: currentStatus, parentRequestId: null };
+  const skip = (parseInt(page) - 1) * parseInt(pageSize);
+  
+  const total = await BorrowRequest.countDocuments(parentFilter);
+  const parentRequests = await BorrowRequest.find(parentFilter)
+    .sort({ requestDate: -1 })
+    .skip(skip)
+    .limit(parseInt(pageSize));
+
+  const parentIds = parentRequests.map(r => r.requestId);
+  const childRequests = await BorrowRequest.find({ parentRequestId: { $in: parentIds } }).sort({ requestDate: -1 });
+
+  const allRequests = [...parentRequests, ...childRequests];
+  const populated = await populateRequests(allRequests);
 
   res.status(200).json({
     success: true,
     requests: populated,
-    total: requests.length,
-    count: topLevelCount
+    total,
+    pendingCount,
+    checkoutCount,
+    count: pendingCount + checkoutCount
   });
 });
 
@@ -189,22 +221,36 @@ exports.getPendingRequests = catchAsync(async (req, res) => {
  * Current user's requests (user role).
  */
 exports.getMyRequests = catchAsync(async (req, res) => {
-  const { status, page = 1, pageSize = 10, sortBy = 'requestDate', sortDir = 'desc' } = req.query;
+  const { status, search, page = 1, pageSize = 10, sortBy = 'requestDate', sortDir = 'desc' } = req.query;
 
   const filter = { borrowerID: req.user.userId };
   if (status) filter.status = status;
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    filter.$or = [
+      { requestId: searchRegex },
+      { itemName: searchRegex },
+      { itemID: searchRegex }
+    ];
+  }
 
   const sort = {};
   sort[sortBy] = sortDir === 'desc' ? -1 : 1;
 
+  const parentFilter = { ...filter, parentRequestId: null };
+
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
-  const total = await BorrowRequest.countDocuments(filter);
-  const requests = await BorrowRequest.find(filter)
+  const total = await BorrowRequest.countDocuments(parentFilter);
+  const parentRequests = await BorrowRequest.find(parentFilter)
     .sort(sort)
     .skip(skip)
     .limit(parseInt(pageSize));
 
-  const populated = await populateRequests(requests);
+  const parentIds = parentRequests.map(r => r.requestId);
+  const childRequests = await BorrowRequest.find({ parentRequestId: { $in: parentIds } }).sort(sort);
+
+  const allRequests = [...parentRequests, ...childRequests];
+  const populated = await populateRequests(allRequests);
 
   res.status(200).json({
     success: true,
@@ -926,25 +972,52 @@ exports.autoExpirePendingCheckouts = catchAsync(async (req, res) => {
  * Get pending requests for items owned by the current teacher.
  */
 exports.getTeacherPendingRequests = catchAsync(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.pageSize) || 10;
+  const skip = (page - 1) * limit;
+  const requestedStatus = req.query.status;
+
   // Find items owned by this teacher
   const ownedItems = await Item.find({ owner: req.user.userId });
   const ownedItemIds = ownedItems.map(i => i.itemId);
 
   if (ownedItemIds.length === 0) {
-    return res.status(200).json({ success: true, requests: [], total: 0 });
+    return res.status(200).json({ success: true, requests: [], total: 0, pendingCount: 0, checkoutCount: 0 });
   }
 
-  const requests = await BorrowRequest.find({
+  const statusFilter = requestedStatus
+    ? requestedStatus
+    : { $in: ['Pending', 'Pending Check-Out'] };
+
+  const pendingCount = await BorrowRequest.countDocuments({
     itemID: { $in: ownedItemIds },
-    status: { $in: ['Pending', 'Pending Check-Out'] }
-  }).sort({ requestDate: -1 });
+    status: 'Pending'
+  });
+
+  const checkoutCount = await BorrowRequest.countDocuments({
+    itemID: { $in: ownedItemIds },
+    status: 'Pending Check-Out'
+  });
+
+  const query = {
+    itemID: { $in: ownedItemIds },
+    status: statusFilter
+  };
+
+  const total = await BorrowRequest.countDocuments(query);
+  const requests = await BorrowRequest.find(query)
+    .sort({ requestDate: -1 })
+    .skip(skip)
+    .limit(limit);
 
   const populated = await populateRequests(requests);
 
   res.status(200).json({
     success: true,
     requests: populated,
-    total: requests.length
+    total,
+    pendingCount,
+    checkoutCount
   });
 });
 

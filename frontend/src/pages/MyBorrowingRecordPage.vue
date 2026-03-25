@@ -8,7 +8,7 @@
       No borrowing records
     </div>
     <div v-else class="space-y-4">
-      <template v-for="group in paginatedGroups" :key="group.parent.id">
+      <template v-for="group in groupedRecords" :key="group.parent.id">
         <!-- Parent record card -->
         <div class="theme-card">
           <div class="p-4">
@@ -102,7 +102,7 @@
         </div>
       </template>
 
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="groupedRecords.length" :pageSize="pageSize" />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
     </div>
 
 
@@ -134,7 +134,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, isOverdue } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
@@ -212,16 +212,15 @@ export default {
       return groups
     })
 
-    const paginatedGroups = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return groupedRecords.value.slice(start, start + pageSize)
-    })
+    const totalItems = ref(0)
 
     const loadRecords = async () => {
       try {
         const currentUser = authService.getCurrentUser()
         const userID = currentUser?.id || 'UNKNOWN'
-        const userRequests = await borrowingService.getRequestsForUser(userID)
+        const response = await borrowingService.getRequestsForUser(userID, { page: currentPage.value, pageSize })
+        const userRequests = response.requests || []
+        totalItems.value = response.total || 0
         records.value = userRequests.map(req => ({
           ...req,
           itemName: req.itemName || 'Unknown Item'
@@ -230,6 +229,10 @@ export default {
         console.error('Failed to load records:', e)
       }
     }
+
+    watch(currentPage, () => {
+      loadRecords()
+    })
 
     onMounted(() => {
       loadRecords()
