@@ -310,8 +310,8 @@ export default {
     })
 
     const allReturnSelected = computed(() => {
-      const parentCount = paginatedGroups.value.length
-      return parentCount > 0 && paginatedGroups.value.every(g => selectedReturnIds.value.includes(g.parent.id))
+      const parentCount = groupedItems.value.length
+      return parentCount > 0 && selectedReturnIds.value.length === parentCount
     })
 
     const clearAllFilters = () => {
@@ -327,12 +327,10 @@ export default {
     }
 
     const toggleSelectAllReturn = (event) => {
-      const pageIds = paginatedGroups.value.map(g => g.parent.id)
       if (event.target.checked) {
-        const newSet = new Set([...selectedReturnIds.value, ...pageIds])
-        selectedReturnIds.value = Array.from(newSet)
+        selectedReturnIds.value = groupedItems.value.map(g => g.parent.id)
       } else {
-        selectedReturnIds.value = selectedReturnIds.value.filter(id => !pageIds.includes(id))
+        selectedReturnIds.value = []
       }
     }
 

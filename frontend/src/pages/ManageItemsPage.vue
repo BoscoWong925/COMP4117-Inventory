@@ -677,7 +677,7 @@ export default {
     })
 
     const allSelected = computed(() => {
-      return items.value.length > 0 && items.value.every(item => selectedItemIds.value.includes(item.id))
+      return items.value.length > 0 && selectedItemIds.value.length === items.value.length
     })
 
     const uniqueVendors = computed(() => {
@@ -952,12 +952,10 @@ export default {
     }
 
     const toggleSelectAll = (event) => {
-      const pageIds = items.value.map(item => item.id)
       if (event.target.checked) {
-        const newSet = new Set([...selectedItemIds.value, ...pageIds])
-        selectedItemIds.value = Array.from(newSet)
+        selectedItemIds.value = items.value.map(item => item.id)
       } else {
-        selectedItemIds.value = selectedItemIds.value.filter(id => !pageIds.includes(id))
+        selectedItemIds.value = []
       }
     }
 

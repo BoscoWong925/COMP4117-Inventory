@@ -12,71 +12,43 @@ const open = ref(false)
 const triggerRef = ref(null)
 const menuRef = ref(null)
 
-const menuStyle = ref({})
-let rafId = null
-
-function updatePosition() {
-  if (!open.value) return
-  if (triggerRef.value) {
-    const trigger = triggerRef.value.getBoundingClientRect()
-    
-    let top, left, right, bottom, maxHeight
-
-    if (props.side === 'bottom') {
-      top = trigger.bottom + 4
-      const spaceBelow = window.innerHeight - top - 8
-      
-      // If we don't have enough space below, try flipping to top
-      if (spaceBelow < 250 && trigger.top > spaceBelow) {
-        top = undefined
-        bottom = window.innerHeight - trigger.top + 4
-        maxHeight = trigger.top - 12
-      } else {
-        maxHeight = spaceBelow
-      }
-    } else {
-      bottom = window.innerHeight - trigger.top + 4
-      maxHeight = trigger.top - 12
-    }
-
-    if (props.align === 'start') {
-      left = trigger.left
-      // prevent overflowing right edge
-      const maxLeft = document.documentElement.clientWidth - 200 // approx menu width
-      if (left > maxLeft) left = maxLeft
-    } else {
-      right = document.documentElement.clientWidth - trigger.right
-    }
-
-    menuStyle.value = {
-      top: top !== undefined ? `${top}px` : '',
-      bottom: bottom !== undefined ? `${bottom}px` : '',
-      left: left !== undefined ? `${left}px` : '',
-      right: right !== undefined ? `${right}px` : '',
-      maxHeight: maxHeight !== undefined ? `${maxHeight}px` : ''
-    }
-  }
-  rafId = requestAnimationFrame(updatePosition)
-}
-
 function toggle() {
   open.value = !open.value
   if (open.value) {
-    updatePosition()
-  } else {
-    if (rafId) cancelAnimationFrame(rafId)
+    nextTick(() => positionMenu())
   }
 }
 
 function close() {
-  if (open.value) {
-    open.value = false
-    if (rafId) cancelAnimationFrame(rafId)
+  open.value = false
+}
+
+function positionMenu() {
+  if (!triggerRef.value || !menuRef.value) return
+  const trigger = triggerRef.value.getBoundingClientRect()
+  const menu = menuRef.value
+  // Reset first
+  menu.style.top = ''
+  menu.style.bottom = ''
+  menu.style.left = ''
+  menu.style.right = ''
+
+  if (props.side === 'bottom') {
+    menu.style.top = '100%'
+    menu.style.marginTop = '4px'
+  } else {
+    menu.style.bottom = '100%'
+    menu.style.marginBottom = '4px'
+  }
+
+  if (props.align === 'end') {
+    menu.style.right = '0'
+  } else {
+    menu.style.left = '0'
   }
 }
 
 function onClickOutside(e) {
-  if (!open.value) return
   if (!triggerRef.value?.contains(e.target) && !menuRef.value?.contains(e.target)) {
     close()
   }
@@ -94,27 +66,37 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside, true)
   document.removeEventListener('keydown', onKeyDown)
-  if (rafId) cancelAnimationFrame(rafId)
 })
 
 defineExpose({ close })
 </script>
 
 <template>
-  <div class="dropdown-menu-root" ref="triggerRef" @click.stop.prevent="toggle">
-    <slot name="trigger" />
-  </div>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      ref="menuRef"
-      :class="cn('dropdown-menu-content', props.class)"
-      :style="menuStyle"
-      @click.stop
-    >
-      <slot :close="close" />
+  <div class="dropdown-menu-root" ref="triggerRef">
+    <div @click.stop="toggle">
+      <slot name="trigger" />
     </div>
-  </Teleport>
+    <Teleport to="body">
+      <div v-if="open" class="dropdown-menu-backdrop" @click="close">
+        <div
+          ref="menuRef"
+          :class="cn(
+            'dropdown-menu-content',
+            props.class
+          )"
+          :style="{
+            position: 'fixed',
+            top: triggerRef ? (triggerRef.getBoundingClientRect().bottom + 4) + 'px' : '0',
+            left: align === 'start' ? (triggerRef ? triggerRef.getBoundingClientRect().left + 'px' : '0') : undefined,
+            right: align === 'end' ? (triggerRef ? (window.innerWidth - triggerRef.getBoundingClientRect().right) + 'px' : '0') : undefined,
+          }"
+          @click.stop
+        >
+          <slot :close="close" />
+        </div>
+      </div>
+    </Teleport>
+  </div>
 </template>
 
 <style scoped>
@@ -122,12 +104,15 @@ defineExpose({ close })
   position: relative;
   display: inline-flex;
 }
-.dropdown-menu-content {
+.dropdown-menu-backdrop {
   position: fixed;
-  z-index: 2147483647;
+  inset: 0;
+  z-index: 50;
+}
+.dropdown-menu-content {
+  z-index: 51;
   min-width: 10rem;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   border-radius: var(--radius-lg, 0.5rem);
   border: 1px solid var(--border);
   background: var(--card);
@@ -138,7 +123,7 @@ defineExpose({ close })
 }
 
 @keyframes scaleIn {
-  0% { opacity: 0; transform: scale(0.95); transform-origin: top; }
-  100% { opacity: 1; transform: scale(1); transform-origin: top; }
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
 }
 </style>
