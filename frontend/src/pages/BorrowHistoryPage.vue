@@ -217,7 +217,7 @@ export default {
     })
 
     const allSelected = computed(() => {
-      return history.value.length > 0 && selectedHistoryIds.value.length === history.value.length
+      return history.value.length > 0 && history.value.every(record => selectedHistoryIds.value.includes(record.id))
     })
 
     const toggleSort = (field) => {
@@ -236,10 +236,12 @@ export default {
     }
 
     const toggleSelectAll = (event) => {
+      const pageIds = history.value.map(record => record.id)
       if (event.target.checked) {
-        selectedHistoryIds.value = history.value.map(record => record.id)
+        const newSet = new Set([...selectedHistoryIds.value, ...pageIds])
+        selectedHistoryIds.value = Array.from(newSet)
       } else {
-        selectedHistoryIds.value = []
+        selectedHistoryIds.value = selectedHistoryIds.value.filter(id => !pageIds.includes(id))
       }
     }
 

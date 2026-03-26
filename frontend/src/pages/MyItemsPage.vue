@@ -292,7 +292,7 @@ export default {
     })
 
     const allOwnedSelected = computed(() => {
-      return filteredOwnedItems.value.length > 0 && selectedOwnedItemIds.value.length === filteredOwnedItems.value.length
+      return paginatedOwnedItems.value.length > 0 && paginatedOwnedItems.value.every(item => selectedOwnedItemIds.value.includes(item.id))
     })
 
     const loadData = async () => {
@@ -354,10 +354,12 @@ export default {
     }
 
     const toggleSelectAllOwned = (event) => {
+      const pageIds = paginatedOwnedItems.value.map(item => item.id)
       if (event.target.checked) {
-        selectedOwnedItemIds.value = filteredOwnedItems.value.map(item => item.id)
+        const newSet = new Set([...selectedOwnedItemIds.value, ...pageIds])
+        selectedOwnedItemIds.value = Array.from(newSet)
       } else {
-        selectedOwnedItemIds.value = []
+        selectedOwnedItemIds.value = selectedOwnedItemIds.value.filter(id => !pageIds.includes(id))
       }
     }
 
