@@ -5,6 +5,43 @@
 - Wired layout classes and motion controls to the app shell for immediate UI updates.
 - Added 1.2 Route Protection test cases in dev/SECURITY_TEST_CASES.md.
 
+## Requests + Inventory Module UI Refactor — 2026-04-01
+
+Refactored the Requests and Inventory module pages to a shared shadcn-vue style shell while preserving existing backend behavior and user workflows.
+
+### Scope Completed
+
+- Requests module pages: Approve Requests, Borrow History
+- Inventory module pages: Inventory Items, Checked-out Items
+- Shared shell patterns: page header, filter panel, rows-per-page pagination footer, unified select control
+- Unified loading/empty/error table states with skeleton rows and stable table shells
+
+### File-Level Change Log
+
+| # | File Changed | Description | Future Consideration |
+|---|---|---|---|
+| 1 | `frontend/src/components/ui/ModulePageHeader.vue` | Added reusable module header with title/subtitle and action slot for consistent page shells | Add optional breadcrumbs variant for deep modules |
+| 2 | `frontend/src/components/ui/ModuleFilterPanel.vue` | Added reusable filter container with standardized title/clear action and slot content | Add optional collapsible mode with persisted expanded state |
+| 3 | `frontend/src/components/ui/TablePaginationBar.vue` | Added reusable footer with rows-per-page selector, page indicator, and navigation controls | Support server-provided page-size options dynamically |
+| 4 | `frontend/src/components/ui/Select.vue` | Added shared Select wrapper to match Input/Button shadcn-style control sizing | Add error/invalid visual state support |
+| 5 | `frontend/src/components/ui/index.js` | Extended UI barrel exports with `UiSelect`, `UiModulePageHeader`, `UiModuleFilterPanel`, `UiTablePaginationBar` | Keep `Ui*` alias convention consistent across new UI primitives |
+| 6 | `frontend/src/pages/ApproveRequestsPage.vue` | Rebuilt page shell with shared components, tabbed request table, bulk-action toolbar, skeleton loading, and unified pagination; preserved approve/reject/checkout/deny/email flows | Add integration test coverage for bulk paths and race conditions |
+| 7 | `frontend/src/pages/BorrowHistoryPage.vue` | Rebuilt history list with shared header/filter shell, status tabs, skeleton/error/empty states, rows-per-page paging, and preserved export/delete/filter/sort behavior | Add server-side filter query snapshot tests |
+| 8 | `frontend/src/pages/ManageItemsPage.vue` | Refactored inventory list view to shared shell/components, added stable skeleton/error rows, reactive page size, and selection handling with checkbox component; preserved import/export/add/edit/delete/OCR form workflow | Add optimistic update rollback for bulk delete failures |
+| 9 | `frontend/src/pages/LentOutFilterPage.vue` | Refactored checked-out view to shared shell/components, grouped table with skeleton/error/empty states, reactive page size, and preserved return/bulk return/location update/email flows | Add bulk return condition/notes persistence to backend audit trail |
+
+### Technical Notes
+
+- Added stale-response guards for async list fetches to prevent outdated responses from overwriting current UI state.
+- Reset pagination to page 1 on filter/page-size changes where applicable.
+- Kept backend APIs, permissions, and existing action handlers intact.
+
+### Validation
+
+- Frontend Vue diagnostics: no errors on all touched pages/components.
+- Frontend production build: `npm run build` successful.
+- Commit and push completed: `ca7fceb9` on `master` to `origin/master`.
+
 ## Email Automation Update — 2025-07-18
 
 | # | File Changed | Description | Future Consideration |
