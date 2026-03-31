@@ -361,6 +361,10 @@ exports.sendEmailToUser = catchAsync(async (req, res, next) => {
     return res.status(200).json({ success: false, message: result.reason });
   }
 
+  if (!result.sent) {
+    return next(ApiError.internal(`Email sending failed: ${result.error || 'Unknown error'}`));
+  }
+
   await addAuditLog(
     req.user.userId,
     'EMAIL_SENT',

@@ -151,7 +151,6 @@ const itemSchema = new mongoose.Schema({
 // Text index for search
 itemSchema.index({ name: 'text', itemId: 'text', universityID: 'text', description: 'text', supplier: 'text' });
 // Sort indexes required by Cosmos DB
-itemSchema.index({ itemId: 1 });
 itemSchema.index({ name: 1 });
 itemSchema.index({ status: 1 });
 itemSchema.index({ category: 1 });

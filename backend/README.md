@@ -17,14 +17,17 @@ PORT=5001
 MONGODB_URI=mongodb://localhost:27017/comp4117_inventory
 FRONTEND_URL=http://localhost:5173
 
-# SMTP email (approval/rejection notifications)
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_smtp_user
-SMTP_PASS=your_smtp_password
-SMTP_FROM="Inventory System <no-reply@example.com>"
+# Azure Communication Services Email Configuration
+AZURE_COMMUNICATION_CONNECTION_STRING=endpoint=https://<your-resource-name>.communication.azure.com/;accesskey=<your-access-key>
+AZURE_EMAIL_FROM=DoNotReply@<your-email-domain>.azurecomm.net
 ```
+
+### Azure Communication Services Setup
+
+1. Create an Azure Communication Services resource in the Azure Portal
+2. Note down the connection string from the resource settings
+3. Set up an email domain and get the `From` email address
+4. Add these values to your `.env` file
 
 Start the server:
 

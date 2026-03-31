@@ -77,9 +77,6 @@ userSchema.methods.toJSON = function() {
 };
 
 // Indexes for common queries and sorting (Azure Cosmos DB compatibility)
-userSchema.index({ userId: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });

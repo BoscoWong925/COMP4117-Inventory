@@ -21,6 +21,19 @@
 | 10 | `frontend/src/pages/TeacherRequestsPage.vue` | Added ✉ email button in pending & checkout tabs + SendEmailModal | — |
 | 11 | `frontend/src/pages/LentOutFilterPage.vue` | Added ✉ email button next to Return + SendEmailModal | — |
 
+## Azure Email Migration & Validation — 2026-03-31
+
+| # | File Changed | Description | Future Consideration |
+|---|---|---|---|
+| 1 | `backend/utils/emailService.js` | Replaced SMTP transport usage with Azure Communication Services client (`@azure/communication-email`); fixed method call to `beginSend`; added recipient normalization for array/comma-separated inputs | Add HTML email body and shared template helper |
+| 2 | `backend/controllers/userController.js` | Corrected custom-email endpoint behavior to return server error when provider send fails (instead of false success) | Add explicit provider error code mapping for UI display |
+| 3 | `backend/test-azure-email.js` | Updated smoke-test script to Azure SDK `beginSend` flow for consistency with runtime implementation | Add CLI args for subject/recipient override |
+| 4 | `backend/package.json` | Removed legacy SMTP dependency (`nodemailer`) and kept Azure email SDK as single provider package | Add dependency audit and lockfile refresh in CI |
+| 5 | `backend/.env` | Switched from SMTP variables to Azure variables (`AZURE_COMMUNICATION_CONNECTION_STRING`, `AZURE_EMAIL_FROM`) and verified live config values applied | Move secrets to deployment secret store / Key Vault |
+| 6 | `backend/routes/users.js` + `backend/controllers/userController.js` | Revalidated `/api/users/send-email` path with authenticated sender and recipient `dev01` (`24222925@life.hkbu.edu.hk`) | Add request rate limit for manual email endpoint |
+| 7 | Runtime Validation | Reproduced previous failure from stale process, force-restarted backend, and confirmed no `beginSendMail is not a function` error on new process | Add startup health-check for email provider initialization |
+| 8 | Documentation Consolidation | Merged previously generated Azure email setup/migration docs into this single section and removed redundant standalone files | Keep all future email change logs in this summary section only |
+
 ## Dashboard Operations Redesign — 2025-07-20
 
 Completely redesigned the admin/operator dashboard (`HomePage.vue`) from a KPI analytics layout to an **inventory operations dashboard** focused on actionable workflow items.

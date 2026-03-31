@@ -1,32 +1,23 @@
-const nodemailer = require('nodemailer');
+const { EmailClient } = require('@azure/communication-email');
 
-let transporter = null;
+let emailClient = null;
 
-// ─── SMTP Configuration ───────────────────────────────────
-const getSmtpConfig = () => {
-  const host = process.env.SMTP_HOST || '';
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 0;
-  const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
-  const user = process.env.SMTP_USER || '';
-  const pass = process.env.SMTP_PASS || '';
-  const from = process.env.SMTP_FROM || '';
+// ─── Azure Configuration ──────────────────────────────────
+const getAzureConfig = () => {
+  const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
+  const fromEmail = process.env.AZURE_EMAIL_FROM || '';
 
-  return { host, port, secure, user, pass, from };
+  return { connectionString, fromEmail };
 };
 
 const canSendEmail = (config) => {
-  return Boolean(config.host && config.port && config.from);
+  return Boolean(config.connectionString && config.fromEmail);
 };
 
-const getTransporter = (config) => {
-  if (transporter) return transporter;
-  transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.user && config.pass ? { user: config.user, pass: config.pass } : undefined
-  });
-  return transporter;
+const getEmailClient = (config) => {
+  if (emailClient) return emailClient;
+  emailClient = new EmailClient(config.connectionString);
+  return emailClient;
 };
 
 const formatDate = (dateValue) => {
@@ -38,20 +29,42 @@ const formatDate = (dateValue) => {
 
 // ─── Core send function ───────────────────────────────────
 const sendEmail = async ({ to, subject, text }) => {
-  const config = getSmtpConfig();
+  const config = getAzureConfig();
   if (!canSendEmail(config)) {
-    return { skipped: true, reason: 'SMTP not configured' };
+    return { skipped: true, reason: 'Azure Communication Service not configured' };
   }
 
-  const emailTransporter = getTransporter(config);
-  await emailTransporter.sendMail({
-    from: config.from,
-    to,
-    subject,
-    text
-  });
+  try {
+    const client = getEmailClient(config);
+    const recipientList = Array.isArray(to)
+      ? to
+      : String(to)
+          .split(',')
+          .map((email) => email.trim())
+          .filter(Boolean);
 
-  return { sent: true };
+    if (recipientList.length === 0) {
+      return { skipped: true, reason: 'No valid recipient emails' };
+    }
+
+    const emailMessage = {
+      senderAddress: config.fromEmail,
+      recipients: {
+        to: recipientList.map((email) => ({ address: email }))
+      },
+      content: {
+        subject: subject,
+        plainText: text
+      }
+    };
+
+    const poller = await client.beginSend(emailMessage);
+    await poller.pollUntilDone();
+    return { sent: true };
+  } catch (error) {
+    console.error('Azure email sending error:', error);
+    return { sent: false, error: error.message };
+  }
 };
 
 // ─── Borrow Request Emails ───────────────────────────────
