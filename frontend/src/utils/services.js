@@ -479,6 +479,12 @@ export const statsService = {
   getStats: async () => {
     const data = await apiRequest('/stats');
     return data;
+  },
+
+  getDashboardQueue: async (params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
+    const data = await apiRequest(`/stats/dashboard-queue?${query}`);
+    return data;
   }
 };
 

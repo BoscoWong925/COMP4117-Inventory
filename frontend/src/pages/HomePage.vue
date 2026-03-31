@@ -42,13 +42,13 @@
             <div class="ops-card-icon ops-card-icon--danger">
               <RotateCcw :size="18" />
             </div>
-            <span class="ops-card-value">{{ overdueItems.length + dueSoonItems.length }}</span>
+            <span class="ops-card-value">{{ overdueCount + dueSoonCount }}</span>
           </div>
           <p class="ops-card-label">Returns Follow-up</p>
           <div class="ops-card-metrics">
-            <span class="metric-danger">Overdue <strong>{{ overdueItems.length }}</strong></span>
+            <span class="metric-danger">Overdue <strong>{{ overdueCount }}</strong></span>
             <span>Due today <strong>{{ dueTodayCount }}</strong></span>
-            <span>Due within 7d <strong>{{ dueSoonItems.length }}</strong></span>
+            <span>Due within 7d <strong>{{ dueSoonCount }}</strong></span>
           </div>
         </Card>
 
@@ -95,7 +95,7 @@
               <div class="ops-attention-title-row">
                 <h3 class="ops-section-title">
                   <AlertCircle :size="16" /> Needs Attention
-                  <Badge v-if="attentionItems.length > 0" variant="accent" class="ml-2">{{ attentionItems.length }}</Badge>
+                  <Badge v-if="attentionCounts.tabs.all > 0" variant="accent" class="ml-2">{{ attentionCounts.tabs.all }}</Badge>
                 </h3>
               </div>
               <div class="ops-attention-tabs">
@@ -138,9 +138,7 @@
                         <DropdownMenuItem @click="close()">
                           <Bell :size="12" /> Send Reminder
                         </DropdownMenuItem>
-                        <DropdownMenuItem @click="close()">
-                          <CheckCircle2 :size="12" /> Mark Reviewed
-                        </DropdownMenuItem>
+                
                       </template>
                       <!-- Requests-specific -->
                       <template v-if="attentionActiveTab === 'requests' || attentionActiveTab === 'all'">
@@ -235,7 +233,7 @@
               </span>
             </div>
 
-            <div v-if="finalFilteredItems.length > 0">
+            <div v-if="attentionRows.length > 0">
               <div class="table-responsive ops-table-scroll">
                 <table class="ops-table">
                   <thead>
@@ -258,7 +256,7 @@
                   </thead>
                   <tbody>
                     <tr
-                      v-for="row in paginatedAttentionItems"
+                      v-for="row in attentionRows"
                       :key="row.type + '-' + row.id"
                       :class="{ 'row-selected': selectedRows.has(row.type + '-' + row.id) }"
                     >
@@ -296,9 +294,7 @@
                               <DropdownMenuItem @click="close()">
                                 <Bell :size="12" /> Send Reminder
                               </DropdownMenuItem>
-                              <DropdownMenuItem @click="close()">
-                                <CheckCircle2 :size="12" /> Mark Reviewed
-                              </DropdownMenuItem>
+
                             </template>
                             <!-- Approve rows -->
                             <template v-else-if="row.actionType === 'approve'">
@@ -345,8 +341,7 @@
               <!-- Pagination -->
               <div class="ops-pagination">
                 <span class="ops-pagination-info">
-                  {{ (attentionPage - 1) * attentionPageSize + 1 }}–{{ Math.min(attentionPage * attentionPageSize, finalFilteredItems.length) }}
-                  of {{ finalFilteredItems.length }}
+                  {{ attentionPageStart }}–{{ attentionPageEnd }} of {{ attentionTotal }}
                 </span>
                 <div class="ops-pagination-btns">
                   <button :disabled="attentionPage <= 1" @click="attentionPage--" class="ops-page-btn">‹</button>
@@ -357,7 +352,7 @@
                   >{{ p }}</button>
                   <button :disabled="attentionPage >= attentionTotalPages" @click="attentionPage++" class="ops-page-btn">›</button>
                 </div>
-                <button class="ops-view-full" @click="$emit('navigate', attentionActiveTab === 'requests' ? 'approve-requests' : 'lent-out-filter')">
+                <button class="ops-view-full" @click="$emit('navigate', attentionActiveTab === 'requests' ? 'approve-requests' : attentionActiveTab === 'inventory' ? 'manage-items' : 'lent-out-filter')">
                   View full queue →
                 </button>
               </div>
@@ -669,7 +664,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
-import { formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime, isOverdue, isDueSoon, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
+import { formatDate, waitingTime } from '../utils/helpers'
 import {
   ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
   AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
@@ -708,24 +703,45 @@ export default {
     })
     const recentLogs = ref([])
     const myBorrows = ref([])
-    const allItems = ref([])
-    const allApprovedRequests = ref([])
-    const pendingRequests = ref([])
-    const pendingRequestsCount = ref(0)
+
+    const createEmptyAttentionCounts = () => ({
+      tabs: { all: 0, returns: 0, requests: 0, inventory: 0 },
+      returns: { overdue: 0, dueSoon: 0, dueToday: 0 },
+      requests: { pending: 0, pendingCheckout: 0, longWait: 0 },
+      inventory: { missing: 0, notAvailable: 0, transferred: 0, warrantyExpired: 0, warrantyExpiringSoon: 0 }
+    })
+
+    const normalizeAttentionCounts = (incoming = {}) => {
+      const base = createEmptyAttentionCounts()
+      return {
+        tabs: { ...base.tabs, ...(incoming.tabs || {}) },
+        returns: { ...base.returns, ...(incoming.returns || {}) },
+        requests: { ...base.requests, ...(incoming.requests || {}) },
+        inventory: { ...base.inventory, ...(incoming.inventory || {}) }
+      }
+    }
+
+    const attentionRows = ref([])
+    const attentionTotal = ref(0)
+    const attentionTotalPages = ref(1)
+    const attentionCounts = ref(createEmptyAttentionCounts())
 
     // Teacher data
     const teacherOwnedItems = ref([])
     const teacherPendingCount = ref(0)
     const teacherPendingRequests = ref([])
     const teacherCheckedOutCount = ref(0)
-    const teacherAvailableForBorrow = ref(0)
     const teacherActiveTab = ref('all')
 
     // Attention tab, pagination & selection state
     const attentionActiveTab = ref('all')
     const attentionPage = ref(1)
-    const attentionPageSize = 10
+    const attentionPageSize = ref(10)
+    const attentionSortBy = ref('priority')
+    const attentionSortOrder = ref('desc')
     const selectedRows = reactive(new Set())
+    let latestAttentionQueueRequestId = 0
+    let skipNextAttentionPageWatch = false
 
     // Filter state
     const filterPriority = ref('')
@@ -750,12 +766,6 @@ export default {
     const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
     const inlineLocation = ref('Lab A')
 
-    // Reset page when tab or filters change
-    watch([attentionActiveTab, filterPriority, filterStatus], () => {
-      attentionPage.value = 1
-      selectedRows.clear()
-    })
-
     // === Computed ===
     const todayLabel = computed(() => {
       return new Date().toLocaleDateString('en-HK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -763,23 +773,22 @@ export default {
 
     const hasActiveFilters = computed(() => filterPriority.value !== '' || filterStatus.value !== '')
 
-    // Attention lists
-    const overdueItems = computed(() => allApprovedRequests.value.filter(r => isOverdue(r.returnDate)))
-    const dueSoonItems = computed(() => allApprovedRequests.value.filter(r => isDueSoon(r.returnDate, 7)))
-    const dueTodayCount = computed(() => allApprovedRequests.value.filter(r => {
-      const d = daysFromNow(r.returnDate)
-      return d !== null && d === 0
-    }).length)
-    const warrantyExpiredItems = computed(() => allItems.value.filter(i => isWarrantyExpired(i.warrantyEnd)))
-    const warrantyExpiringSoonItems = computed(() => allItems.value.filter(i => isWarrantyExpiringSoon(i.warrantyEnd, 30)))
+    const pendingRequestsCount = computed(() =>
+      (attentionCounts.value.requests.pending || 0) + (attentionCounts.value.requests.pendingCheckout || 0)
+    )
+    const overdueCount = computed(() => attentionCounts.value.returns.overdue || 0)
+    const dueSoonCount = computed(() => attentionCounts.value.returns.dueSoon || 0)
+    const dueTodayCount = computed(() => attentionCounts.value.returns.dueToday || 0)
 
     // Summary card metrics
-    const pendingPureCount = computed(() => pendingRequests.value.filter(r => r.status === 'Pending').length)
-    const pendingCheckoutCount = computed(() => pendingRequests.value.filter(r => r.status === 'Pending Check-Out').length)
-    const longWaitCount = computed(() => pendingRequests.value.filter(r => daysFromNow(r.requestDate) > 3).length)
-    const notAvailableCount = computed(() => allItems.value.filter(i => i.status === 'Not Available').length)
-    const transferredCount = computed(() => allItems.value.filter(i => i.status === 'Transferred').length)
-    const warrantyAlertCount = computed(() => warrantyExpiredItems.value.length + warrantyExpiringSoonItems.value.length)
+    const pendingPureCount = computed(() => attentionCounts.value.requests.pending || 0)
+    const pendingCheckoutCount = computed(() => attentionCounts.value.requests.pendingCheckout || 0)
+    const longWaitCount = computed(() => attentionCounts.value.requests.longWait || 0)
+    const notAvailableCount = computed(() => stats.value.notAvailableItems || attentionCounts.value.inventory.notAvailable || 0)
+    const transferredCount = computed(() => stats.value.transferredItems || attentionCounts.value.inventory.transferred || 0)
+    const warrantyExpiredCount = computed(() => stats.value.warrantyExpiredItems || attentionCounts.value.inventory.warrantyExpired || 0)
+    const warrantyExpiringSoonCount = computed(() => stats.value.warrantyExpiringSoonItems || attentionCounts.value.inventory.warrantyExpiringSoon || 0)
+    const warrantyAlertCount = computed(() => warrantyExpiredCount.value + warrantyExpiringSoonCount.value)
     const availabilityRate = computed(() => {
       const total = stats.value.totalItems || 1
       return Math.round((stats.value.availableItems / total) * 100)
@@ -788,18 +797,9 @@ export default {
       const total = stats.value.totalItems
       const actionParts = []
       if (pendingRequestsCount.value > 0) actionParts.push(pendingRequestsCount.value + ' to review')
-      if (overdueItems.value.length > 0) actionParts.push(overdueItems.value.length + ' overdue')
+      if (overdueCount.value > 0) actionParts.push(overdueCount.value + ' overdue')
       if (actionParts.length === 0) return total + ' items tracked — all clear'
       return total + ' items · ' + actionParts.join(', ')
-    })
-
-    // Borrowers with overdue items
-    const overdueBorrowerIDs = computed(() => {
-      const ids = new Set()
-      allApprovedRequests.value.forEach(r => {
-        if (isOverdue(r.returnDate) && r.borrowerID) ids.add(r.borrowerID)
-      })
-      return ids
     })
 
     // Inventory status bars
@@ -815,146 +815,13 @@ export default {
       ]
     })
 
-    // === Tiered priority logic ===
-    const getPriority = (type, dateVal) => {
-      if (type === 'overdue') {
-        const days = daysFromNow(dateVal) || 0
-        if (days > 30) return { label: 'Critical', variant: 'urgent' }
-        if (days > 7) return { label: 'High', variant: 'destructive' }
-        return { label: 'Medium', variant: 'warning' }
-      }
-      if (type === 'due-soon') {
-        const daysLeft = Math.abs(daysFromNow(dateVal) || 0)
-        if (daysLeft <= 1) return { label: 'High', variant: 'destructive' }
-        return { label: 'Low', variant: 'outline' }
-      }
-      if (type === 'request') {
-        const waited = daysFromNow(dateVal) || 0
-        if (waited > 7) return { label: 'High', variant: 'destructive' }
-        if (waited > 3) return { label: 'Medium', variant: 'warning' }
-        return { label: 'Low', variant: 'outline' }
-      }
-      if (type === 'missing') return { label: 'High', variant: 'destructive' }
-      return { label: 'Low', variant: 'outline' }
-    }
-
-    // Unified attention items
-    const attentionItems = computed(() => {
-      const items = []
-
-      overdueItems.value.forEach(r => {
-        const p = getPriority('overdue', r.returnDate)
-        items.push({
-          type: 'Overdue Return', typeShort: 'Overdue',
-          typeVariant: 'outline',
-          name: r.itemName, user: r.borrowerName || r.borrowerID,
-          hasOverdue: false,
-          status: 'Overdue', statusVariant: 'destructive',
-          date: r.returnDate, dateLabel: daysFromNow(r.returnDate) + 'd overdue',
-          priority: p.label, priorityVariant: p.variant,
-          id: r.id, actionType: 'view-lent',
-          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
-        })
-      })
-
-      dueSoonItems.value.forEach(r => {
-        const p = getPriority('due-soon', r.returnDate)
-        items.push({
-          type: 'Due Soon', typeShort: 'Due Soon',
-          typeVariant: 'outline',
-          name: r.itemName, user: r.borrowerName || r.borrowerID,
-          hasOverdue: false,
-          status: 'Due Soon', statusVariant: 'warning',
-          date: r.returnDate, dateLabel: Math.abs(daysFromNow(r.returnDate)) + 'd left',
-          priority: p.label, priorityVariant: p.variant,
-          id: r.id, actionType: 'view-lent',
-          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
-        })
-      })
-
-      pendingRequests.value.forEach(r => {
-        const p = getPriority('request', r.requestDate)
-        items.push({
-          type: r.status === 'Pending' ? 'Pending Request' : 'Pending Checkout',
-          typeShort: r.status === 'Pending' ? 'Request' : 'Checkout',
-          typeVariant: 'outline',
-          name: r.itemName, user: r.borrowerName || r.borrowerID,
-          hasOverdue: overdueBorrowerIDs.value.has(r.borrowerID),
-          status: r.status === 'Pending' ? 'Pending' : 'Checkout', statusVariant: r.status === 'Pending' ? 'warning' : 'info',
-          date: r.requestDate, dateLabel: waitingTime(r.requestDate),
-          priority: p.label, priorityVariant: p.variant,
-          id: r.id, actionType: r.status === 'Pending' ? 'approve' : 'checkout',
-          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
-        })
-      })
-
-      allItems.value.filter(i => i.status === 'Missing').slice(0, 10).forEach(item => {
-        const p = getPriority('missing')
-        items.push({
-          type: 'Missing Item', typeShort: 'Missing',
-          typeVariant: 'outline',
-          name: item.name || item.itemName, user: item.currentBorrowerName || '—',
-          hasOverdue: false,
-          status: 'Missing', statusVariant: 'destructive',
-          date: null, dateLabel: '—',
-          priority: p.label, priorityVariant: p.variant,
-          id: item.id, actionType: 'view-item',
-          _sortOrder: p.label === 'Critical' ? 0 : p.label === 'High' ? 1 : p.label === 'Medium' ? 2 : 3
-        })
-      })
-
-      warrantyExpiredItems.value.slice(0, 5).forEach(item => {
-        items.push({
-          type: 'Warranty Expired', typeShort: 'Warranty',
-          typeVariant: 'outline',
-          name: item.name || item.itemName, user: item.supplier || '—',
-          hasOverdue: false,
-          status: 'Expired', statusVariant: 'outline',
-          date: item.warrantyEnd, dateLabel: formatDate(item.warrantyEnd),
-          priority: 'Low', priorityVariant: 'outline',
-          id: item.id, actionType: 'view-item',
-          _sortOrder: 3
-        })
-      })
-
-      items.sort((a, b) => a._sortOrder - b._sortOrder)
-      return items
-    })
-
-    // Attention filter tabs
     const attentionFilterTabs = computed(() => [
-      { key: 'all', label: 'All', count: attentionItems.value.length },
-      { key: 'returns', label: 'Returns', count: overdueItems.value.length + dueSoonItems.value.length },
-      { key: 'requests', label: 'Requests', count: pendingRequests.value.length },
-      { key: 'inventory', label: 'Inventory', count: allItems.value.filter(i => i.status === 'Missing').length + warrantyExpiredItems.value.length }
+      { key: 'all', label: 'All', count: attentionCounts.value.tabs.all || 0 },
+      { key: 'returns', label: 'Returns', count: attentionCounts.value.tabs.returns || 0 },
+      { key: 'requests', label: 'Requests', count: attentionCounts.value.tabs.requests || 0 },
+      { key: 'inventory', label: 'Inventory', count: attentionCounts.value.tabs.inventory || 0 }
     ])
 
-    const filteredAttentionItems = computed(() => {
-      if (attentionActiveTab.value === 'all') return attentionItems.value
-      if (attentionActiveTab.value === 'returns') return attentionItems.value.filter(i => i.type === 'Overdue Return' || i.type === 'Due Soon')
-      if (attentionActiveTab.value === 'requests') return attentionItems.value.filter(i => i.type === 'Pending Request' || i.type === 'Pending Checkout')
-      if (attentionActiveTab.value === 'inventory') return attentionItems.value.filter(i => i.type === 'Missing Item' || i.type === 'Warranty Expired')
-      return attentionItems.value
-    })
-
-    // Apply toolbar filters on top of tab filter
-    const finalFilteredItems = computed(() => {
-      let items = filteredAttentionItems.value
-      if (filterPriority.value) {
-        items = items.filter(i => i.priority === filterPriority.value)
-      }
-      if (filterStatus.value) {
-        items = items.filter(i => i.status === filterStatus.value)
-      }
-      return items
-    })
-
-    // Pagination — uses finalFilteredItems
-    const attentionTotalPages = computed(() => Math.max(1, Math.ceil(finalFilteredItems.value.length / attentionPageSize)))
-    const paginatedAttentionItems = computed(() => {
-      const start = (attentionPage.value - 1) * attentionPageSize
-      return finalFilteredItems.value.slice(start, start + attentionPageSize)
-    })
     const attentionVisiblePages = computed(() => {
       const pages = []
       const total = attentionTotalPages.value
@@ -965,19 +832,29 @@ export default {
       return pages
     })
 
+    const attentionPageStart = computed(() => {
+      if (attentionTotal.value === 0) return 0
+      return (attentionPage.value - 1) * attentionPageSize.value + 1
+    })
+
+    const attentionPageEnd = computed(() => {
+      if (attentionTotal.value === 0) return 0
+      return Math.min(attentionPage.value * attentionPageSize.value, attentionTotal.value)
+    })
+
     // Selection
     const isAllPageSelected = computed(() => {
-      if (paginatedAttentionItems.value.length === 0) return false
-      return paginatedAttentionItems.value.every(r => selectedRows.has(r.type + '-' + r.id))
+      if (attentionRows.value.length === 0) return false
+      return attentionRows.value.every(r => selectedRows.has(r.type + '-' + r.id))
     })
     const isSomePageSelected = computed(() => {
-      return paginatedAttentionItems.value.some(r => selectedRows.has(r.type + '-' + r.id))
+      return attentionRows.value.some(r => selectedRows.has(r.type + '-' + r.id))
     })
     const toggleSelectAll = () => {
       if (isAllPageSelected.value) {
-        paginatedAttentionItems.value.forEach(r => selectedRows.delete(r.type + '-' + r.id))
+        attentionRows.value.forEach(r => selectedRows.delete(r.type + '-' + r.id))
       } else {
-        paginatedAttentionItems.value.forEach(r => selectedRows.add(r.type + '-' + r.id))
+        attentionRows.value.forEach(r => selectedRows.add(r.type + '-' + r.id))
       }
     }
     const toggleRow = (rowKey) => {
@@ -1115,6 +992,46 @@ export default {
     }
 
     // === Data Loading ===
+    const loadAttentionQueue = async () => {
+      if (user.value?.role === 'user') return
+
+      const requestId = ++latestAttentionQueueRequestId
+      const requestedPage = attentionPage.value
+
+      try {
+        const queueData = await statsService.getDashboardQueue({
+          tab: attentionActiveTab.value,
+          page: requestedPage,
+          pageSize: attentionPageSize.value,
+          status: filterStatus.value,
+          priority: filterPriority.value,
+          sortBy: attentionSortBy.value,
+          sortOrder: attentionSortOrder.value
+        })
+
+        if (requestId !== latestAttentionQueueRequestId) return
+
+        attentionRows.value = queueData.items || []
+        attentionTotal.value = queueData.total || 0
+        attentionTotalPages.value = Math.max(1, queueData.totalPages || 1)
+        attentionCounts.value = normalizeAttentionCounts(queueData.counts || {})
+
+        const responsePage = Number(queueData.page) || requestedPage
+        const correctedPage = Math.min(Math.max(requestedPage, 1), attentionTotalPages.value)
+        if (responsePage !== attentionPage.value && responsePage === correctedPage) {
+          skipNextAttentionPageWatch = true
+          attentionPage.value = responsePage
+        }
+      } catch (e) {
+        if (requestId !== latestAttentionQueueRequestId) return
+        console.error('Failed to load dashboard queue:', e)
+        attentionRows.value = []
+        attentionTotal.value = 0
+        attentionTotalPages.value = 1
+        attentionCounts.value = createEmptyAttentionCounts()
+      }
+    }
+
     const loadDashboardData = async () => {
       if (user.value?.role !== 'user') {
         try {
@@ -1124,11 +1041,15 @@ export default {
             availableItems: statsData.availableItems || 0,
             lentOutItems: statsData.lentOutItems || 0,
             missingItems: statsData.missingItems || 0,
+            notAvailableItems: statsData.notAvailableItems || 0,
+            transferredItems: statsData.transferredItems || 0,
             disposedItems: statsData.disposedItems || 0,
             pendingRequests: statsData.pendingRequests || 0,
             returnedRequests: statsData.returnedRequests || 0,
             approvedRequests: statsData.approvedRequests || 0,
-            rejectedRequests: statsData.rejectedRequests || 0
+            rejectedRequests: statsData.rejectedRequests || 0,
+            warrantyExpiredItems: statsData.warrantyExpiredItems || 0,
+            warrantyExpiringSoonItems: statsData.warrantyExpiringSoonItems || 0
           }
         } catch (e) { console.error('Failed to load stats:', e) }
       }
@@ -1139,25 +1060,7 @@ export default {
           recentLogs.value = logs
         } catch (e) { console.error('Failed to load logs:', e) }
 
-        try {
-          const { items } = await inventoryService.getAllItems({ pageSize: 5000 })
-          allItems.value = items
-        } catch (e) { console.error('Failed to load items:', e) }
-
-        try {
-          const { requests: approved } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
-          allApprovedRequests.value = approved
-        } catch (e) { console.error('Failed to load approved requests:', e) }
-
-        try {
-          const pending = await borrowingService.getPendingRequests().then(r => r.requests || [])
-          pendingRequests.value = pending
-        } catch (e) { console.error('Failed to load pending requests:', e) }
-
-        try {
-          const count = await borrowingService.getTopLevelPendingCount()
-          pendingRequestsCount.value = count
-        } catch (e) { console.error('Failed to load pending count:', e) }
+        await loadAttentionQueue()
       }
 
       try {
@@ -1182,19 +1085,41 @@ export default {
       } catch (e) { console.error('Failed to load user borrows:', e) }
     }
 
+    watch(
+      [attentionActiveTab, filterPriority, filterStatus, attentionPageSize, attentionSortBy, attentionSortOrder],
+      async () => {
+        if (user.value?.role === 'user') return
+        selectedRows.clear()
+        if (attentionPage.value !== 1) {
+          attentionPage.value = 1
+          return
+        }
+        await loadAttentionQueue()
+      }
+    )
+
+    watch(attentionPage, async () => {
+      if (user.value?.role === 'user') return
+      if (skipNextAttentionPageWatch) {
+        skipNextAttentionPageWatch = false
+        return
+      }
+      selectedRows.clear()
+      await loadAttentionQueue()
+    })
+
     onMounted(() => loadDashboardData())
 
     return {
-      user, stats, recentLogs, filteredLogs, myBorrows, allItems,
-      pendingRequests, pendingRequestsCount, overdueItems, dueSoonItems,
-      warrantyExpiredItems, warrantyExpiringSoonItems, todayLabel,
+      user, stats, recentLogs, filteredLogs, myBorrows,
+      pendingRequestsCount, overdueCount, dueSoonCount, todayLabel,
       summaryText, dueTodayCount, pendingPureCount, pendingCheckoutCount,
       longWaitCount, notAvailableCount, transferredCount,
       warrantyAlertCount, availabilityRate,
-      inventoryStatusBars, attentionItems, filteredAttentionItems,
-      finalFilteredItems, attentionActiveTab, attentionFilterTabs,
+      inventoryStatusBars, attentionRows, attentionTotal, attentionCounts,
+      attentionActiveTab, attentionFilterTabs,
       attentionPage, attentionPageSize, attentionTotalPages,
-      paginatedAttentionItems, attentionVisiblePages,
+      attentionVisiblePages, attentionPageStart, attentionPageEnd,
       selectedRows, isAllPageSelected, isSomePageSelected,
       toggleSelectAll, toggleRow,
       bulkApproveSelected, bulkRejectSelected,
@@ -1206,8 +1131,8 @@ export default {
       confirmInlineApprove, cancelInlineApprove,
       confirmInlineReject, cancelInlineReject,
       handleInlineCheckout, handleTeacherCheckout,
-      formatDate, formatDateTime, getStatusColor, daysFromNow, waitingTime,
-      overdueBorrowerIDs, relativeTime, getLogVariant, getLogIcon, formatAction,
+      formatDate, waitingTime,
+      relativeTime, getLogVariant, getLogIcon, formatAction,
       teacherOwnedItems, teacherPendingCount, teacherPendingRequests,
       teacherCheckedOutCount, teacherActiveTab, teacherAttentionTabs, teacherActiveTabEmpty,
     }
