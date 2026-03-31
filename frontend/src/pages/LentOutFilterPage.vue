@@ -1,199 +1,204 @@
 ﻿<template>
   <div class="page-container">
-    <div class="page-header">
-      <h2 class="page-title">Checked-out items</h2>
-      <div class="flex gap-2 flex-wrap">
-        <button @click="showFilterPanel = !showFilterPanel" class="btn btn-ghost">
-          {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
-        </button>
-        <button @click="exportFiltered" class="btn">Export to Excel</button>
-        <button
-          v-if="selectedReturnIds.length > 0"
-          @click="showBulkReturnModal = true"
-          class="btn btn-outline-danger"
-        >
-          Return Bulk ({{ selectedReturnIds.length }})
-        </button>
-      </div>
-    </div>
+    <ModulePageHeader title="Checked Out Items" :subtitle="checkedOutSummaryText">
+      <Button variant="outline" size="sm" @click="showFilterPanel = !showFilterPanel">
+        {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
+      </Button>
+      <Button size="sm" @click="exportFiltered">Export to Excel</Button>
+      <Button
+        v-if="selectedReturnIds.length > 0"
+        variant="destructive"
+        size="sm"
+        @click="showBulkReturnModal = true"
+      >
+        Return Bulk ({{ selectedReturnIds.length }})
+      </Button>
+    </ModulePageHeader>
 
-    <!-- Active status filter banner -->
-    <div v-if="activeStatusFilter" class="mb-4 p-3 rounded-lg flex items-center justify-between" style="background:var(--filter-bg);border:1px solid var(--filter-border)">
-      <span class="text-sm font-semibold">
-        Showing: <span :style="`color:${activeStatusFilter === 'overdue' ? 'var(--danger)' : 'var(--warning)'}`">{{ activeStatusFilter === 'overdue' ? 'Overdue returns' : 'Due within 7 days' }}</span>
+    <Card v-if="activeStatusFilter" class="checked-banner">
+      <span class="checked-banner-text">
+        Showing:
+        <span :class="activeStatusFilter === 'overdue' ? 'checked-banner-overdue' : 'checked-banner-soon'">
+          {{ activeStatusFilter === 'overdue' ? 'Overdue returns' : 'Due within 7 days' }}
+        </span>
       </span>
-      <button @click="activeStatusFilter = ''" class="text-sm font-medium" style="color:var(--accent)">Clear filter ×</button>
-    </div>
+      <Button variant="ghost" size="sm" @click="activeStatusFilter = ''">Clear filter</Button>
+    </Card>
 
-    <!-- Comprehensive Search Filter Panel -->
-    <div v-if="showFilterPanel" class="filter-panel">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="filter-panel-title">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <!-- ID (text) -->
+    <ModuleFilterPanel v-if="showFilterPanel" @clear="clearAllFilters">
+      <div class="checked-filter-grid">
         <div>
           <label class="filter-label">Item ID</label>
-          <input v-model="searchFilters.id" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
+          <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" />
         </div>
-        <!-- Name (text) -->
         <div>
           <label class="filter-label">Name</label>
-          <input v-model="searchFilters.name" type="text" class="form-input text-sm" placeholder="Search name..." />
+          <Input v-model="searchFilters.name" type="text" placeholder="Search name..." />
         </div>
-        <!-- Category (select) -->
         <div>
           <label class="filter-label">Category</label>
-          <select v-model="searchFilters.category" class="form-select text-sm">
+          <Select v-model="searchFilters.category">
             <option value="">All Categories</option>
             <option v-for="c in uniqueCategories" :key="c" :value="c">{{ c }}</option>
-          </select>
+          </Select>
         </div>
-        <!-- Vendor (select) -->
         <div>
           <label class="filter-label">Vendor</label>
-          <select v-model="searchFilters.vendor" class="form-select text-sm">
+          <Select v-model="searchFilters.vendor">
             <option value="">All Vendors</option>
             <option v-for="v in vendors" :key="v" :value="v">{{ v }}</option>
-          </select>
+          </Select>
         </div>
-        <!-- Location (select) -->
         <div>
           <label class="filter-label">Location</label>
-          <select v-model="searchFilters.location" class="form-select text-sm">
+          <Select v-model="searchFilters.location">
             <option value="">All Locations</option>
             <option v-for="l in uniqueLocations" :key="l" :value="l">{{ l }}</option>
-          </select>
+          </Select>
         </div>
-        <!-- Type (select) -->
         <div>
           <label class="filter-label">Type</label>
-          <select v-model="searchFilters.type" class="form-select text-sm">
+          <Select v-model="searchFilters.type">
             <option value="">All Types</option>
             <option value="Component">Component</option>
             <option value="Hardware">Hardware</option>
             <option value="Software">Software</option>
-          </select>
+          </Select>
         </div>
-        <!-- Borrower ID (text) -->
         <div>
           <label class="filter-label">Borrower ID</label>
-          <input v-model="searchFilters.borrowerId" type="text" class="form-input text-sm" placeholder="e.g. S00123456" />
+          <Input v-model="searchFilters.borrowerId" type="text" placeholder="e.g. S00123456" />
         </div>
-        <!-- Borrower Name (text) -->
         <div>
           <label class="filter-label">Borrower Name</label>
-          <input v-model="searchFilters.borrowerName" type="text" class="form-input text-sm" placeholder="Search borrower..." />
+          <Input v-model="searchFilters.borrowerName" type="text" placeholder="Search borrower..." />
         </div>
-        <!-- Year (select - keep for convenience) -->
         <div>
           <label class="filter-label">Year</label>
-          <select v-model="searchFilters.year" class="form-select text-sm">
+          <Select v-model="searchFilters.year">
             <option value="">All Years</option>
             <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-          </select>
+          </Select>
         </div>
       </div>
-    </div>
+    </ModuleFilterPanel>
 
-    <div v-if="groupedItems.length === 0" class="empty-state">
-      No checked-out items match your filters
-    </div>
-    <div v-else class="table-responsive">
-      <table class="table-striped theme-table">
-        <thead>
-          <tr>
-            <th class="text-center" style="width:3rem">
-              <input
-                type="checkbox"
-                :checked="allReturnSelected"
-                @change="toggleSelectAllReturn"
-                class="form-checkbox"
-              />
-            </th>
-            <th>ID</th>
-            <th>Name</th>
-            <th class="cursor-pointer select-none" @click="toggleSort('category')">
-              Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('currentBorrower')">
-              Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('borrowerName')">
-              Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
-              Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('location')">
-              Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
-            </th>
-            <th class="text-center">Return</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="group in paginatedGroups" :key="group.parent.id">
-            <!-- Parent / standalone item row -->
-            <tr class="row-parent">
-              <td class="text-center">
-                <input
-                  type="checkbox"
-                  :checked="selectedReturnIds.includes(group.parent.id)"
-                  @change="e => toggleReturnItem(group.parent.id, e.target.checked)"
-                  class="form-checkbox"
+    <Card class="checked-table-card">
+      <div class="table-responsive">
+        <table class="table-striped theme-table">
+          <thead>
+            <tr>
+              <th class="text-center" style="width:3rem">
+                <Checkbox
+                  :checked="allReturnSelected"
+                  :indeterminate="selectedReturnIds.length > 0 && !allReturnSelected"
+                  @update:checked="toggleSelectAllReturn"
                 />
-              </td>
-              <td style="font-weight:600">{{ group.parent.id }}</td>
-              <td style="font-weight:600">
-                {{ group.parent.name }}
-                <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
-                  (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
-                </span>
-              </td>
-              <td>{{ group.parent.category }}</td>
-              <td>{{ group.parent.currentBorrower }}</td>
-              <td>{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
-              <td>{{ group.parent.supplier }}</td>
-              <td>{{ group.parent.location }}</td>
-              <td class="text-center">
-                <button
-                  @click="handleReturnItem(group.parent)"
-                  class="btn btn-outline-success text-sm"
-                >
-                  Return{{ group.children.length > 0 ? ' All' : '' }}
-                </button>
-                <button
-                  v-if="group.parent.currentBorrower"
-                  @click="openEmailForBorrower(group.parent)"
-                  class="btn btn-ghost text-sm ml-1"
-                  title="Send email to borrower"
-                >
-                  ✉
-                </button>
-              </td>
+              </th>
+              <th>ID</th>
+              <th>Name</th>
+              <th class="cursor-pointer select-none" @click="toggleSort('category')">
+                Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
+              </th>
+              <th class="cursor-pointer select-none" @click="toggleSort('currentBorrower')">
+                Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
+              </th>
+              <th class="cursor-pointer select-none" @click="toggleSort('borrowerName')">
+                Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
+              </th>
+              <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
+                Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
+              </th>
+              <th class="cursor-pointer select-none" @click="toggleSort('location')">
+                Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
+              </th>
+              <th class="text-center">Return</th>
             </tr>
-            <!-- Child component rows -->
-            <tr v-for="child in group.children" :key="child.id" class="row-child">
-              <td></td>
-              <td class="pl-6 text-sm">↳ {{ child.id }}</td>
-              <td class="pl-6 text-sm">{{ child.name }}</td>
-              <td class="text-sm">{{ child.category }}</td>
-              <td class="text-sm">{{ child.currentBorrower }}</td>
-              <td class="text-sm">{{ getBorrowerName(child.currentBorrower, child) }}</td>
-              <td class="text-sm">{{ child.supplier }}</td>
-              <td class="text-sm">{{ child.location }}</td>
-              <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
+          </thead>
+
+          <tbody>
+            <template v-if="showLentSkeleton">
+              <tr v-for="idx in lentSkeletonRows" :key="'lent-skel-' + idx" class="checked-row-skeleton">
+                <td class="text-center"><span class="checked-skeleton-box"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-id"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-name"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
+                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
+                <td class="text-center"><span class="checked-skeleton-box"></span></td>
+              </tr>
+            </template>
+
+            <tr v-else-if="lentErrorMessage" class="checked-empty-row">
+              <td colspan="9" class="checked-empty-cell">{{ lentErrorMessage }}</td>
             </tr>
-          </template>
-        </tbody>
-      </table>
-      <PaginationControl
+
+            <tr v-else-if="groupedItems.length === 0" class="checked-empty-row">
+              <td colspan="9" class="checked-empty-cell">No checked-out items match your filters</td>
+            </tr>
+
+            <template v-else v-for="group in paginatedGroups" :key="group.parent.id">
+              <tr class="row-parent">
+                <td class="text-center">
+                  <Checkbox
+                    :checked="selectedReturnIds.includes(group.parent.id)"
+                    @update:checked="toggleReturnItem(group.parent.id, $event)"
+                  />
+                </td>
+                <td class="checked-parent-id">{{ group.parent.id }}</td>
+                <td class="checked-parent-name">
+                  {{ group.parent.name }}
+                  <span v-if="group.children.length > 0" class="checked-child-count">
+                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
+                  </span>
+                </td>
+                <td>{{ group.parent.category }}</td>
+                <td>{{ group.parent.currentBorrower }}</td>
+                <td>{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
+                <td>{{ group.parent.supplier }}</td>
+                <td>{{ group.parent.location }}</td>
+                <td class="text-center">
+                  <Button variant="success" size="sm" @click="handleReturnItem(group.parent)">
+                    Return{{ group.children.length > 0 ? ' All' : '' }}
+                  </Button>
+                  <Button
+                    v-if="group.parent.currentBorrower"
+                    variant="ghost"
+                    size="icon"
+                    class="ml-1"
+                    @click="openEmailForBorrower(group.parent)"
+                    title="Send email to borrower"
+                  >
+                    ✉
+                  </Button>
+                </td>
+              </tr>
+
+              <tr v-for="child in group.children" :key="child.id" class="row-child">
+                <td></td>
+                <td class="checked-child-id">↳ {{ child.id }}</td>
+                <td class="checked-child-name">{{ child.name }}</td>
+                <td>{{ child.category }}</td>
+                <td>{{ child.currentBorrower }}</td>
+                <td>{{ getBorrowerName(child.currentBorrower, child) }}</td>
+                <td>{{ child.supplier }}</td>
+                <td>{{ child.location }}</td>
+                <td class="checked-child-return">Auto with parent</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <TablePaginationBar
         v-model:currentPage="currentPage"
-        :totalItems="totalItems"
-        :pageSize="pageSize"
+        v-model:pageSize="pageSize"
+        :total-items="totalItems"
+        :disabled="showLentSkeleton"
       />
-    </div>
+    </Card>
 
     <!-- Bulk Return Modal -->
     <div v-if="showBulkReturnModal" class="modal-overlay">
@@ -218,8 +223,8 @@
           <textarea v-model="bulkReturnNotes" class="form-textarea" style="width:100%;height:80px;" placeholder="Add any notes about the returns..." />
         </div>
         <div style="display:flex;gap:8px;">
-          <button @click="handleBulkReturn" class="btn btn-outline-success" style="flex:1;">Confirm Return</button>
-          <button @click="showBulkReturnModal = false" class="btn btn-outline-secondary" style="flex:1;">Cancel</button>
+          <Button variant="success" class="flex-1" @click="handleBulkReturn">Confirm Return</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkReturnModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -243,8 +248,8 @@
           <input v-model="otherLocation" type="text" class="form-input" style="width:100%;" placeholder="Type location name..." @keyup.enter="saveLocation" />
         </div>
         <div style="display:flex;gap:8px;">
-          <button @click="saveLocation" class="btn btn-outline-success" style="flex:1;">Save</button>
-          <button @click="showLocationCard = false; returnedItem = null" class="btn btn-outline-secondary" style="flex:1;">Skip</button>
+          <Button variant="success" class="flex-1" @click="saveLocation">Save</Button>
+          <Button variant="outline" class="flex-1" @click="showLocationCard = false; returnedItem = null">Skip</Button>
         </div>
       </div>
     </div>
@@ -260,14 +265,33 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
-import { formatDate, exportToExcel, getUniqueVendors, filterByYear, filterByVendor, isOverdue, isDueSoon, daysFromNow } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { exportToExcel, getUniqueVendors } from '../utils/helpers'
 import SendEmailModal from '../components/SendEmailModal.vue'
+import {
+  UiButton as Button,
+  UiCard as Card,
+  UiCheckbox as Checkbox,
+  UiInput as Input,
+  UiModuleFilterPanel as ModuleFilterPanel,
+  UiModulePageHeader as ModulePageHeader,
+  UiSelect as Select,
+  UiTablePaginationBar as TablePaginationBar,
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl, SendEmailModal },
+  components: {
+    Button,
+    Card,
+    Checkbox,
+    Input,
+    ModuleFilterPanel,
+    ModulePageHeader,
+    Select,
+    SendEmailModal,
+    TablePaginationBar,
+  },
   props: {
     pageParams: { type: Object, default: () => ({}) }
   },
@@ -279,8 +303,12 @@ export default {
     const vendors = ref([])
     const years = ref([])
     const currentPage = ref(1)
-    const totalItems = ref(0);
-    const pageSize = 10
+    const totalItems = ref(0)
+    const pageSize = ref(10)
+    const isLentLoaded = ref(false)
+    const isLentInitialLoading = ref(false)
+    const isLentFetching = ref(false)
+    const lentErrorMessage = ref('')
     const showLocationCard = ref(false)
     const returnedItem = ref(null)
     const newLocation = ref('')
@@ -294,6 +322,8 @@ export default {
     const showBulkReturnModal = ref(false)
     const bulkReturnCondition = ref('Good')
     const bulkReturnNotes = ref('')
+    let searchDebounceTimer = null
+    let loadRequestToken = 0
 
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
@@ -314,6 +344,25 @@ export default {
       return parentCount > 0 && paginatedGroups.value.every(g => selectedReturnIds.value.includes(g.parent.id))
     })
 
+    const checkedOutSummaryText = computed(() => {
+      if (!isLentLoaded.value && isLentInitialLoading.value) {
+        return 'Loading checked-out items...'
+      }
+      if (totalItems.value === 0) {
+        return 'No checked-out items'
+      }
+      return `${totalItems.value} checked-out item${totalItems.value === 1 ? '' : 's'}`
+    })
+
+    const showLentSkeleton = computed(() => {
+      return !isLentLoaded.value || isLentInitialLoading.value || isLentFetching.value
+    })
+
+    const lentSkeletonRows = computed(() => {
+      const rows = Number(pageSize.value) || 10
+      return Math.max(4, Math.min(rows, 8))
+    })
+
     const clearAllFilters = () => {
       searchFilters.value = {
         id: '', name: '', category: '', vendor: '', location: '',
@@ -324,11 +373,16 @@ export default {
       yearFilter.value = ''
       typeFilter.value = ''
       activeStatusFilter.value = ''
+      currentPage.value = 1
     }
 
-    const toggleSelectAllReturn = (event) => {
+    const toggleSelectAllReturn = (checkedOrEvent) => {
+      const shouldSelect = typeof checkedOrEvent === 'boolean'
+        ? checkedOrEvent
+        : Boolean(checkedOrEvent?.target?.checked)
       const pageIds = paginatedGroups.value.map(g => g.parent.id)
-      if (event.target.checked) {
+
+      if (shouldSelect) {
         const newSet = new Set([...selectedReturnIds.value, ...pageIds])
         selectedReturnIds.value = Array.from(newSet)
       } else {
@@ -345,7 +399,6 @@ export default {
         selectedReturnIds.value = selectedReturnIds.value.filter(id => id !== itemId)
       }
     }
-    let searchDebounceTimer = null
 
     const toggleSort = (field) => {
       if (sortField.value === field) {
@@ -392,7 +445,7 @@ export default {
 
     const buildQueryParams = () => {
       const f = searchFilters.value
-      const params = { page: currentPage.value, pageSize: pageSize }
+      const params = { page: currentPage.value, pageSize: pageSize.value }
       if (f.category) params.category = f.category
       if (f.location) params.location = f.location
       if (f.type || typeFilter.value) params.type = f.type || typeFilter.value
@@ -411,34 +464,86 @@ export default {
     }
 
     const loadLentOutItems = async () => {
+      const requestToken = ++loadRequestToken
+
+      if (!isLentLoaded.value) {
+        isLentInitialLoading.value = true
+      } else {
+        isLentFetching.value = true
+      }
+      lentErrorMessage.value = ''
+
       try {
         const params = buildQueryParams()
         const result = await inventoryService.getLentOutItems(params)
-        items.value = result.items
-        totalItems.value = result.total || 0
-        vendors.value = getUniqueVendors(result.items)
-        years.value = [...new Set(result.items.map(item => {
+        const reqResult = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
+
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
+        const pageItems = Array.isArray(result?.items) ? result.items : []
+        items.value = pageItems
+        totalItems.value = Number(result?.total ?? 0)
+        vendors.value = getUniqueVendors(pageItems)
+        years.value = [...new Set(pageItems.map(item => {
           if (item.warrantyStartDate) return item.warrantyStartDate.split('-')[0]
           return null
         }).filter(Boolean))].sort().reverse()
-        const reqResult = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
-        allRequests.value = reqResult.requests || []
+        allRequests.value = Array.isArray(reqResult?.requests) ? reqResult.requests : []
       } catch (e) {
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
         console.error('Failed to load lent-out items:', e)
+
+        items.value = []
+        totalItems.value = 0
+        allRequests.value = []
+        lentErrorMessage.value = 'Failed to load checked-out items. Please try again.'
+      } finally {
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
+        isLentInitialLoading.value = false
+        isLentFetching.value = false
+        isLentLoaded.value = true
       }
     }
 
     // Watch select filters - reload from server immediately
     const selectFields = computed(() => {
       const f = searchFilters.value
-      return [f.category, f.vendor, f.location, f.type, f.year, f.warrantyEnd]
+      return [f.category, f.vendor, f.location, f.type, f.year, vendorFilter.value, yearFilter.value, typeFilter.value]
     })
-    watch([selectFields, vendorFilter, yearFilter, typeFilter, activeStatusFilter], () => {
-      currentPage.value = 1
+
+    watch(selectFields, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
       loadLentOutItems()
     })
 
-    watch(currentPage, () => {
+    watch(activeStatusFilter, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      loadLentOutItems()
+    })
+
+    watch(() => pageSize.value, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      loadLentOutItems()
+    })
+
+    watch([() => currentPage.value, () => sortField.value, () => sortDir.value], () => {
       loadLentOutItems()
     })
 
@@ -448,9 +553,12 @@ export default {
       return [f.id, f.name, f.borrowerId, f.borrowerName]
     })
     watch(textFields, () => {
-      currentPage.value = 1
       clearTimeout(searchDebounceTimer)
       searchDebounceTimer = setTimeout(() => {
+        if (currentPage.value !== 1) {
+          currentPage.value = 1
+          return
+        }
         loadLentOutItems()
       }, 400)
     })
@@ -610,6 +718,10 @@ export default {
       loadLentOutItems()
     })
 
+    onUnmounted(() => {
+      clearTimeout(searchDebounceTimer)
+    })
+
     return {
       items,
       totalItems,
@@ -619,6 +731,10 @@ export default {
       years,
       currentPage,
       pageSize,
+      checkedOutSummaryText,
+      showLentSkeleton,
+      lentSkeletonRows,
+      lentErrorMessage,
       groupedItems,
       sortedGroups,
       paginatedGroups,
@@ -642,9 +758,6 @@ export default {
       otherLocation,
       locationOptions,
       exportFiltered,
-      formatDate,
-      isOverdue,
-      daysFromNow,
       selectedReturnIds,
       showBulkReturnModal,
       bulkReturnCondition,
@@ -662,14 +775,145 @@ export default {
 </script>
 
 <style scoped>
+.checked-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--filter-border);
+  background: var(--filter-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.checked-banner-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.checked-banner-overdue {
+  color: var(--danger);
+}
+
+.checked-banner-soon {
+  color: var(--warning);
+}
+
+.checked-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .checked-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .checked-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.checked-table-card {
+  padding: 0;
+}
+
+.checked-empty-row .checked-empty-cell {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+.checked-parent-id,
+.checked-parent-name {
+  font-weight: 600;
+}
+
+.checked-child-count {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.checked-child-id,
+.checked-child-name {
+  padding-left: 1.5rem;
+  font-size: 0.85rem;
+}
+
+.checked-child-return {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.checked-row-skeleton td {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.checked-skeleton-line {
+  display: inline-block;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--table-header) 0%, var(--filter-bg) 50%, var(--table-header) 100%);
+  background-size: 200% 100%;
+  animation: checked-skeleton-wave 1.2s linear infinite;
+}
+
+.checked-skeleton-box {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, var(--table-header) 0%, var(--filter-bg) 50%, var(--table-header) 100%);
+  background-size: 200% 100%;
+  animation: checked-skeleton-wave 1.2s linear infinite;
+}
+
+.checked-skeleton-id {
+  width: 4.5rem;
+}
+
+.checked-skeleton-name {
+  width: 8rem;
+}
+
+.checked-skeleton-short {
+  width: 5.5rem;
+}
+
+@keyframes checked-skeleton-wave {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .sort-icon {
   display: inline-block;
   width: 14px;
   text-align: center;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted-foreground);
 }
 thead th:hover .sort-icon {
-  color: #1f2937;
+  color: var(--text-primary);
 }
 </style>

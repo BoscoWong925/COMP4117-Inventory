@@ -2,209 +2,202 @@
   <div class="page-container">
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem">
-        <div>
-          <h2 class="page-title">Inventory items</h2>
-          <p class="page-description" v-if="totalItems">{{ totalItems }} items total</p>
-        </div>
-        <div class="flex gap-2 flex-wrap">
-          <button v-if="isAdmin && selectedItemIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
-            Delete ({{ selectedItemIds.length }})
-          </button>
-          <button @click="showFilterPanel = !showFilterPanel" class="btn btn-ghost">
-            {{ showFilterPanel ? 'Hide Filters' : 'Filters' }}
-          </button>
-          <label class="btn btn-ghost cursor-pointer">
-            Import Excel
-            <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
-          </label>
-          <button @click="exportItems" class="btn btn-ghost">Export</button>
-          <button @click="openNewItemForm" class="btn">
-            + Add Item
-          </button>
-        </div>
-      </div>
+      <ModulePageHeader title="Inventory Items" :subtitle="itemsSummaryText">
+        <Button v-if="isAdmin && selectedItemIds.length > 0" variant="destructive" size="sm" @click="showDeleteConfirm = true">
+          Delete ({{ selectedItemIds.length }})
+        </Button>
+        <Button variant="outline" size="sm" @click="showFilterPanel = !showFilterPanel">
+          {{ showFilterPanel ? 'Hide Filters' : 'Filters' }}
+        </Button>
+        <Button as="label" variant="outline" size="sm" class="cursor-pointer">
+          Import Excel
+          <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
+        </Button>
+        <Button variant="outline" size="sm" @click="exportItems">Export</Button>
+        <Button size="sm" @click="openNewItemForm">+ Add Item</Button>
+      </ModulePageHeader>
 
-      <!-- Status Filter Banner -->
-      <div v-if="activeStatusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between" style="background:var(--warning-light);border:1px solid var(--warning)">
-        <span style="color:var(--warning-dark)" class="font-medium text-sm">
+      <Card v-if="activeStatusFilter" class="items-status-banner">
+        <span class="items-status-banner-text">
           Showing: {{ activeStatusFilter === 'warranty-expired' ? 'Warranty Expired' : 'Warranty Expiring Soon' }} items
         </span>
-        <button @click="activeStatusFilter = ''" style="color:var(--warning-dark)" class="hover:underline text-sm font-medium">Clear Filter</button>
-      </div>
+        <Button variant="ghost" size="sm" @click="activeStatusFilter = ''">Clear Filter</Button>
+      </Card>
 
-      <!-- Search Filter Panel -->
-      <div v-if="showFilterPanel" class="filter-panel">
-        <div class="flex justify-between items-center mb-3">
-          <h3 class="filter-panel-title">Search &amp; Filter</h3>
-          <button @click="clearFilters" class="filter-clear-btn">Clear All</button>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          <!-- ID (text) -->
+      <ModuleFilterPanel v-if="showFilterPanel" @clear="clearFilters">
+        <div class="items-filter-grid">
           <div>
             <label class="filter-label">Item ID</label>
-            <input v-model="searchFilters.id" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
+            <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" />
           </div>
-          <!-- Name (text) -->
           <div>
             <label class="filter-label">Name</label>
-            <input v-model="searchFilters.name" type="text" class="form-input text-sm" placeholder="Search name..." />
+            <Input v-model="searchFilters.name" type="text" placeholder="Search name..." />
           </div>
-          <!-- Type (select) -->
           <div>
             <label class="filter-label">Type</label>
-            <select v-model="searchFilters.type" class="form-select text-sm">
+            <Select v-model="searchFilters.type">
               <option value="">All Types</option>
               <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
-            </select>
+            </Select>
           </div>
-          <!-- Category (select) -->
           <div>
             <label class="filter-label">Category</label>
-            <select v-model="searchFilters.category" class="form-select text-sm">
+            <Select v-model="searchFilters.category">
               <option value="">All Categories</option>
               <option v-for="c in mutableCategories.filter(x => x !== 'Other')" :key="c" :value="c">{{ c }}</option>
-            </select>
+            </Select>
           </div>
-          <!-- Status (select) -->
           <div>
             <label class="filter-label">Status</label>
-            <select v-model="searchFilters.status" class="form-select text-sm">
+            <Select v-model="searchFilters.status">
               <option value="">All Statuses</option>
               <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-            </select>
+            </Select>
           </div>
-          <!-- Location (select) -->
           <div>
             <label class="filter-label">Location</label>
-            <select v-model="searchFilters.location" class="form-select text-sm">
+            <Select v-model="searchFilters.location">
               <option value="">All Locations</option>
               <option v-for="l in mutableLocations.filter(x => x !== 'Other')" :key="l" :value="l">{{ l }}</option>
-            </select>
+            </Select>
           </div>
-          <!-- Vendor (select) -->
           <div>
             <label class="filter-label">Vendor</label>
-            <select v-model="searchFilters.vendor" class="form-select text-sm">
+            <Select v-model="searchFilters.vendor">
               <option value="">All Vendors</option>
               <option v-for="v in uniqueVendors" :key="v" :value="v">{{ v }}</option>
-            </select>
+            </Select>
           </div>
-          <!-- Supplier (text) -->
           <div>
             <label class="filter-label">Supplier</label>
-            <input v-model="searchFilters.supplier" type="text" class="form-input text-sm" placeholder="Search supplier..." />
+            <Input v-model="searchFilters.supplier" type="text" placeholder="Search supplier..." />
           </div>
-          <!-- University ID (text) -->
           <div>
             <label class="filter-label">University ID</label>
-            <input v-model="searchFilters.universityID" type="text" class="form-input text-sm" placeholder="Search uni ID..." />
+            <Input v-model="searchFilters.universityID" type="text" placeholder="Search uni ID..." />
           </div>
-          <!-- Warranty End (date) -->
           <div>
             <label class="filter-label">Warranty End</label>
-            <input v-model="searchFilters.warrantyEnd" type="date" class="form-input text-sm" />
+            <Input v-model="searchFilters.warrantyEnd" type="date" />
           </div>
-          <!-- Description (text) -->
           <div>
             <label class="filter-label">Description</label>
-            <input v-model="searchFilters.description" type="text" class="form-input text-sm" placeholder="Search description..." />
+            <Input v-model="searchFilters.description" type="text" placeholder="Search description..." />
           </div>
         </div>
-      </div>
+      </ModuleFilterPanel>
 
-      <!-- Import Results Message -->
-      <div v-if="importMessage" :class="`mb-4 p-4 rounded ${importSuccess ? 'alert-success' : 'border-2 border-[color:var(--danger)]'}`" :style="!importSuccess ? 'background:var(--danger-light);color:var(--danger-dark)' : ''">
-        {{ importMessage }}
-        <button @click="importMessage = ''" class="ml-2 font-bold">&times;</button>
-      </div>
+      <Card v-if="importMessage" class="items-import-alert" :class="{ 'items-import-alert--error': !importSuccess }">
+        <span>{{ importMessage }}</span>
+        <button @click="importMessage = ''" class="items-import-alert-close">&times;</button>
+      </Card>
 
-      <div v-if="items.length === 0" class="empty-state">
-        No items in inventory
-      </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th v-if="isAdmin" style="width:2.5rem;text-align:center">
-                <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
-              </th>
-              <th>ID</th>
-              <th>Name</th>
-              <th class="cursor-pointer select-none" @click="toggleSort('type')">
-                Type <span class="sort-icon">{{ getSortIcon('type') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('status')">
-                Status <span class="sort-icon">{{ getSortIcon('status') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('location')">
-                Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
-                Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
-              </th>
-              <th>Ownership</th>
-              <th class="cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
-                Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
-              </th>
-              <th style="text-align:center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in items" :key="item.id">
-              <td v-if="isAdmin" style="text-align:center">
-                <input type="checkbox" :value="item.id" v-model="selectedItemIds" />
-              </td>
-              <td class="font-medium" style="color:var(--muted-foreground);font-size:0.75rem">{{ item.id }}</td>
-              <td class="font-semibold">{{ item.name }}</td>
-              <td>{{ item.type }}</td>
-              <td>
-                <span :class="['status-badge', getStatusColor(item.status)]">
-                  {{ normalizeItemStatus(item.status) }}
-                </span>
-              </td>
-              <td>{{ item.location }}</td>
-              <td>{{ item.supplier }}</td>
-              <td>
-                <span :class="['badge', item.owner === 'department' ? 'badge-info' : 'badge-muted']">
-                  {{ getOwnerName(item.owner) }}
-                </span>
-              </td>
-              <td>{{ formatDate(item.warrantyEnd) }}</td>
-              <td style="text-align:center">
-                <button
-                  @click="handleEdit(item)"
-                  class="btn btn-ghost" style="padding:0.25rem 0.75rem;min-height:auto;font-size:0.75rem"
-                >
-                  Edit
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl
+      <Card class="items-table-card">
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th v-if="isAdmin" style="width:2.5rem;text-align:center">
+                  <Checkbox
+                    :checked="allSelected"
+                    :indeterminate="selectedItemIds.length > 0 && !allSelected"
+                    @update:checked="toggleSelectAll"
+                  />
+                </th>
+                <th>ID</th>
+                <th>Name</th>
+                <th class="cursor-pointer select-none" @click="toggleSort('type')">
+                  Type <span class="sort-icon">{{ getSortIcon('type') }}</span>
+                </th>
+                <th class="cursor-pointer select-none" @click="toggleSort('status')">
+                  Status <span class="sort-icon">{{ getSortIcon('status') }}</span>
+                </th>
+                <th class="cursor-pointer select-none" @click="toggleSort('location')">
+                  Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
+                </th>
+                <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
+                  Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
+                </th>
+                <th>Ownership</th>
+                <th class="cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
+                  Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
+                </th>
+                <th style="text-align:center">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <template v-if="showItemsSkeleton">
+                <tr v-for="idx in itemSkeletonRows" :key="'item-skel-' + idx" class="items-row-skeleton">
+                  <td v-if="isAdmin" style="text-align:center"><span class="items-skeleton-box"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-id"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-name"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
+                  <td style="text-align:center"><span class="items-skeleton-box"></span></td>
+                </tr>
+              </template>
+
+              <tr v-else-if="itemsErrorMessage" class="items-empty-row">
+                <td :colspan="isAdmin ? 10 : 9" class="items-empty-cell">{{ itemsErrorMessage }}</td>
+              </tr>
+
+              <template v-else-if="items.length > 0">
+                <tr v-for="item in items" :key="item.id">
+                  <td v-if="isAdmin" style="text-align:center">
+                    <Checkbox
+                      :checked="selectedItemIds.includes(item.id)"
+                      @update:checked="toggleItemSelection(item.id, $event)"
+                    />
+                  </td>
+                  <td class="font-medium" style="color:var(--muted-foreground);font-size:0.75rem">{{ item.id }}</td>
+                  <td class="font-semibold">{{ item.name }}</td>
+                  <td>{{ item.type }}</td>
+                  <td><Badge :variant="getItemStatusVariant(item.status)">{{ normalizeItemStatus(item.status) }}</Badge></td>
+                  <td>{{ item.location }}</td>
+                  <td>{{ item.supplier }}</td>
+                  <td><Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge></td>
+                  <td>{{ formatDate(item.warrantyEnd) }}</td>
+                  <td style="text-align:center">
+                    <Button variant="ghost" size="sm" @click="handleEdit(item)">Edit</Button>
+                  </td>
+                </tr>
+              </template>
+
+              <tr v-else class="items-empty-row">
+                <td :colspan="isAdmin ? 10 : 9" class="items-empty-cell">No items in inventory</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <TablePaginationBar
           v-model:currentPage="currentPage"
-          :totalItems="totalItems"
-          :pageSize="pageSize"
+          v-model:pageSize="pageSize"
+          :total-items="totalItems"
+          :disabled="showItemsSkeleton"
         />
-      </div>
+      </Card>
 
-      <!-- Delete Block Modal -->
       <DeleteBlockModal
         :show="showDeleteBlock"
         message="This item is currently in use (lent out) and cannot be deleted. Please return it first."
         @close="showDeleteBlock = false"
       />
 
-      <!-- Bulk Delete Confirmation Modal -->
       <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
         <div class="modal-card max-w-md w-full">
           <h3 class="modal-title">Confirm Delete</h3>
           <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedItemIds.length }}</strong> item(s)?</p>
           <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
           <div class="flex gap-2">
-            <button @click="handleDeleteItems" class="btn btn-outline-danger flex-1">Delete</button>
-            <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+            <Button variant="destructive" class="flex-1" @click="handleDeleteItems">Delete</Button>
+            <Button variant="outline" class="flex-1" @click="showDeleteConfirm = false">Cancel</Button>
           </div>
         </div>
       </div>
@@ -577,10 +570,20 @@ import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
-import { formatDate, getStatusColor, exportToExcel, ITEM_STATUSES, normalizeItemStatus, isWarrantyExpired, isWarrantyExpiringSoon } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
+import {
+  UiBadge as Badge,
+  UiButton as Button,
+  UiCard as Card,
+  UiCheckbox as Checkbox,
+  UiInput as Input,
+  UiModuleFilterPanel as ModuleFilterPanel,
+  UiModulePageHeader as ModulePageHeader,
+  UiSelect as Select,
+  UiTablePaginationBar as TablePaginationBar,
+} from '../components/ui'
 
 const itemTypes = ["Hardware", "Software", "Component"]
 const itemCategories = ["Computer", "Display", "Memory", "Storage", "Peripherals", "Other"]
@@ -626,7 +629,19 @@ const defaultFormData = {
 }
 
 export default {
-  components: { PaginationControl, DropdownWithOther, DeleteBlockModal },
+  components: {
+    Badge,
+    Button,
+    Card,
+    Checkbox,
+    DeleteBlockModal,
+    DropdownWithOther,
+    Input,
+    ModuleFilterPanel,
+    ModulePageHeader,
+    Select,
+    TablePaginationBar,
+  },
   props: {
     pageParams: { type: Object, default: () => ({}) }
   },
@@ -649,8 +664,12 @@ export default {
     const ocrSuccess = ref(false)
     const invoiceFileData = ref(null)
     const currentPage = ref(1)
-    const pageSize = 10
+    const pageSize = ref(10)
     const totalItems = ref(0)
+    const isItemsLoaded = ref(false)
+    const isItemsInitialLoading = ref(false)
+    const isItemsFetching = ref(false)
+    const itemsErrorMessage = ref('')
     const showDeleteBlock = ref(false)
     const selectedItemIds = ref([])
     const showDeleteConfirm = ref(false)
@@ -662,6 +681,7 @@ export default {
     let ocrWorker = null
     let invoiceCameraStream = null
     let searchDebounceTimer = null
+    let loadRequestToken = 0
 
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
@@ -685,6 +705,34 @@ export default {
       return [...new Set(vendors)].sort()
     })
 
+    const itemsSummaryText = computed(() => {
+      if (!isItemsLoaded.value && isItemsInitialLoading.value) {
+        return 'Loading inventory items...'
+      }
+      if (totalItems.value === 0) {
+        return 'No items found'
+      }
+      return `${totalItems.value} item${totalItems.value === 1 ? '' : 's'} total`
+    })
+
+    const showItemsSkeleton = computed(() => {
+      return !isItemsLoaded.value || isItemsInitialLoading.value || isItemsFetching.value
+    })
+
+    const itemSkeletonRows = computed(() => {
+      const rows = Number(pageSize.value) || 10
+      return Math.max(4, Math.min(rows, 8))
+    })
+
+    const getItemStatusVariant = (status) => {
+      const normalized = normalizeItemStatus(status).toLowerCase()
+      if (normalized === 'available') return 'success'
+      if (normalized === 'in-use' || normalized === 'in use') return 'warning'
+      if (normalized === 'missing') return 'destructive'
+      if (normalized === 'dispose' || normalized === 'disposed') return 'secondary'
+      return 'outline'
+    }
+
     const clearFilters = () => {
       searchFilters.value = {
         id: '', name: '', type: '', category: '', status: '',
@@ -692,6 +740,7 @@ export default {
         warrantyEnd: '', description: ''
       }
       activeStatusFilter.value = ''
+      currentPage.value = 1
     }
 
     // Build query params from current filters
@@ -699,7 +748,7 @@ export default {
       const f = searchFilters.value
       const params = {
         page: currentPage.value,
-        pageSize,
+        pageSize: pageSize.value,
       }
       if (sortField.value) {
         params.sortBy = sortField.value
@@ -723,13 +772,43 @@ export default {
     }
 
     const loadItems = async () => {
+      const requestToken = ++loadRequestToken
+
+      if (!isItemsLoaded.value) {
+        isItemsInitialLoading.value = true
+      } else {
+        isItemsFetching.value = true
+      }
+      itemsErrorMessage.value = ''
+
       try {
         const params = buildQueryParams()
         const result = await inventoryService.getAllItems(params)
-        items.value = result.items
-        totalItems.value = result.total
+
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
+        items.value = Array.isArray(result?.items) ? result.items : []
+        totalItems.value = Number(result?.total ?? 0)
       } catch (e) {
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
         console.error('Failed to load items:', e)
+
+        items.value = []
+        totalItems.value = 0
+        itemsErrorMessage.value = 'Failed to load inventory items. Please try again.'
+      } finally {
+        if (requestToken !== loadRequestToken) {
+          return
+        }
+
+        isItemsInitialLoading.value = false
+        isItemsFetching.value = false
+        isItemsLoaded.value = true
       }
     }
 
@@ -738,7 +817,32 @@ export default {
       const f = searchFilters.value
       return [f.type, f.category, f.status, f.location, f.vendor, f.warrantyEnd]
     })
-    watch([selectFilterFields, activeStatusFilter, currentPage, () => sortField.value, () => sortDir.value], () => {
+
+    watch(selectFilterFields, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      loadItems()
+    })
+
+    watch(activeStatusFilter, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      loadItems()
+    })
+
+    watch(() => pageSize.value, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      loadItems()
+    })
+
+    watch([() => currentPage.value, () => sortField.value, () => sortDir.value], () => {
       loadItems()
     })
 
@@ -748,9 +852,12 @@ export default {
       return [f.id, f.name, f.supplier, f.universityID, f.description]
     })
     watch(textFilterFields, () => {
-      currentPage.value = 1
       clearTimeout(searchDebounceTimer)
       searchDebounceTimer = setTimeout(() => {
+        if (currentPage.value !== 1) {
+          currentPage.value = 1
+          return
+        }
         loadItems()
       }, 400)
     })
@@ -951,14 +1058,28 @@ export default {
       }
     }
 
-    const toggleSelectAll = (event) => {
+    const toggleSelectAll = (checkedOrEvent) => {
+      const shouldSelect = typeof checkedOrEvent === 'boolean'
+        ? checkedOrEvent
+        : Boolean(checkedOrEvent?.target?.checked)
       const pageIds = items.value.map(item => item.id)
-      if (event.target.checked) {
+
+      if (shouldSelect) {
         const newSet = new Set([...selectedItemIds.value, ...pageIds])
         selectedItemIds.value = Array.from(newSet)
       } else {
         selectedItemIds.value = selectedItemIds.value.filter(id => !pageIds.includes(id))
       }
+    }
+
+    const toggleItemSelection = (itemId, checked) => {
+      if (checked) {
+        if (!selectedItemIds.value.includes(itemId)) {
+          selectedItemIds.value = [...selectedItemIds.value, itemId]
+        }
+        return
+      }
+      selectedItemIds.value = selectedItemIds.value.filter(id => id !== itemId)
     }
 
     const handleDeleteItems = async () => {
@@ -1394,6 +1515,7 @@ export default {
       if (ocrWorker) {
         ocrWorker.terminate()
       }
+      clearTimeout(searchDebounceTimer)
       // Cleanup camera stream
       stopInvoiceCamera()
     })
@@ -1431,8 +1553,13 @@ export default {
       currentPage,
       pageSize,
       totalItems,
+      itemsSummaryText,
+      showItemsSkeleton,
+      itemSkeletonRows,
+      itemsErrorMessage,
       toggleSort,
       getSortIcon,
+      getItemStatusVariant,
       sortField,
       sortDir,
       uploadedImage,
@@ -1461,7 +1588,6 @@ export default {
       viewInvoice,
       downloadInvoice,
       formatDate,
-      getStatusColor,
       normalizeItemStatus,
       activeStatusFilter,
       teachers,
@@ -1471,6 +1597,7 @@ export default {
       isAdmin,
       allSelected,
       toggleSelectAll,
+      toggleItemSelection,
       handleDeleteItems,
     }
   }
@@ -1478,6 +1605,133 @@ export default {
 </script>
 
 <style scoped>
+.items-status-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--warning);
+  background: var(--warning-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.items-status-banner-text {
+  color: var(--warning-dark);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.items-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .items-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .items-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.items-import-alert {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--success);
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.items-import-alert--error {
+  border-color: var(--danger);
+  background: var(--danger-light);
+  color: var(--danger-dark);
+}
+
+.items-import-alert-close {
+  font-size: 1.25rem;
+  line-height: 1;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.items-table-card {
+  padding: 0;
+}
+
+.items-empty-row .items-empty-cell {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+.items-row-skeleton td {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.items-skeleton-line {
+  display: inline-block;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--table-header) 0%, var(--filter-bg) 50%, var(--table-header) 100%);
+  background-size: 200% 100%;
+  animation: item-skeleton-wave 1.2s linear infinite;
+}
+
+.items-skeleton-box {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, var(--table-header) 0%, var(--filter-bg) 50%, var(--table-header) 100%);
+  background-size: 200% 100%;
+  animation: item-skeleton-wave 1.2s linear infinite;
+}
+
+.items-skeleton-id {
+  width: 4.5rem;
+}
+
+.items-skeleton-name {
+  width: 8.5rem;
+}
+
+.items-skeleton-short {
+  width: 5.5rem;
+}
+
+@keyframes item-skeleton-wave {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .sort-icon {
   display: inline-block;
   width: 14px;

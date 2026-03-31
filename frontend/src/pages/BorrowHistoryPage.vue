@@ -1,152 +1,158 @@
 ﻿<template>
   <div class="page-container">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">Borrowing History</h2>
-        <p class="page-description">{{ totalHistory }} record(s)</p>
-      </div>
-      <div class="flex gap-2">
-        <button v-if="isAdmin && selectedHistoryIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
-          Delete ({{ selectedHistoryIds.length }})
-        </button>
-        <button @click="showFilters = !showFilters" class="btn btn-ghost">
-          {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
-        </button>
-        <button @click="exportHistory" class="btn">Export to Excel</button>
-      </div>
-    </div>
+    <ModulePageHeader title="Borrowing History" :subtitle="historySummaryText">
+      <Button v-if="isAdmin && selectedHistoryIds.length > 0" variant="destructive" size="sm" @click="showDeleteConfirm = true">
+        Delete ({{ selectedHistoryIds.length }})
+      </Button>
+      <Button variant="outline" size="sm" @click="showFilters = !showFilters">
+        {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
+      </Button>
+      <Button size="sm" @click="exportHistory">
+        <Download :size="14" /> Export to Excel
+      </Button>
+    </ModulePageHeader>
 
-    <!-- Search Filter Panel -->
-    <div v-if="showFilters" class="filter-panel">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="filter-panel-title">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <!-- Request ID (text) -->
+    <ModuleFilterPanel v-if="showFilters" @clear="clearAllFilters">
+      <div class="history-filter-grid">
         <div>
           <label class="filter-label">Request ID</label>
-          <input v-model="filters.requestId" type="text" class="form-input text-sm" placeholder="e.g. REQ-001" />
+          <Input v-model="filters.requestId" type="text" placeholder="e.g. REQ-001" />
         </div>
-        <!-- Item Name (text) -->
         <div>
           <label class="filter-label">Item Name</label>
-          <input v-model="filters.itemName" type="text" class="form-input text-sm" placeholder="Search item..." />
+          <Input v-model="filters.itemName" type="text" placeholder="Search item..." />
         </div>
-        <!-- Borrower (text) -->
         <div>
           <label class="filter-label">Borrower</label>
-          <input v-model="filters.borrower" type="text" class="form-input text-sm" placeholder="Name or ID..." />
+          <Input v-model="filters.borrower" type="text" placeholder="Name or ID..." />
         </div>
-        <!-- Status (select) -->
         <div>
           <label class="filter-label">Status</label>
-          <select v-model="filters.status" class="form-select text-sm">
+          <Select v-model="filters.status">
             <option value="">All Statuses</option>
-            <option v-for="s in ['Approved', 'Returned', 'Pending', 'Rejected']" :key="s" :value="s">{{ s }}</option>
-          </select>
+            <option v-for="status in ['Approved', 'Returned', 'Pending', 'Rejected']" :key="status" :value="status">{{ status }}</option>
+          </Select>
         </div>
-        <!-- Request Date (date) -->
         <div>
           <label class="filter-label">Request Date</label>
-          <input v-model="filters.requestDate" type="date" class="form-input text-sm" />
+          <Input v-model="filters.requestDate" type="date" />
         </div>
-        <!-- Approval Date (date) -->
         <div>
           <label class="filter-label">Approval Date</label>
-          <input v-model="filters.approvalDate" type="date" class="form-input text-sm" />
+          <Input v-model="filters.approvalDate" type="date" />
         </div>
-        <!-- Return Date (date) -->
         <div>
           <label class="filter-label">Return Date</label>
-          <input v-model="filters.returnDate" type="date" class="form-input text-sm" />
+          <Input v-model="filters.returnDate" type="date" />
         </div>
-        <!-- Returned Date (date) -->
         <div>
           <label class="filter-label">Returned Date</label>
-          <input v-model="filters.returnedDate" type="date" class="form-input text-sm" />
+          <Input v-model="filters.returnedDate" type="date" />
         </div>
       </div>
-    </div>
+    </ModuleFilterPanel>
 
-    <!-- Quick Status Tabs -->
-    <div class="mb-4 flex flex-wrap gap-2 items-end">
-      <div class="flex gap-2 flex-wrap">
+    <Card class="history-table-card">
+      <div class="history-tabs">
         <button
-          v-for="status in ['All', 'Approved', 'Returned', 'Pending', 'Rejected']"
+          v-for="status in statusTabs"
           :key="status"
-          @click="filters.status = status === 'All' ? '' : status; currentPage = 1"
-          :class="`pill ${(filters.status === '' && status === 'All') || filters.status === status ? 'pill-active' : ''}`"
+          :class="['history-tab', { active: (filters.status === '' && status === 'All') || filters.status === status }]"
+          @click="filters.status = status === 'All' ? '' : status"
         >
           {{ status }}
         </button>
       </div>
-    </div>
 
-    <div v-if="history.length === 0" class="empty-state">
-      No records found
-    </div>
-    <div v-else class="table-responsive">
-      <table class="table-striped theme-table">
-        <thead>
-          <tr>
-            <th v-if="isAdmin" class="text-center" style="width:2.5rem">
-              <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
-            </th>
-            <th>Request ID</th>
-            <th>Item</th>
-            <th>Borrower</th>
-            <th>Status</th>
-            <th class="cursor-pointer select-none" @click="toggleSort('requestDate')">
-              Request Date <span class="sort-icon">{{ getSortIcon('requestDate') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('approvalDate')">
-              Approval Date <span class="sort-icon">{{ getSortIcon('approvalDate') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('returnDate')">
-              Return Date <span class="sort-icon">{{ getSortIcon('returnDate') }}</span>
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('returnedDate')">
-              Returned <span class="sort-icon">{{ getSortIcon('returnedDate') }}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="record in history" :key="record.id">
-            <td v-if="isAdmin" class="text-center">
-              <input type="checkbox" :value="record.id" v-model="selectedHistoryIds" />
-            </td>
-            <td style="font-weight:500">{{ record.id }}</td>
-            <td>{{ record.itemName }}</td>
-            <td>{{ record.borrowerName }} ({{ record.borrowerID }})</td>
-            <td>
-              <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(record.status)}`">
-                {{ record.status }}
-              </span>
-            </td>
-            <td class="text-sm">{{ formatDateTime(record.requestDate) }}</td>
-            <td class="text-sm">{{ formatDateTime(record.approvalDate) }}</td>
-            <td class="text-sm">{{ formatDateTime(record.returnDate) }}</td>
-            <td class="text-sm">{{ formatDateTime(record.returnedDate) }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <PaginationControl
+      <div class="history-toolbar">
+        <span v-if="selectedHistoryIds.length > 0" class="history-selected-chip">{{ selectedHistoryIds.length }} selected</span>
+        <span v-if="historyLoadState.isFetching" class="history-fetch-chip">Updating...</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table-striped theme-table history-table">
+          <thead>
+            <tr>
+              <th v-if="isAdmin" class="text-center" style="width:2.5rem">
+                <Checkbox
+                  :checked="allSelected"
+                  :indeterminate="selectedHistoryIds.length > 0 && !allSelected"
+                  @update:checked="toggleSelectAll"
+                />
+              </th>
+              <th>Request ID</th>
+              <th>Item</th>
+              <th>Borrower</th>
+              <th>Status</th>
+              <th class="history-sort-head" @click="toggleSort('requestDate')">Request Date <span>{{ getSortIcon('requestDate') }}</span></th>
+              <th class="history-sort-head" @click="toggleSort('approvalDate')">Approval Date <span>{{ getSortIcon('approvalDate') }}</span></th>
+              <th class="history-sort-head" @click="toggleSort('returnDate')">Return Date <span>{{ getSortIcon('returnDate') }}</span></th>
+              <th class="history-sort-head" @click="toggleSort('returnedDate')">Returned <span>{{ getSortIcon('returnedDate') }}</span></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <template v-if="showHistorySkeleton">
+              <tr v-for="idx in historySkeletonRows" :key="'history-skel-' + idx" class="history-row-skeleton">
+                <td v-if="isAdmin" class="text-center"><span class="history-skeleton-box"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-id"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-item"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-user"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+              </tr>
+            </template>
+
+            <tr v-else-if="historyErrorMessage" class="history-empty-row">
+              <td :colspan="isAdmin ? 9 : 8" class="history-empty-cell">{{ historyErrorMessage }}</td>
+            </tr>
+
+            <template v-else-if="history.length > 0">
+              <tr v-for="record in history" :key="record.id">
+                <td v-if="isAdmin" class="text-center">
+                  <Checkbox
+                    :checked="selectedHistoryIds.includes(record.id)"
+                    @update:checked="toggleRecordSelection(record.id, $event)"
+                  />
+                </td>
+                <td class="history-cell-id">{{ record.id }}</td>
+                <td>{{ record.itemName }}</td>
+                <td>{{ record.borrowerName }} ({{ record.borrowerID }})</td>
+                <td><Badge :variant="getStatusVariant(record.status)">{{ record.status }}</Badge></td>
+                <td class="history-date-cell">{{ formatDateTime(record.requestDate) }}</td>
+                <td class="history-date-cell">{{ formatDateTime(record.approvalDate) }}</td>
+                <td class="history-date-cell">{{ formatDateTime(record.returnDate) }}</td>
+                <td class="history-date-cell">{{ formatDateTime(record.returnedDate) }}</td>
+              </tr>
+            </template>
+
+            <tr v-else class="history-empty-row">
+              <td :colspan="isAdmin ? 9 : 8" class="history-empty-cell">No records found</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <TablePaginationBar
         v-model:currentPage="currentPage"
-        :totalItems="totalHistory"
-        :pageSize="pageSize"
+        v-model:pageSize="pageSize"
+        :total-items="totalHistory"
+        :disabled="showHistorySkeleton"
+        item-label="records"
       />
-    </div>
+    </Card>
 
-    <!-- Bulk Delete Confirmation Modal -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Confirm Delete</h3>
         <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedHistoryIds.length }}</strong> record(s)?</p>
         <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
-          <button @click="handleDeleteRecords" class="btn btn-outline-danger flex-1">Delete</button>
-          <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleDeleteRecords">Delete</Button>
+          <Button variant="outline" class="flex-1" @click="showDeleteConfirm = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -154,13 +160,28 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { Download } from 'lucide-vue-next'
 import { borrowingService, authService } from '../utils/services'
-import { formatDate, formatDateTime, getStatusColor, exportToExcel } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { formatDate, formatDateTime, exportToExcel } from '../utils/helpers'
+import {
+  UiButton as Button,
+  UiCard as Card,
+  UiBadge as Badge,
+  UiCheckbox as Checkbox,
+  UiInput as Input,
+  UiSelect as Select,
+  UiModulePageHeader as ModulePageHeader,
+  UiModuleFilterPanel as ModuleFilterPanel,
+  UiTablePaginationBar as TablePaginationBar,
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
+  components: {
+    Button, Card, Badge, Checkbox, Input, Select,
+    ModulePageHeader, ModuleFilterPanel, TablePaginationBar,
+    Download
+  },
   props: {
     pageParams: {
       type: Object,
@@ -184,12 +205,21 @@ export default {
     const sortField = ref('requestDate')
     const sortDir = ref('desc')
     const currentPage = ref(1)
-    const pageSize = 10
+    const pageSize = ref(10)
     const selectedHistoryIds = ref([])
     const showDeleteConfirm = ref(false)
+    const statusTabs = ['All', 'Approved', 'Returned', 'Pending', 'Rejected']
+
+    const historyLoadState = reactive({
+      isInitialLoading: true,
+      isFetching: false,
+      isLoaded: false,
+      error: null
+    })
+
+    let latestHistoryRequestId = 0
     let searchDebounceTimer = null
 
-    // Watch pageParams to set initial filter from dashboard navigation
     watch(() => props.pageParams, (params) => {
       if (params && params.filter) {
         filters.value.status = params.filter
@@ -216,8 +246,18 @@ export default {
       return user?.role === 'admin'
     })
 
-    const allSelected = computed(() => {
-      return history.value.length > 0 && history.value.every(record => selectedHistoryIds.value.includes(record.id))
+    const allSelected = computed(() =>
+      history.value.length > 0 && history.value.every(record => selectedHistoryIds.value.includes(record.id))
+    )
+
+    const showHistorySkeleton = computed(() => historyLoadState.isFetching)
+    const historyErrorMessage = computed(() => historyLoadState.error || '')
+    const historySkeletonRows = computed(() => Math.min(Math.max(pageSize.value, 5), 10))
+
+    const historySummaryText = computed(() => {
+      if (historyLoadState.isInitialLoading && !historyLoadState.isLoaded) return 'Loading records...'
+      if (historyLoadState.error && !historyLoadState.isLoaded) return 'Unable to load records'
+      return `${totalHistory.value} record(s)`
     })
 
     const toggleSort = (field) => {
@@ -227,7 +267,6 @@ export default {
         sortField.value = field
         sortDir.value = 'desc'
       }
-      currentPage.value = 1
     }
 
     const getSortIcon = (field) => {
@@ -235,32 +274,46 @@ export default {
       return sortDir.value === 'asc' ? '▲' : '▼'
     }
 
-    const toggleSelectAll = (event) => {
+    const getStatusVariant = (status) => {
+      const normalized = (status || '').toLowerCase()
+      if (normalized === 'approved' || normalized === 'returned') return 'success'
+      if (normalized === 'pending') return 'warning'
+      if (normalized === 'rejected' || normalized === 'overdue') return 'destructive'
+      return 'outline'
+    }
+
+    const toggleSelectAll = (checked) => {
       const pageIds = history.value.map(record => record.id)
-      if (event.target.checked) {
-        const newSet = new Set([...selectedHistoryIds.value, ...pageIds])
-        selectedHistoryIds.value = Array.from(newSet)
+      if (checked) {
+        const next = new Set([...selectedHistoryIds.value, ...pageIds])
+        selectedHistoryIds.value = Array.from(next)
       } else {
         selectedHistoryIds.value = selectedHistoryIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
+
+    const toggleRecordSelection = (recordId, checked) => {
+      if (checked) {
+        if (!selectedHistoryIds.value.includes(recordId)) selectedHistoryIds.value.push(recordId)
+      } else {
+        selectedHistoryIds.value = selectedHistoryIds.value.filter(id => id !== recordId)
       }
     }
 
     const handleDeleteRecords = async () => {
       showDeleteConfirm.value = false
       try {
-        // Delete all selected records
         for (const id of selectedHistoryIds.value) {
           try {
             await borrowingService.deleteRequest(id)
-          } catch (e) {
-            console.error(`Failed to delete record ${id}:`, e)
+          } catch (error) {
+            console.error(`Failed to delete record ${id}:`, error)
           }
         }
-        // Clear selection and reload
         selectedHistoryIds.value = []
         loadHistory()
-      } catch (e) {
-        console.error('Failed to delete records:', e)
+      } catch (error) {
+        console.error('Failed to delete records:', error)
       }
     }
 
@@ -268,15 +321,15 @@ export default {
       const f = filters.value
       const params = {
         page: currentPage.value,
-        pageSize,
+        pageSize: pageSize.value,
         sortBy: sortField.value,
         sortDir: sortDir.value,
       }
       if (f.status) params.status = f.status
-      // Combine text search fields into one search param
+
       const searchParts = [f.requestId, f.itemName, f.borrower].filter(Boolean)
       if (searchParts.length > 0) params.search = searchParts.join(' ')
-      // Date filters
+
       if (f.requestDate) {
         params.requestDateFrom = f.requestDate
         params.requestDateTo = f.requestDate + 'T23:59:59'
@@ -297,46 +350,79 @@ export default {
     }
 
     const loadHistory = async () => {
+      const requestId = ++latestHistoryRequestId
+      historyLoadState.isFetching = true
+      historyLoadState.error = null
+      if (!historyLoadState.isLoaded) historyLoadState.isInitialLoading = true
+
       try {
         const params = buildQueryParams()
         const result = await borrowingService.getAllRequests(params)
+        if (requestId !== latestHistoryRequestId) return
+
         history.value = (result.requests || []).map(req => ({
           ...req,
           itemName: req.itemName || 'Unknown Item',
           borrowerName: req.borrowerName || req.borrowerID
         }))
         totalHistory.value = result.total || 0
-      } catch (e) {
-        console.error('Failed to load history:', e)
+        historyLoadState.isLoaded = true
+      } catch (error) {
+        if (requestId !== latestHistoryRequestId) return
+        console.error('Failed to load history:', error)
+        historyLoadState.error = error?.message || 'Failed to load history records'
+        if (!historyLoadState.isLoaded) {
+          history.value = []
+          totalHistory.value = 0
+        }
+      } finally {
+        if (requestId !== latestHistoryRequestId) return
+        historyLoadState.isFetching = false
+        historyLoadState.isInitialLoading = false
       }
     }
 
-    // Watch dropdown/date/sort/page filters -> reload immediately
-    const selectFields = computed(() => {
-      const f = filters.value
-      return [f.status, f.requestDate, f.approvalDate, f.returnDate, f.returnedDate]
-    })
-    watch([selectFields, currentPage, () => sortField.value, () => sortDir.value], () => {
-      loadHistory()
+    watch(
+      [
+        () => filters.value.status,
+        () => filters.value.requestDate,
+        () => filters.value.approvalDate,
+        () => filters.value.returnDate,
+        () => filters.value.returnedDate,
+        () => sortField.value,
+        () => sortDir.value,
+        () => pageSize.value
+      ],
+      async () => {
+        selectedHistoryIds.value = []
+        if (currentPage.value !== 1) {
+          currentPage.value = 1
+          return
+        }
+        await loadHistory()
+      }
+    )
+
+    watch(currentPage, async () => {
+      selectedHistoryIds.value = []
+      await loadHistory()
     })
 
-    // Debounced watcher for text inputs
-    const textFields = computed(() => {
-      const f = filters.value
-      return [f.requestId, f.itemName, f.borrower]
-    })
-    watch(textFields, () => {
-      currentPage.value = 1
-      clearTimeout(searchDebounceTimer)
-      searchDebounceTimer = setTimeout(() => {
-        loadHistory()
-      }, 400)
-    })
+    watch(
+      () => [filters.value.requestId, filters.value.itemName, filters.value.borrower],
+      () => {
+        selectedHistoryIds.value = []
+        currentPage.value = 1
+        clearTimeout(searchDebounceTimer)
+        searchDebounceTimer = setTimeout(() => {
+          loadHistory()
+        }, 400)
+      }
+    )
 
     const exportHistory = () => {
-      // Fetch all matching records for export
       borrowingService.getAllRequests({ ...buildQueryParams(), page: 1, pageSize: 9999 })
-        .then(result => {
+        .then((result) => {
           const data = (result.requests || []).map(req => ({
             ...req,
             itemName: req.itemName || 'Unknown Item',
@@ -344,7 +430,7 @@ export default {
           }))
           exportToExcel(data, 'borrow_history.xlsx')
         })
-        .catch(e => console.error('Export failed:', e))
+        .catch(error => console.error('Export failed:', error))
     }
 
     onMounted(() => {
@@ -357,36 +443,193 @@ export default {
       showFilters,
       filters,
       clearAllFilters,
+      statusTabs,
       sortField,
       sortDir,
       toggleSort,
       getSortIcon,
+      getStatusVariant,
       currentPage,
       pageSize,
       exportHistory,
       formatDate,
       formatDateTime,
-      getStatusColor,
       selectedHistoryIds,
       showDeleteConfirm,
       isAdmin,
       allSelected,
       toggleSelectAll,
+      toggleRecordSelection,
       handleDeleteRecords,
+      historyLoadState,
+      showHistorySkeleton,
+      historyErrorMessage,
+      historySkeletonRows,
+      historySummaryText,
     }
   }
 }
 </script>
 
 <style scoped>
-.sort-icon {
-  display: inline-block;
-  width: 14px;
-  text-align: center;
-  font-size: 11px;
-  color: #6b7280;
+.history-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
 }
-thead th:hover .sort-icon {
-  color: #1f2937;
+
+@media (min-width: 768px) {
+  .history-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1120px) {
+  .history-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.history-tabs {
+  display: flex;
+  gap: 0.125rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem 0;
+  overflow-x: auto;
+}
+
+.history-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.history-tab:hover {
+  color: var(--text-secondary);
+}
+
+.history-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--danger);
+  background: var(--danger-light);
+  border-radius: 999px;
+}
+
+.history-fetch-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-50);
+}
+
+.history-sort-head {
+  cursor: pointer;
+  user-select: none;
+}
+
+.history-sort-head span {
+  display: inline-block;
+  width: 0.875rem;
+  text-align: center;
+  margin-left: 0.1875rem;
+  font-size: 0.6875rem;
+}
+
+.history-cell-id {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-date-cell {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.history-row-skeleton td {
+  pointer-events: none;
+}
+
+.history-skeleton-line,
+.history-skeleton-box {
+  display: inline-block;
+  background: var(--surface-100);
+  border-radius: var(--radius-sm);
+  animation: historySkeletonPulse 2.2s ease-in-out infinite;
+}
+
+.history-skeleton-line {
+  height: 0.625rem;
+}
+
+.history-skeleton-box {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.history-skeleton-id { width: 4rem; }
+.history-skeleton-item { width: 8rem; max-width: 100%; }
+.history-skeleton-user { width: 7rem; max-width: 100%; }
+.history-skeleton-short { width: 5rem; max-width: 100%; }
+
+@keyframes historySkeletonPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.95; }
+}
+
+.history-empty-row td {
+  text-align: center;
+}
+
+.history-empty-cell {
+  padding: 2rem 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
 }
 </style>

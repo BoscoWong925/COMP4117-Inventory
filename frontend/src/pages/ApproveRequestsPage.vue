@@ -1,55 +1,64 @@
-<template>
+﻿<template>
   <div class="page-container">
-    <div class="page-header">
-      <h2 class="page-title">Borrow requests</h2>
-      <button @click="exportRequests" class="btn">Export to Excel</button>
-    </div>
+    <ModulePageHeader title="Borrow Requests" :subtitle="requestSummaryText">
+      <Button variant="outline" size="sm" @click="exportRequests">
+        <Download :size="14" /> Export to Excel
+      </Button>
+    </ModulePageHeader>
 
-    <!-- Tabs -->
-    <div class="mb-4 flex justify-between items-center">
-      <div class="flex gap-2">
+    <Card class="request-table-card">
+      <div class="request-tabs">
         <button
-          @click="activeTab = 'pending'; currentPage = 1"
-          :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
+          :class="['request-tab', { active: activeTab === 'pending' }]"
+          @click="activeTab = 'pending'"
         >
           Pending
-          <span v-if="pendingCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--danger);color:#fff">{{ pendingCount }}</span>
+          <Badge v-if="pendingCount" variant="destructive" class="request-tab-count">{{ pendingCount }}</Badge>
         </button>
         <button
-          @click="activeTab = 'checkout'; currentPage = 1"
-          :class="`pill ${activeTab === 'checkout' ? 'pill-active' : ''}`"
+          :class="['request-tab', { active: activeTab === 'checkout' }]"
+          @click="activeTab = 'checkout'"
         >
           Pending Check-Out
-          <span v-if="checkoutCount" class="ml-1 px-2 py-0.5 rounded-full text-sm font-bold" style="min-width:1.5rem;text-align:center;background:var(--info);color:#fff">{{ checkoutCount }}</span>
+          <Badge v-if="checkoutCount" variant="info" class="request-tab-count">{{ checkoutCount }}</Badge>
         </button>
       </div>
-      <div class="flex gap-2">
-        <button v-if="activeTab === 'pending' && selectedPendingIds.length > 0" @click="showBulkApproveForm = true" class="btn btn-outline-success">
-          Approve ({{ selectedPendingIds.length }})
-        </button>
-        <button v-if="activeTab === 'pending' && selectedPendingIds.length > 0" @click="showBulkRejectForm = true" class="btn btn-outline-danger">
-          Reject ({{ selectedPendingIds.length }})
-        </button>
-        <button v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" @click="showBulkCheckoutForm = true" class="btn btn-outline-primary">
-          Borrowed Out ({{ selectedCheckoutIds.length }})
-        </button>
-        <button v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" @click="showBulkDenyForm = true" class="btn btn-outline-danger">
-          Deny ({{ selectedCheckoutIds.length }})
-        </button>
-      </div>
-    </div>
 
-    <!-- ========== PENDING TAB ========== -->
-    <template v-if="activeTab === 'pending'">
-      <div v-if="pendingGroups.length === 0" class="empty-state">
-        No pending requests
+      <div class="request-toolbar">
+        <div class="request-toolbar-info">
+          <span v-if="selectedCount > 0" class="request-selected-chip">{{ selectedCount }} selected</span>
+          <span v-if="requestsLoadState.isFetching" class="request-fetch-chip">Updating...</span>
+        </div>
+        <div class="request-toolbar-actions">
+          <template v-if="activeTab === 'pending' && selectedPendingIds.length > 0">
+            <Button variant="success" size="sm" @click="showBulkApproveForm = true">
+              <CheckCircle2 :size="14" /> Approve ({{ selectedPendingIds.length }})
+            </Button>
+            <Button variant="destructive" size="sm" @click="showBulkRejectForm = true">
+              <XCircle :size="14" /> Reject ({{ selectedPendingIds.length }})
+            </Button>
+          </template>
+          <template v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0">
+            <Button size="sm" @click="showBulkCheckoutForm = true">
+              <Package :size="14" /> Borrowed Out ({{ selectedCheckoutIds.length }})
+            </Button>
+            <Button variant="destructive" size="sm" @click="showBulkDenyForm = true">
+              <XCircle :size="14" /> Deny ({{ selectedCheckoutIds.length }})
+            </Button>
+          </template>
+        </div>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
+
+      <div class="table-responsive">
+        <table class="table-striped theme-table request-table">
+          <thead v-if="activeTab === 'pending'">
             <tr>
               <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAllPending" :checked="allPendingSelected" />
+                <Checkbox
+                  :checked="isCurrentAllSelected"
+                  :indeterminate="selectedCount > 0 && !isCurrentAllSelected"
+                  @update:checked="toggleSelectAllCurrent"
+                />
               </th>
               <th>Request ID</th>
               <th>Item Name</th>
@@ -61,71 +70,14 @@
               <th class="text-center">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            <template v-for="group in paginatedPending" :key="group.parent.id">
-              <tr class="row-parent">
-                <td class="text-center">
-                  <input type="checkbox" :value="group.parent.id" v-model="selectedPendingIds" />
-                </td>
-                <td style="font-weight:600">{{ group.parent.id }}</td>
-                <td style="font-weight:600">
-                  {{ group.parent.itemName }}
-                  <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
-                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
-                  </span>
-                </td>
-                <td>{{ group.parent.borrowerName || group.parent.borrowerID }}
-                  <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                    <span class="inline-block w-2.5 h-2.5 rounded-full animate-pulse" style="background:var(--danger)"></span>
-                    <span class="text-xs font-semibold ml-1" style="color:var(--danger)">This user have an overdue item</span>
-                  </span>
-                </td>
-                <td>{{ formatDate(group.parent.requestDate) }}</td>
-                <td>
-                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                </td>
-                <td style="color:var(--warning-dark);font-weight:500">{{ waitingTime(group.parent.requestDate) }}</td>
-                <td>{{ group.parent.reason }}</td>
-                <td class="text-center whitespace-nowrap">
-                  <button @click="selectedRequest = group.parent.id" class="btn btn-outline-success text-sm">
-                    Approve{{ group.children.length > 0 ? ' All' : '' }}
-                  </button>
-                  <button @click="showRejectForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
-                    Reject{{ group.children.length > 0 ? ' All' : '' }}
-                  </button>
-                  <button @click="openEmailForRequest(group.parent)" class="btn btn-ghost text-sm ml-2" title="Email Borrower">✉</button>
-                </td>
-              </tr>
-              <tr v-for="child in group.children" :key="child.id" class="row-child">
-                <td class="pl-6 text-sm">↳ {{ child.id }}</td>
-                <td class="pl-6 text-sm">{{ child.itemName }}</td>
-                <td class="text-sm">{{ child.borrowerName || child.borrowerID }}</td>
-                <td class="text-sm">{{ formatDate(child.requestDate) }}</td>
-                <td class="text-sm">
-                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                </td>
-                <td class="text-sm">{{ waitingTime(child.requestDate) }}</td>
-                <td class="text-sm italic">{{ child.reason }}</td>
-                <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingCount" :pageSize="pageSize" />
-      </div>
-    </template>
-
-    <!-- ========== PENDING CHECK-OUT TAB ========== -->
-    <template v-if="activeTab === 'checkout'">
-      <div v-if="checkoutGroups.length === 0" class="empty-state">
-        No items pending check-out
-      </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
+          <thead v-else>
             <tr>
               <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAllCheckout" :checked="allCheckoutSelected" />
+                <Checkbox
+                  :checked="isCurrentAllSelected"
+                  :indeterminate="selectedCount > 0 && !isCurrentAllSelected"
+                  @update:checked="toggleSelectAllCurrent"
+                />
               </th>
               <th>Request ID</th>
               <th>Item Name</th>
@@ -137,75 +89,171 @@
               <th class="text-center">Actions</th>
             </tr>
           </thead>
+
           <tbody>
-            <template v-for="group in paginatedCheckout" :key="group.parent.id">
-              <tr class="row-parent">
-                <td class="text-center">
-                  <input type="checkbox" :value="group.parent.id" v-model="selectedCheckoutIds" />
-                </td>
-                <td style="font-weight:600">{{ group.parent.id }}</td>
-                <td style="font-weight:600">
-                  {{ group.parent.itemName }}
-                  <span v-if="group.children.length > 0" class="ml-2 text-xs text-accent-subtle font-normal">
-                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
-                  </span>
-                </td>
-                <td>{{ group.parent.borrowerName || group.parent.borrowerID }}
-                  <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="inline-flex items-center ml-1" title="This borrower has overdue items">
-                    <span class="inline-block w-2.5 h-2.5 rounded-full animate-pulse" style="background:var(--danger)"></span>
-                    <span class="text-xs font-semibold ml-1" style="color:var(--danger)">This user have an overdue item</span>
-                  </span>
-                </td>
-                <td>{{ formatDate(group.parent.approvalDate) }}</td>
-                <td>
-                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-                  <span v-if="isCheckoutExpiringSoon(group.parent)" class="ml-1 text-xs font-semibold" style="color:var(--danger)">(expiring soon)</span>
-                </td>
-                <td style="color:var(--warning-dark);font-weight:500">{{ waitingTime(group.parent.approvalDate) }}</td>
-                <td>{{ formatDate(group.parent.returnDate) || '-' }}</td>
-                <td class="text-center whitespace-nowrap">
-                  <button @click="handleCheckout(group.parent.id)" class="btn btn-outline-primary text-sm">
-                    Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
-                  </button>
-                  <button @click="showDenyForm = group.parent.id" class="btn btn-outline-danger text-sm ml-2">
-                    Deny{{ group.children.length > 0 ? ' All' : '' }}
-                  </button>
-                  <button @click="openEmailForRequest(group.parent)" class="btn btn-ghost text-sm ml-2" title="Email Borrower">✉</button>
-                </td>
-              </tr>
-              <tr v-for="child in group.children" :key="child.id" class="row-child">
-                <td class="pl-6 text-sm">↳ {{ child.id }}</td>
-                <td class="pl-6 text-sm">{{ child.itemName }}</td>
-                <td class="text-sm">{{ child.borrowerName || child.borrowerID }}</td>
-                <td class="text-sm">{{ formatDate(child.approvalDate) }}</td>
-                <td class="text-sm">
-                  <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-                </td>
-                <td class="text-sm">{{ waitingTime(child.approvalDate) }}</td>
-                <td class="text-sm">{{ formatDate(child.returnDate) || '-' }}</td>
-                <td class="text-center text-xs" style="color:var(--muted-foreground)">Auto with parent</td>
+            <template v-if="showRequestsSkeleton">
+              <tr v-for="idx in tableSkeletonRows" :key="'req-skel-' + idx" class="request-row-skeleton">
+                <td class="text-center"><span class="req-skeleton-box"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-id"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-item"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-user"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
+                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
+                <td class="text-center"><span class="req-skeleton-box"></span></td>
               </tr>
             </template>
+
+            <tr v-else-if="requestsErrorMessage" class="request-empty-row">
+              <td colspan="9" class="request-empty-cell">{{ requestsErrorMessage }}</td>
+            </tr>
+
+            <template v-else-if="activeTab === 'pending' && pendingGroups.length > 0">
+              <template v-for="group in pendingGroups" :key="group.parent.id">
+                <tr class="row-parent">
+                  <td class="text-center">
+                    <Checkbox
+                      :checked="selectedPendingIds.includes(group.parent.id)"
+                      @update:checked="togglePendingSelection(group.parent.id, $event)"
+                    />
+                  </td>
+                  <td class="request-cell-id">{{ group.parent.id }}</td>
+                  <td class="request-cell-item">
+                    <span class="request-item-name">{{ group.parent.itemName }}</span>
+                    <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                  </td>
+                  <td>
+                    {{ group.parent.borrowerName || group.parent.borrowerID }}
+                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
+                  </td>
+                  <td>{{ formatDate(group.parent.requestDate) }}</td>
+                  <td><Badge variant="warning">Pending</Badge></td>
+                  <td class="request-waiting-text">{{ waitingTime(group.parent.requestDate) }}</td>
+                  <td class="request-cell-reason">{{ group.parent.reason || '-' }}</td>
+                  <td class="text-center request-action-cell">
+                    <Button variant="success" size="sm" @click="openApproveModal(group.parent.id)">
+                      Approve{{ group.children.length > 0 ? ' All' : '' }}
+                    </Button>
+                    <DropdownMenu align="end">
+                      <template #trigger>
+                        <button class="request-row-menu-trigger" aria-label="Row actions">
+                          <MoreVertical :size="14" />
+                        </button>
+                      </template>
+                      <template #default="{ close }">
+                        <DropdownMenuItem @click="showRejectForm = group.parent.id; close()">
+                          <XCircle :size="12" /> Reject{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
+                          <Mail :size="12" /> Email Borrower
+                        </DropdownMenuItem>
+                      </template>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+
+                <tr v-for="child in group.children" :key="child.id" class="row-child">
+                  <td></td>
+                  <td class="request-child-id">↳ {{ child.id }}</td>
+                  <td class="request-child-cell">{{ child.itemName }}</td>
+                  <td class="request-child-cell">{{ child.borrowerName || child.borrowerID }}</td>
+                  <td class="request-child-cell">{{ formatDate(child.requestDate) }}</td>
+                  <td class="request-child-cell"><Badge variant="warning">Pending</Badge></td>
+                  <td class="request-child-cell">{{ waitingTime(child.requestDate) }}</td>
+                  <td class="request-child-cell">{{ child.reason || '-' }}</td>
+                  <td class="request-child-cell text-center">Auto with parent</td>
+                </tr>
+              </template>
+            </template>
+
+            <template v-else-if="activeTab === 'checkout' && checkoutGroups.length > 0">
+              <template v-for="group in checkoutGroups" :key="group.parent.id">
+                <tr class="row-parent">
+                  <td class="text-center">
+                    <Checkbox
+                      :checked="selectedCheckoutIds.includes(group.parent.id)"
+                      @update:checked="toggleCheckoutSelection(group.parent.id, $event)"
+                    />
+                  </td>
+                  <td class="request-cell-id">{{ group.parent.id }}</td>
+                  <td class="request-cell-item">
+                    <span class="request-item-name">{{ group.parent.itemName }}</span>
+                    <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                  </td>
+                  <td>
+                    {{ group.parent.borrowerName || group.parent.borrowerID }}
+                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
+                  </td>
+                  <td>{{ formatDate(group.parent.approvalDate) }}</td>
+                  <td>
+                    <Badge variant="info">Pending Check-Out</Badge>
+                    <span v-if="isCheckoutExpiringSoon(group.parent)" class="request-expiring-soon">expiring soon</span>
+                  </td>
+                  <td class="request-waiting-text">{{ waitingTime(group.parent.approvalDate) }}</td>
+                  <td>{{ formatDate(group.parent.returnDate) || '-' }}</td>
+                  <td class="text-center request-action-cell">
+                    <Button size="sm" @click="handleCheckout(group.parent.id)">
+                      Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
+                    </Button>
+                    <DropdownMenu align="end">
+                      <template #trigger>
+                        <button class="request-row-menu-trigger" aria-label="Row actions">
+                          <MoreVertical :size="14" />
+                        </button>
+                      </template>
+                      <template #default="{ close }">
+                        <DropdownMenuItem @click="showDenyForm = group.parent.id; close()">
+                          <XCircle :size="12" /> Deny{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
+                          <Mail :size="12" /> Email Borrower
+                        </DropdownMenuItem>
+                      </template>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+
+                <tr v-for="child in group.children" :key="child.id" class="row-child">
+                  <td></td>
+                  <td class="request-child-id">↳ {{ child.id }}</td>
+                  <td class="request-child-cell">{{ child.itemName }}</td>
+                  <td class="request-child-cell">{{ child.borrowerName || child.borrowerID }}</td>
+                  <td class="request-child-cell">{{ formatDate(child.approvalDate) }}</td>
+                  <td class="request-child-cell"><Badge variant="info">Pending Check-Out</Badge></td>
+                  <td class="request-child-cell">{{ waitingTime(child.approvalDate) }}</td>
+                  <td class="request-child-cell">{{ formatDate(child.returnDate) || '-' }}</td>
+                  <td class="request-child-cell text-center">Auto with parent</td>
+                </tr>
+              </template>
+            </template>
+
+            <tr v-else class="request-empty-row">
+              <td colspan="9" class="request-empty-cell">
+                {{ activeTab === 'pending' ? 'No pending requests' : 'No items pending check-out' }}
+              </td>
+            </tr>
           </tbody>
         </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutCount" :pageSize="pageSize" />
       </div>
-    </template>
 
-    <!-- Approve Modal -->
+      <TablePaginationBar
+        v-model:currentPage="currentPage"
+        v-model:pageSize="pageSize"
+        :total-items="currentTotal"
+        :disabled="showRequestsSkeleton"
+      />
+    </Card>
+
     <div v-if="selectedRequest" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve Request</h3>
-        <p v-if="competingCount > 0" class="text-sm text-red-500 mb-3 p-2 rounded" style="background: rgba(239,68,68,0.1);">
-          ⚠ Approving this request will auto-reject {{ competingCount }} other pending request(s) for the same item.
+        <p v-if="competingCount > 0" class="request-modal-warning">
+          Approving this request will auto-reject {{ competingCount }} other pending request(s) for the same item.
         </p>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <input
-            type="date"
-            v-model="returnDate"
-            class="form-input"
-          />
+          <input type="date" v-model="returnDate" class="form-input" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -224,53 +272,26 @@
           />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleApprove(selectedRequest)"
-            class="btn btn-outline-success flex-1"
-          >
-            Approve
-          </button>
-          <button
-            @click="selectedRequest = null; returnDate = ''; approveRemark = ''; approveLocation = locationOptions[0]; competingCount = 0"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="success" class="flex-1" @click="handleApprove(selectedRequest)">Approve</Button>
+          <Button variant="outline" class="flex-1" @click="closeApproveModal">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Reject Modal -->
     <div v-if="showRejectForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Reject Request</h3>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea
-            v-model="rejectReason"
-            class="form-input"
-            rows="4"
-            placeholder="Enter rejection reason..."
-          />
+          <textarea v-model="rejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleReject(showRejectForm)"
-            class="btn btn-outline-danger flex-1"
-          >
-            Reject
-          </button>
-          <button
-            @click="showRejectForm = null; rejectReason = ''"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="destructive" class="flex-1" @click="handleReject(showRejectForm)">Reject</Button>
+          <Button variant="outline" class="flex-1" @click="showRejectForm = null; rejectReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Deny Check-Out Modal -->
     <div v-if="showDenyForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Deny Check-Out</h3>
@@ -279,41 +300,21 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea
-            v-model="denyReason"
-            class="form-input"
-            rows="4"
-            placeholder="Enter reason for denying check-out..."
-          />
+          <textarea v-model="denyReason" class="form-input" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleDeny(showDenyForm)"
-            class="btn btn-outline-danger flex-1"
-          >
-            Deny
-          </button>
-          <button
-            @click="showDenyForm = null; denyReason = ''"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="destructive" class="flex-1" @click="handleDeny(showDenyForm)">Deny</Button>
+          <Button variant="outline" class="flex-1" @click="showDenyForm = null; denyReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Bulk Approve Modal -->
     <div v-if="showBulkApproveForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Approve {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <input
-            type="date"
-            v-model="bulkReturnDate"
-            class="form-input"
-          />
+          <input type="date" v-model="bulkReturnDate" class="form-input" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -332,105 +333,48 @@
           />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleBulkApprove"
-            class="btn btn-outline-success flex-1"
-          >
-            Approve All
-          </button>
-          <button
-            @click="showBulkApproveForm = false; bulkReturnDate = ''; bulkApproveRemark = ''; bulkApproveLocation = locationOptions[0]"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="success" class="flex-1" @click="handleBulkApprove">Approve All</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkApproveForm = false; bulkReturnDate = ''; bulkApproveRemark = ''; bulkApproveLocation = locationOptions[0]">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Bulk Reject Modal -->
     <div v-if="showBulkRejectForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Reject {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea
-            v-model="bulkRejectReason"
-            class="form-input"
-            rows="4"
-            placeholder="Enter rejection reason..."
-          />
+          <textarea v-model="bulkRejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleBulkReject"
-            class="btn btn-outline-danger flex-1"
-          >
-            Reject All
-          </button>
-          <button
-            @click="showBulkRejectForm = false; bulkRejectReason = ''"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="destructive" class="flex-1" @click="handleBulkReject">Reject All</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkRejectForm = false; bulkRejectReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Bulk Checkout Modal -->
     <div v-if="showBulkCheckoutForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Mark {{ selectedCheckoutIds.length }} Item(s) as Borrowed Out</h3>
-        <p class="text-sm text-secondary mb-4">
-          This will mark all selected approved requests as checked out.
-        </p>
+        <p class="text-sm text-secondary mb-4">This will mark all selected approved requests as checked out.</p>
         <div class="flex gap-2">
-          <button
-            @click="handleBulkCheckout"
-            class="btn btn-outline-primary flex-1"
-          >
-            Borrowed Out All
-          </button>
-          <button
-            @click="showBulkCheckoutForm = false"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button class="flex-1" @click="handleBulkCheckout">Borrowed Out All</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkCheckoutForm = false">Cancel</Button>
         </div>
       </div>
     </div>
 
-    <!-- Bulk Deny Modal -->
     <div v-if="showBulkDenyForm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Deny {{ selectedCheckoutIds.length }} Check-Out(s)</h3>
-        <p class="text-sm text-secondary mb-3">
-          This will reject the approved requests and make the items available again.
-        </p>
+        <p class="text-sm text-secondary mb-3">This will reject the approved requests and make the items available again.</p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea
-            v-model="bulkDenyReason"
-            class="form-input"
-            rows="4"
-            placeholder="Enter reason for denying check-out..."
-          />
+          <textarea v-model="bulkDenyReason" class="form-input" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
-          <button
-            @click="handleBulkDeny"
-            class="btn btn-outline-danger flex-1"
-          >
-            Deny All
-          </button>
-          <button
-            @click="showBulkDenyForm = false; bulkDenyReason = ''"
-            class="btn btn-outline-secondary flex-1"
-          >
-            Cancel
-          </button>
+          <Button variant="destructive" class="flex-1" @click="handleBulkDeny">Deny All</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkDenyForm = false; bulkDenyReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -447,16 +391,31 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { Download, MoreVertical, Mail, CheckCircle2, XCircle, Package } from 'lucide-vue-next'
 import { inventoryService, borrowingService } from '../utils/services'
 import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import RemarkBox from '../components/RemarkBox.vue'
 import SendEmailModal from '../components/SendEmailModal.vue'
+import {
+  UiButton as Button,
+  UiCard as Card,
+  UiBadge as Badge,
+  UiCheckbox as Checkbox,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiModulePageHeader as ModulePageHeader,
+  UiTablePaginationBar as TablePaginationBar
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl, DropdownWithOther, RemarkBox, SendEmailModal },
+  components: {
+    Button, Card, Badge, Checkbox, DropdownMenu, DropdownMenuItem,
+    ModulePageHeader, TablePaginationBar,
+    DropdownWithOther, RemarkBox, SendEmailModal,
+    Download, MoreVertical, Mail, CheckCircle2, XCircle, Package
+  },
   setup() {
     const requests = ref([])
     const allApprovedRequests = ref([])
@@ -467,14 +426,13 @@ export default {
     const showDenyForm = ref(null)
     const denyReason = ref('')
     const currentPage = ref(1)
-    const pageSize = 10
+    const pageSize = ref(10)
     const activeTab = ref('pending')
     const competingCount = ref(0)
     const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
     const approveLocation = ref('Lab A')
     const approveRemark = ref('')
-    
-    // Bulk operations state
+
     const selectedPendingIds = ref([])
     const selectedCheckoutIds = ref([])
     const showBulkApproveForm = ref(false)
@@ -489,57 +447,114 @@ export default {
     const showEmailModal = ref(false)
     const emailTarget = ref(null)
 
-    // Borrowers with overdue items
+    const pendingCount = ref(0)
+    const checkoutCount = ref(0)
+
+    const requestsLoadState = reactive({
+      isInitialLoading: true,
+      isFetching: false,
+      isLoaded: false,
+      error: null
+    })
+
+    let latestRequestsRequestId = 0
+
     const overdueBorrowerIDs = computed(() => {
       const ids = new Set()
-      allApprovedRequests.value.forEach(r => {
-        if (isOverdue(r.returnDate) && r.borrowerID) {
-          ids.add(r.borrowerID)
-        }
+      allApprovedRequests.value.forEach((request) => {
+        if (isOverdue(request.returnDate) && request.borrowerID) ids.add(request.borrowerID)
       })
       return ids
     })
 
-    // Build groups from requests by status
     const buildGroups = (reqs) => {
       const parents = reqs.filter(r => !r.parentRequestId)
       const groups = []
-      parents.forEach(parent => {
+      parents.forEach((parent) => {
         const children = reqs.filter(r => r.parentRequestId === parent.id)
         groups.push({ parent, children })
       })
-      // Orphan children
-      reqs.filter(r => r.parentRequestId && !parents.find(p => p.id === r.parentRequestId))
-        .forEach(orphan => {
-          groups.push({ parent: orphan, children: [] })
-        })
+
+      reqs
+        .filter(r => r.parentRequestId && !parents.find(p => p.id === r.parentRequestId))
+        .forEach((orphan) => groups.push({ parent: orphan, children: [] }))
+
       return groups
     }
 
-    // Separate groups for each tab
-    const pendingGroups = computed(() => {
-      return buildGroups(requests.value.filter(r => r.status === 'Pending'))
+    const pendingGroups = computed(() => buildGroups(requests.value.filter(r => r.status === 'Pending')))
+    const checkoutGroups = computed(() => buildGroups(requests.value.filter(r => r.status === 'Pending Check-Out')))
+
+    const currentGroups = computed(() => activeTab.value === 'pending' ? pendingGroups.value : checkoutGroups.value)
+    const currentTotal = computed(() => activeTab.value === 'pending' ? pendingCount.value : checkoutCount.value)
+
+    const selectedCount = computed(() =>
+      activeTab.value === 'pending' ? selectedPendingIds.value.length : selectedCheckoutIds.value.length
+    )
+
+    const isCurrentAllSelected = computed(() => {
+      if (currentGroups.value.length === 0) return false
+      if (activeTab.value === 'pending') {
+        return currentGroups.value.every(group => selectedPendingIds.value.includes(group.parent.id))
+      }
+      return currentGroups.value.every(group => selectedCheckoutIds.value.includes(group.parent.id))
     })
 
-    const checkoutGroups = computed(() => {
-      return buildGroups(requests.value.filter(r => r.status === 'Pending Check-Out'))
+    const requestSummaryText = computed(() => {
+      if (requestsLoadState.isInitialLoading && !requestsLoadState.isLoaded) return 'Loading request queue...'
+      if (requestsLoadState.error && !requestsLoadState.isLoaded) return 'Unable to load request queue'
+      return `${pendingCount.value + checkoutCount.value} request record(s)`
     })
 
-    const paginatedPending = computed(() => {
-      return pendingGroups.value
-    })
+    const showRequestsSkeleton = computed(() => requestsLoadState.isFetching)
+    const tableSkeletonRows = computed(() => Math.min(Math.max(pageSize.value, 5), 10))
+    const requestsErrorMessage = computed(() => requestsLoadState.error || '')
 
-    const paginatedCheckout = computed(() => {
-      return checkoutGroups.value
-    })
+    const clearCurrentSelection = () => {
+      if (activeTab.value === 'pending') selectedPendingIds.value = []
+      else selectedCheckoutIds.value = []
+    }
 
-    const allPendingSelected = computed(() => {
-      return paginatedPending.value.length > 0 && paginatedPending.value.every(g => selectedPendingIds.value.includes(g.parent.id))
-    })
+    const toggleSelectAllPending = (checked) => {
+      const pageIds = pendingGroups.value.map(group => group.parent.id)
+      if (checked) {
+        const next = new Set([...selectedPendingIds.value, ...pageIds])
+        selectedPendingIds.value = Array.from(next)
+      } else {
+        selectedPendingIds.value = selectedPendingIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
 
-    const allCheckoutSelected = computed(() => {
-      return paginatedCheckout.value.length > 0 && paginatedCheckout.value.every(g => selectedCheckoutIds.value.includes(g.parent.id))
-    })
+    const toggleSelectAllCheckout = (checked) => {
+      const pageIds = checkoutGroups.value.map(group => group.parent.id)
+      if (checked) {
+        const next = new Set([...selectedCheckoutIds.value, ...pageIds])
+        selectedCheckoutIds.value = Array.from(next)
+      } else {
+        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
+
+    const toggleSelectAllCurrent = (checked) => {
+      if (activeTab.value === 'pending') toggleSelectAllPending(checked)
+      else toggleSelectAllCheckout(checked)
+    }
+
+    const togglePendingSelection = (requestId, checked) => {
+      if (checked) {
+        if (!selectedPendingIds.value.includes(requestId)) selectedPendingIds.value.push(requestId)
+      } else {
+        selectedPendingIds.value = selectedPendingIds.value.filter(id => id !== requestId)
+      }
+    }
+
+    const toggleCheckoutSelection = (requestId, checked) => {
+      if (checked) {
+        if (!selectedCheckoutIds.value.includes(requestId)) selectedCheckoutIds.value.push(requestId)
+      } else {
+        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => id !== requestId)
+      }
+    }
 
     const isCheckoutExpiringSoon = (req) => {
       if (!req.approvalDate) return false
@@ -553,27 +568,58 @@ export default {
       }
     }
 
-    const pendingCount = ref(0)
-    const checkoutCount = ref(0)
+    const openApproveModal = (requestId) => {
+      selectedRequest.value = requestId
+      competingCount.value = countCompetingRequests(requestId)
+    }
+
+    const closeApproveModal = () => {
+      selectedRequest.value = null
+      returnDate.value = ''
+      approveRemark.value = ''
+      approveLocation.value = locationOptions.value[0]
+      competingCount.value = 0
+    }
 
     const loadPendingRequests = async () => {
+      const requestId = ++latestRequestsRequestId
+      requestsLoadState.isFetching = true
+      requestsLoadState.error = null
+      if (!requestsLoadState.isLoaded) requestsLoadState.isInitialLoading = true
+
       try {
-        // Trigger auto-expire first
-        try { await borrowingService.autoExpirePendingCheckouts() } catch (e) { /* ignore */ }
+        try {
+          await borrowingService.autoExpirePendingCheckouts()
+        } catch (error) {
+          console.error('Auto-expire pending check-outs failed:', error)
+        }
+
         const status = activeTab.value === 'pending' ? 'Pending' : 'Pending Check-Out'
-        const data = await borrowingService.getPendingRequests({ page: currentPage.value, pageSize, status })
+        const data = await borrowingService.getPendingRequests({ page: currentPage.value, pageSize: pageSize.value, status })
+        if (requestId !== latestRequestsRequestId) return
+
         requests.value = data.requests || []
         pendingCount.value = data.pendingCount || 0
         checkoutCount.value = data.checkoutCount || 0
-      } catch (e) {
-        console.error('Failed to load pending requests:', e)
-      }
-      // Load approved requests for overdue check
-      try {
-        const { requests: approved } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
-        allApprovedRequests.value = approved
-      } catch (e) {
-        console.error('Failed to load approved requests:', e)
+
+        const approvedData = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 5000 })
+        if (requestId !== latestRequestsRequestId) return
+
+        allApprovedRequests.value = approvedData.requests || []
+        requestsLoadState.isLoaded = true
+      } catch (error) {
+        if (requestId !== latestRequestsRequestId) return
+        console.error('Failed to load pending requests:', error)
+        requestsLoadState.error = error?.message || 'Failed to load requests'
+        if (!requestsLoadState.isLoaded) {
+          requests.value = []
+          pendingCount.value = 0
+          checkoutCount.value = 0
+        }
+      } finally {
+        if (requestId !== latestRequestsRequestId) return
+        requestsLoadState.isFetching = false
+        requestsLoadState.isInitialLoading = false
       }
     }
 
@@ -593,6 +639,7 @@ export default {
         alert('Please set a return date')
         return
       }
+
       const returnDatetime = `${returnDate.value}T17:00:00Z`
       try {
         const req = await borrowingService.approveRequest(requestId, returnDatetime)
@@ -603,15 +650,12 @@ export default {
             await inventoryService.updateItem(item.id, { ...item, location: approveLocation.value })
           }
         }
-      } catch (e) {
-        console.error('Failed to approve request:', e)
-        alert('Failed to approve: ' + e.message)
+      } catch (error) {
+        console.error('Failed to approve request:', error)
+        alert('Failed to approve: ' + error.message)
       }
-      selectedRequest.value = null
-      returnDate.value = ''
-      approveRemark.value = ''
-      approveLocation.value = locationOptions.value[0]
-      competingCount.value = 0
+
+      closeApproveModal()
       loadPendingRequests()
     }
 
@@ -622,8 +666,8 @@ export default {
       }
       try {
         await borrowingService.rejectRequest(requestId, rejectReason.value)
-      } catch (e) {
-        console.error('Failed to reject request:', e)
+      } catch (error) {
+        console.error('Failed to reject request:', error)
       }
       showRejectForm.value = null
       rejectReason.value = ''
@@ -633,9 +677,9 @@ export default {
     const handleCheckout = async (requestId) => {
       try {
         await borrowingService.checkoutRequest(requestId)
-      } catch (e) {
-        console.error('Failed to checkout request:', e)
-        alert('Failed to checkout: ' + e.message)
+      } catch (error) {
+        console.error('Failed to checkout request:', error)
+        alert('Failed to checkout: ' + error.message)
       }
       loadPendingRequests()
     }
@@ -643,33 +687,13 @@ export default {
     const handleDeny = async (requestId) => {
       try {
         await borrowingService.denyCheckout(requestId, denyReason.value || '')
-      } catch (e) {
-        console.error('Failed to deny checkout:', e)
-        alert('Failed to deny: ' + e.message)
+      } catch (error) {
+        console.error('Failed to deny checkout:', error)
+        alert('Failed to deny: ' + error.message)
       }
       showDenyForm.value = null
       denyReason.value = ''
       loadPendingRequests()
-    }
-
-    const toggleSelectAllPending = (event) => {
-      const pageIds = paginatedPending.value.map(group => group.parent.id)
-      if (event.target.checked) {
-        const newSet = new Set([...selectedPendingIds.value, ...pageIds])
-        selectedPendingIds.value = Array.from(newSet)
-      } else {
-        selectedPendingIds.value = selectedPendingIds.value.filter(id => !pageIds.includes(id))
-      }
-    }
-
-    const toggleSelectAllCheckout = (event) => {
-      const pageIds = paginatedCheckout.value.map(group => group.parent.id)
-      if (event.target.checked) {
-        const newSet = new Set([...selectedCheckoutIds.value, ...pageIds])
-        selectedCheckoutIds.value = Array.from(newSet)
-      } else {
-        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => !pageIds.includes(id))
-      }
     }
 
     const handleBulkApprove = async () => {
@@ -677,6 +701,7 @@ export default {
         alert('Please set a return date')
         return
       }
+
       const returnDatetime = `${bulkReturnDate.value}T17:00:00Z`
       try {
         for (const requestId of selectedPendingIds.value) {
@@ -689,18 +714,19 @@ export default {
                 await inventoryService.updateItem(item.id, { ...item, location: bulkApproveLocation.value })
               }
             }
-          } catch (e) {
-            console.error(`Failed to approve request ${requestId}:`, e)
+          } catch (error) {
+            console.error(`Failed to approve request ${requestId}:`, error)
           }
         }
+
         selectedPendingIds.value = []
         showBulkApproveForm.value = false
         bulkReturnDate.value = ''
         bulkApproveRemark.value = ''
         bulkApproveLocation.value = locationOptions.value[0]
         loadPendingRequests()
-      } catch (e) {
-        console.error('Failed to bulk approve:', e)
+      } catch (error) {
+        console.error('Failed to bulk approve:', error)
       }
     }
 
@@ -713,16 +739,17 @@ export default {
         for (const requestId of selectedPendingIds.value) {
           try {
             await borrowingService.rejectRequest(requestId, bulkRejectReason.value)
-          } catch (e) {
-            console.error(`Failed to reject request ${requestId}:`, e)
+          } catch (error) {
+            console.error(`Failed to reject request ${requestId}:`, error)
           }
         }
+
         selectedPendingIds.value = []
         showBulkRejectForm.value = false
         bulkRejectReason.value = ''
         loadPendingRequests()
-      } catch (e) {
-        console.error('Failed to bulk reject:', e)
+      } catch (error) {
+        console.error('Failed to bulk reject:', error)
       }
     }
 
@@ -731,15 +758,15 @@ export default {
         for (const requestId of selectedCheckoutIds.value) {
           try {
             await borrowingService.checkoutRequest(requestId)
-          } catch (e) {
-            console.error(`Failed to checkout request ${requestId}:`, e)
+          } catch (error) {
+            console.error(`Failed to checkout request ${requestId}:`, error)
           }
         }
         selectedCheckoutIds.value = []
         showBulkCheckoutForm.value = false
         loadPendingRequests()
-      } catch (e) {
-        console.error('Failed to bulk checkout:', e)
+      } catch (error) {
+        console.error('Failed to bulk checkout:', error)
       }
     }
 
@@ -748,16 +775,16 @@ export default {
         for (const requestId of selectedCheckoutIds.value) {
           try {
             await borrowingService.denyCheckout(requestId, bulkDenyReason.value || '')
-          } catch (e) {
-            console.error(`Failed to deny checkout ${requestId}:`, e)
+          } catch (error) {
+            console.error(`Failed to deny checkout ${requestId}:`, error)
           }
         }
         selectedCheckoutIds.value = []
         showBulkDenyForm.value = false
         bulkDenyReason.value = ''
         loadPendingRequests()
-      } catch (e) {
-        console.error('Failed to bulk deny:', e)
+      } catch (error) {
+        console.error('Failed to bulk deny:', error)
       }
     }
 
@@ -765,42 +792,57 @@ export default {
       exportToExcel(requests.value, 'borrow_requests.xlsx')
     }
 
-    watch([currentPage, activeTab], () => {
-      loadPendingRequests()
+    const openEmailForRequest = (req) => {
+      emailTarget.value = req
+      showEmailModal.value = true
+    }
+
+    watch([activeTab, pageSize], async () => {
+      clearCurrentSelection()
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      await loadPendingRequests()
+    })
+
+    watch(currentPage, async () => {
+      clearCurrentSelection()
+      await loadPendingRequests()
     })
 
     onMounted(() => {
       loadPendingRequests()
     })
 
-    const openEmailForRequest = (req) => {
-      emailTarget.value = req
-      showEmailModal.value = true
-    }
-
     return {
-      requests,
       activeTab,
+      currentPage,
+      pageSize,
       pendingCount,
       checkoutCount,
       pendingGroups,
       checkoutGroups,
+      requestsLoadState,
+      showRequestsSkeleton,
+      tableSkeletonRows,
+      requestsErrorMessage,
+      requestSummaryText,
+      currentTotal,
+      selectedCount,
+      isCurrentAllSelected,
+      selectedPendingIds,
+      selectedCheckoutIds,
       selectedRequest,
       returnDate,
       rejectReason,
       showRejectForm,
       showDenyForm,
       denyReason,
-      currentPage,
-      pageSize,
       competingCount,
-      paginatedPending,
-      paginatedCheckout,
       locationOptions,
       approveLocation,
       approveRemark,
-      selectedPendingIds,
-      selectedCheckoutIds,
       showBulkApproveForm,
       showBulkRejectForm,
       showBulkCheckoutForm,
@@ -810,35 +852,271 @@ export default {
       bulkApproveRemark,
       bulkRejectReason,
       bulkDenyReason,
-      allPendingSelected,
-      allCheckoutSelected,
+      overdueBorrowerIDs,
+      showEmailModal,
+      emailTarget,
+      toggleSelectAllCurrent,
+      togglePendingSelection,
+      toggleCheckoutSelection,
       addLocation,
+      openApproveModal,
+      closeApproveModal,
       handleApprove,
       handleReject,
       handleCheckout,
       handleDeny,
-      toggleSelectAllPending,
-      toggleSelectAllCheckout,
       handleBulkApprove,
       handleBulkReject,
       handleBulkCheckout,
       handleBulkDeny,
+      openEmailForRequest,
       exportRequests,
+      isCheckoutExpiringSoon,
       formatDate,
       waitingTime,
-      overdueBorrowerIDs,
-      isCheckoutExpiringSoon,
-      countCompetingRequests,
-      showEmailModal,
-      emailTarget,
-      openEmailForRequest,
     }
   }
 }
 </script>
 
 <style scoped>
-.row-parent td { font-size: 0.8125rem; }
-.row-child td { color: var(--muted-foreground); }
-.text-accent-subtle { color: var(--accent); opacity: 0.7; }
+.request-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.request-tabs {
+  display: flex;
+  gap: 0.125rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem 0;
+  overflow-x: auto;
+}
+
+.request-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.request-tab:hover {
+  color: var(--text-secondary);
+}
+
+.request-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.request-tab-count {
+  min-width: 1.1rem;
+  text-align: center;
+}
+
+.request-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-height: 2.5rem;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.request-toolbar-info,
+.request-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.request-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+}
+
+.request-fetch-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-50);
+}
+
+.request-table {
+  margin-bottom: 0;
+}
+
+.request-cell-id {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.request-cell-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.request-item-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.request-item-sub {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+.request-waiting-text {
+  color: var(--warning-dark);
+  font-weight: 600;
+}
+
+.request-cell-reason {
+  max-width: 16rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.request-overdue-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.375rem;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: requestPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes requestPulse {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 0.35; }
+}
+
+.request-expiring-soon {
+  display: inline-block;
+  margin-left: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.request-action-cell {
+  white-space: nowrap;
+}
+
+.request-row-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.request-row-menu-trigger:hover {
+  background: var(--surface-100);
+  color: var(--text-primary);
+}
+
+.request-row-skeleton td {
+  pointer-events: none;
+}
+
+.req-skeleton-line,
+.req-skeleton-box {
+  display: inline-block;
+  background: var(--surface-100);
+  border-radius: var(--radius-sm);
+  animation: requestSkeletonPulse 2.2s ease-in-out infinite;
+}
+
+.req-skeleton-line {
+  height: 0.625rem;
+}
+
+.req-skeleton-box {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.req-skeleton-line-id { width: 4rem; }
+.req-skeleton-line-item { width: 9rem; max-width: 100%; }
+.req-skeleton-line-user { width: 7rem; max-width: 100%; }
+.req-skeleton-line-short { width: 5rem; max-width: 100%; }
+
+@keyframes requestSkeletonPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.95; }
+}
+
+.request-empty-row td {
+  text-align: center;
+}
+
+.request-empty-cell {
+  padding: 2rem 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.row-parent td {
+  font-size: 0.8125rem;
+}
+
+.row-child td {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.request-child-id {
+  padding-left: 1.5rem;
+}
+
+.request-child-cell {
+  font-style: italic;
+}
+
+.request-modal-warning {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--radius-sm);
+  background: var(--danger-light);
+  color: var(--danger-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 </style>
