@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="home-page">
     <!-- ==================== ADMIN / OPERATOR VIEW ==================== -->
     <template v-if="user?.role !== 'user'">
@@ -123,24 +123,76 @@
                   <span v-if="isQueueBackgroundFetching" class="ops-fetching-chip">Updating...</span>
                 </h3>
               </div>
-              <div class="ops-attention-tabs">
-                <button
-                  v-for="tab in attentionFilterTabs"
-                  :key="tab.key"
-                  :class="['ops-tab', { active: attentionActiveTab === tab.key }]"
-                  @click="attentionActiveTab = tab.key; selectedRows.clear()"
-                >
-                  {{ tab.label }}
-                  <span v-if="dashboardLoadState.queue.isLoaded && tab.count > 0" class="ops-tab-count">{{ tab.count }}</span>
-                </button>
+              <div class="ops-attention-tabs-row">
+                <div class="ops-attention-tabs">
+                  <button
+                    v-for="tab in attentionFilterTabs"
+                    :key="tab.key"
+                    :class="['ops-tab', { active: attentionActiveTab === tab.key }]"
+                    @click="attentionActiveTab = tab.key; selectedRows.clear()"
+                  >
+                    {{ tab.label }}
+                    <span v-if="dashboardLoadState.queue.isLoaded && tab.count > 0" class="ops-tab-count">{{ tab.count }}</span>
+                  </button>
+                </div>
+                <div class="ops-tab-tools">
+                  <!-- Filter -->
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button :class="['toolbar-btn', { 'toolbar-btn--active': hasActiveFilters }]">
+                        <Filter :size="12" /> Filter
+                        <span v-if="hasActiveFilters" class="toolbar-dot"></span>
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem label>Priority</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterPriority === ''" @click="filterPriority = ''; close()">All Priorities</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterPriority === 'Critical'" @click="filterPriority = 'Critical'; close()">Critical</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterPriority === 'High'" @click="filterPriority = 'High'; close()">High</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterPriority === 'Medium'" @click="filterPriority = 'Medium'; close()">Medium</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterPriority === 'Low'" @click="filterPriority = 'Low'; close()">Low</DropdownMenuItem>
+                      <DropdownMenuItem separator />
+                      <DropdownMenuItem label>Status</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === ''" @click="filterStatus = ''; close()">All Statuses</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Overdue'" @click="filterStatus = 'Overdue'; close()">Overdue</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Due Soon'" @click="filterStatus = 'Due Soon'; close()">Due Soon</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Pending'" @click="filterStatus = 'Pending'; close()">Pending</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Checkout'" @click="filterStatus = 'Checkout'; close()">Checkout</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Missing'" @click="filterStatus = 'Missing'; close()">Missing</DropdownMenuItem>
+                      <template v-if="hasActiveFilters">
+                        <DropdownMenuItem separator />
+                        <DropdownMenuItem destructive @click="filterPriority = ''; filterStatus = ''; close()">
+                          <XCircle :size="12" /> Clear All Filters
+                        </DropdownMenuItem>
+                      </template>
+                    </template>
+                  </DropdownMenu>
+
+                  <!-- Customize columns -->
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="toolbar-btn">
+                        <SlidersHorizontal :size="12" /> Columns
+                      </button>
+                    </template>
+                    <template #default>
+                      <DropdownMenuItem label>Show Columns</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.item" @click="visibleColumns.item = !visibleColumns.item">Item</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.user" @click="visibleColumns.user = !visibleColumns.user">User</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.status" @click="visibleColumns.status = !visibleColumns.status">Status</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.date" @click="visibleColumns.date = !visibleColumns.date">Due / Date</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.priority" @click="visibleColumns.priority = !visibleColumns.priority">Priority</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="visibleColumns.type" @click="visibleColumns.type = !visibleColumns.type">Type</DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
 
-            <!-- Table toolbar: bulk actions + filter + columns -->
-            <div class="ops-toolbar">
-              <div class="ops-toolbar-left">
-                <!-- Bulk actions (visible when rows selected) -->
-                <template v-if="selectedAttentionRows.length > 0">
+            <!-- Bulk actions bar (animated) -->
+            <Transition name="bulk-bar">
+              <div v-if="selectedAttentionRows.length > 0" class="ops-toolbar">
+                <div class="ops-toolbar-left">
                   <div class="bulk-summary">
                     <span class="bulk-count">{{ bulkSelectionSummary.total }} selected</span>
                     <span class="bulk-meta">
@@ -178,60 +230,9 @@
                     </template>
                   </DropdownMenu>
                   <button class="bulk-clear" @click="selectedRows.clear()">Clear</button>
-                </template>
+                </div>
               </div>
-              <div class="ops-toolbar-right">
-                <!-- Filter -->
-                <DropdownMenu align="end">
-                  <template #trigger>
-                    <button :class="['toolbar-btn', { 'toolbar-btn--active': hasActiveFilters }]">
-                      <Filter :size="12" /> Filter
-                      <span v-if="hasActiveFilters" class="toolbar-dot"></span>
-                    </button>
-                  </template>
-                  <template #default="{ close }">
-                    <DropdownMenuItem label>Priority</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterPriority === ''" @click="filterPriority = ''; close()">All Priorities</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterPriority === 'Critical'" @click="filterPriority = 'Critical'; close()">Critical</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterPriority === 'High'" @click="filterPriority = 'High'; close()">High</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterPriority === 'Medium'" @click="filterPriority = 'Medium'; close()">Medium</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterPriority === 'Low'" @click="filterPriority = 'Low'; close()">Low</DropdownMenuItem>
-                    <DropdownMenuItem separator />
-                    <DropdownMenuItem label>Status</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === ''" @click="filterStatus = ''; close()">All Statuses</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === 'Overdue'" @click="filterStatus = 'Overdue'; close()">Overdue</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === 'Due Soon'" @click="filterStatus = 'Due Soon'; close()">Due Soon</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === 'Pending'" @click="filterStatus = 'Pending'; close()">Pending</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === 'Checkout'" @click="filterStatus = 'Checkout'; close()">Checkout</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="filterStatus === 'Missing'" @click="filterStatus = 'Missing'; close()">Missing</DropdownMenuItem>
-                    <template v-if="hasActiveFilters">
-                      <DropdownMenuItem separator />
-                      <DropdownMenuItem destructive @click="filterPriority = ''; filterStatus = ''; close()">
-                        <XCircle :size="12" /> Clear All Filters
-                      </DropdownMenuItem>
-                    </template>
-                  </template>
-                </DropdownMenu>
-
-                <!-- Customize columns -->
-                <DropdownMenu align="end">
-                  <template #trigger>
-                    <button class="toolbar-btn">
-                      <SlidersHorizontal :size="12" /> Columns
-                    </button>
-                  </template>
-                  <template #default>
-                    <DropdownMenuItem label>Show Columns</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.item" @click="visibleColumns.item = !visibleColumns.item">Item</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.user" @click="visibleColumns.user = !visibleColumns.user">User</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.status" @click="visibleColumns.status = !visibleColumns.status">Status</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.date" @click="visibleColumns.date = !visibleColumns.date">Due / Date</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.priority" @click="visibleColumns.priority = !visibleColumns.priority">Priority</DropdownMenuItem>
-                    <DropdownMenuItem checkable :checked="visibleColumns.type" @click="visibleColumns.type = !visibleColumns.type">Type</DropdownMenuItem>
-                  </template>
-                </DropdownMenu>
-              </div>
-            </div>
+            </Transition>
 
             <!-- Active filters indicator -->
             <div v-if="hasActiveFilters" class="ops-active-filters">
@@ -267,15 +268,10 @@
                 </thead>
                 <tbody>
                   <template v-if="showQueueSkeleton">
-                    <tr v-for="idx in attentionSkeletonRows" :key="'attn-skel-' + idx" class="ops-row-skeleton">
-                      <td class="td-checkbox"><span class="ops-skeleton-box ops-skeleton-box--check"></span></td>
-                      <td v-if="visibleColumns.item"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--item"></span></td>
-                      <td v-if="visibleColumns.type"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--short"></span></td>
-                      <td v-if="visibleColumns.user"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--mid"></span></td>
-                      <td v-if="visibleColumns.status"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--short"></span></td>
-                      <td v-if="visibleColumns.date"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--short"></span></td>
-                      <td v-if="visibleColumns.priority"><span class="ops-skeleton-line ops-skeleton-line--cell ops-skeleton-line--short"></span></td>
-                      <td class="td-action"><span class="ops-skeleton-box ops-skeleton-box--icon"></span></td>
+                    <tr>
+                      <td :colspan="attentionVisibleColumnCount" class="table-spinner-cell">
+                        <Spinner size="lg" label="Loading queue..." />
+                      </td>
                     </tr>
                   </template>
 
@@ -332,7 +328,7 @@
                             </template>
                             <!-- Approve rows -->
                             <template v-else-if="row.actionType === 'approve'">
-                              <DropdownMenuItem @click="inlineApproveId = row.id; close()">
+                              <DropdownMenuItem success @click="inlineApproveId = row.id; close()">
                                 <CheckCircle2 :size="12" /> Approve
                               </DropdownMenuItem>
                               <DropdownMenuItem destructive @click="inlineRejectId = row.id; close()">
@@ -345,7 +341,7 @@
                             </template>
                             <!-- Checkout rows -->
                             <template v-else-if="row.actionType === 'checkout'">
-                              <DropdownMenuItem @click="handleInlineCheckout(row.id); close()">
+                              <DropdownMenuItem success @click="handleInlineCheckout(row.id); close()">
                                 <Package :size="12" /> Check Out
                               </DropdownMenuItem>
                               <DropdownMenuItem @click="$emit('navigate', 'approve-requests'); close()">
@@ -575,7 +571,7 @@
           <h3 class="modal-title">Reject Request</h3>
           <div class="mb-4">
             <label class="modal-label">Reason</label>
-            <textarea v-model="inlineRejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
+            <Textarea v-model="inlineRejectReason" rows="4" placeholder="Enter rejection reason..." />
           </div>
           <div class="flex gap-2">
             <Button variant="destructive" class="flex-1" @click="confirmInlineReject">Reject</Button>
@@ -616,7 +612,7 @@
 
           <div v-if="bulkConfirmAction.id === 'reject-selected'" class="mb-4">
             <label class="modal-label">Reason</label>
-            <textarea v-model="bulkRejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
+            <Textarea v-model="bulkRejectReason" rows="4" placeholder="Enter rejection reason..." />
           </div>
 
           <p v-if="!bulkConfirmAction.implemented" class="bulk-confirm-note bulk-confirm-note--warning">
@@ -679,7 +675,7 @@
         <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'pending') && teacherPendingRequests.length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-accent">Pending requests</h3>
-            <button @click="$emit('navigate', 'teacher-requests')" class="section-link">View all →</button>
+            <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-requests')">View all →</Button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -705,7 +701,7 @@
                   <td class="cell-ellip">{{ req.reason || '—' }}</td>
                   <td class="text-center whitespace-nowrap">
                     <template v-if="req.status === 'Pending Check-Out'">
-                      <button @click="handleTeacherCheckout(req.id)" class="inline-action-btn primary">Borrowed Out</button>
+                      <Button size="sm" @click="handleTeacherCheckout(req.id)">Borrowed Out</Button>
                     </template>
                   </td>
                 </tr>
@@ -717,7 +713,7 @@
         <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'checkout') && teacherOwnedItems.filter(i => i.status === 'In-use').length > 0" class="tab-section">
           <div class="section-header">
             <h3 class="section-title section-title-warning">Items currently checked out</h3>
-            <button @click="$emit('navigate', 'teacher-checkout')" class="section-link">View all →</button>
+            <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-checkout')">View all →</Button>
           </div>
           <div class="table-responsive">
             <table class="table-striped">
@@ -747,7 +743,7 @@
       <div class="section-card animate-in delay-3">
         <div class="section-header">
           <h3 class="section-title">My borrow records</h3>
-          <button @click="$emit('navigate', 'my-borrowing-record')" class="section-link">View all →</button>
+          <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
         </div>
         <div v-if="myBorrows.length === 0" class="empty-state">
           <p>No borrowing records yet</p>
@@ -788,7 +784,7 @@
       <div class="section-card animate-in delay-2">
         <div class="section-header">
           <h3 class="section-title">My borrow records</h3>
-          <button @click="$emit('navigate', 'my-borrowing-record')" class="section-link">View all →</button>
+          <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
         </div>
         <div v-if="myBorrows.length === 0" class="empty-state">
           <p>No borrowing records yet</p>
@@ -806,7 +802,7 @@
           </div>
           <p v-if="myBorrows.length > 5" class="record-more">
             Showing 5 of {{ myBorrows.length }}
-            <button @click="$emit('navigate', 'my-borrowing-record')" class="text-accent">→ View all</button>
+            <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">→ View all</Button>
           </p>
         </div>
       </div>
@@ -832,13 +828,15 @@ import RemarkBox from '../components/RemarkBox.vue'
 import {
   UiCard as Card, UiBadge as Badge, UiButton as Button,
   UiCheckbox as Checkbox, UiDropdownMenu as DropdownMenu,
-  UiDropdownMenuItem as DropdownMenuItem
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiInput as Input, UiTextarea as Textarea,
+  UiSpinner as Spinner
 } from '../components/ui'
 
 export default {
   components: {
     StatusBadge, DropdownWithOther, RemarkBox,
-    Card, Badge, Button, Checkbox, DropdownMenu, DropdownMenuItem,
+    Card, Badge, Button, Checkbox, DropdownMenu, DropdownMenuItem, Input, Textarea, Spinner,
     ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
     AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
     ArrowUpDown, FileText, Edit, Trash2, ShieldCheck, LogOut,
@@ -1852,1002 +1850,4 @@ export default {
 }
 </script>
 
-<style scoped>
-/* ===== Page — wider layout for desktop ===== */
-.home-page {
-  padding: 1.5rem 1.25rem 2rem;
-  max-width: 90rem;
-  margin: 0 auto;
-}
-@media (min-width: 640px) { .home-page { padding: 2rem 1.25rem; } }
-@media (min-width: 1280px) { .home-page { padding: 2rem 1.25rem; } }
-
-/* ===== Header ===== */
-.ops-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-.ops-title {
-  font-size: 1.375rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
-  line-height: 1.2;
-}
-@media (min-width: 640px) { .ops-title { font-size: 1.5rem; } }
-.ops-subtitle {
-  color: var(--muted-foreground);
-  font-size: 0.8125rem;
-  margin-top: 0.25rem;
-}
-.ops-header-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-/* ===== Summary Cards — responsive grid ===== */
-.ops-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-@media (min-width: 480px) { .ops-cards { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 768px) { .ops-cards { grid-template-columns: repeat(4, 1fr); } }
-
-.ops-summary-card {
-  padding: 1.125rem 1.25rem;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-.ops-summary-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
-}
-.ops-summary-card:active { transform: scale(0.98); }
-
-.ops-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.375rem;
-}
-.ops-card-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.ops-card-icon--warning { background: var(--warning-light); color: var(--warning-dark); }
-.ops-card-icon--danger { background: var(--danger-light); color: var(--danger); }
-.ops-card-icon--success { background: var(--success-light); color: var(--success); }
-.ops-card-icon--muted { background: var(--surface-100); color: var(--muted-foreground); }
-
-.ops-card-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-.ops-card-label {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.625rem;
-}
-.ops-card-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.875rem;
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-  line-height: 1.6;
-}
-.ops-card-metrics strong {
-  font-weight: 700;
-  color: var(--text-secondary);
-}
-.metric-danger { color: var(--danger); }
-.metric-danger strong { color: var(--danger); }
-
-/* ===== Main Grid — wider on desktop ===== */
-.ops-main {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-@media (min-width: 1024px) {
-  .ops-main { grid-template-columns: 1fr 340px; }
-}
-@media (min-width: 1280px) {
-  .ops-main { grid-template-columns: 1fr 380px; }
-}
-
-/* ===== Attention Card ===== */
-.ops-attention-card {
-  padding: 0;
-  overflow: hidden;
-}
-.ops-attention-header {
-  padding: 1rem 1.25rem 0;
-  margin-bottom: 0;
-}
-.ops-attention-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-.ops-section-title {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-.ops-attention-tabs {
-  display: flex;
-  gap: 0.125rem;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.ops-tab {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.12s, border-color 0.12s;
-}
-.ops-tab:hover { color: var(--text-secondary); }
-.ops-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
-.ops-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1rem;
-  height: 1rem;
-  padding: 0 0.25rem;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  background: var(--accent-surface);
-  color: var(--accent);
-}
-
-/* ===== Toolbar ===== */
-.ops-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  min-height: 2.25rem;
-}
-.ops-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-.ops-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.12s;
-  white-space: nowrap;
-  position: relative;
-}
-.toolbar-btn:hover { background: var(--surface-100); color: var(--text-secondary); }
-.toolbar-btn--active { border-color: var(--accent); color: var(--accent); }
-.toolbar-dot {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-/* Active filters */
-.ops-active-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-}
-.filter-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.375rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  background: var(--accent-surface);
-  color: var(--accent);
-  border-radius: var(--radius-sm);
-}
-.filter-tag-x {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.75rem;
-  color: var(--accent);
-  padding: 0;
-  line-height: 1;
-}
-.filter-tag-x:hover { opacity: 0.7; }
-
-/* ===== Bulk Actions ===== */
-.bulk-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-.bulk-count {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--accent);
-  margin-right: 0.125rem;
-}
-.bulk-meta {
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-}
-.bulk-meta-muted {
-  color: var(--text-tertiary);
-}
-.bulk-clear {
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.bulk-clear:hover { color: var(--text-secondary); }
-
-/* ===== Ops Table ===== */
-.ops-table-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.ops-table {
-  width: 100%;
-  font-size: 0.8125rem;
-  border-collapse: collapse;
-}
-.ops-table th {
-  text-align: left;
-  padding: 0.625rem 0.75rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  font-size: 0.625rem;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-50);
-  white-space: nowrap;
-}
-.ops-table td {
-  padding: 0.625rem 0.75rem;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-.ops-table tbody tr { transition: background 0.1s; }
-.ops-table tbody tr:hover td { background: var(--surface-50); }
-.ops-table tbody tr.row-selected td { background: var(--accent-surface); }
-
-/* Column widths */
-.th-checkbox, .td-checkbox { width: 2.25rem; text-align: center; }
-.th-action { width: 2.5rem; text-align: center; }
-.td-action { text-align: center; }
-
-/* Item cell */
-.cell-item {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  min-width: 0;
-}
-.cell-item-name {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.cell-type-badge {
-  flex-shrink: 0;
-  font-size: 0.5625rem !important;
-  padding: 0.0625rem 0.3125rem !important;
-  opacity: 0.7;
-}
-.cell-date {
-  font-variant-numeric: tabular-nums;
-  font-size: 0.75rem;
-}
-
-.overdue-dot-wrap {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 0.25rem;
-}
-.overdue-dot {
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--danger);
-  border-radius: 50%;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* Kebab action button */
-.kebab-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.kebab-btn:hover { background: var(--surface-100); color: var(--text-primary); }
-
-/* ===== Pagination ===== */
-.ops-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 1.25rem;
-  border-top: 1px solid var(--border);
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.ops-pagination-left,
-.ops-pagination-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.ops-page-size-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.ops-page-size-label {
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-}
-
-.ops-page-size-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-width: 3rem;
-  height: 1.75rem;
-  padding: 0 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.ops-page-size-trigger:hover {
-  background: var(--surface-100);
-  color: var(--text-primary);
-}
-
-.ops-pagination-info {
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.ops-pagination-page {
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.ops-pagination-btns {
-  display: flex;
-  gap: 0.125rem;
-}
-.ops-page-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.625rem;
-  height: 1.625rem;
-  padding: 0 0.25rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.ops-page-btn:hover:not(:disabled) { background: var(--surface-100); }
-.ops-page-btn.active {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
-}
-.ops-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.ops-view-full {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-.ops-view-full:hover { text-decoration: underline; }
-
-/* ===== Sidebar ===== */
-.ops-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-/* Promoted Inventory Status card */
-.ops-inv-status-card {
-  padding: 1.25rem 1.5rem;
-}
-.ops-inv-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-.ops-inv-title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-.ops-inv-total {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-}
-.ops-inv-rate {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-.ops-inv-rate-val {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--success);
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.ops-inv-rate-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-}
-
-/* Status bars */
-.status-bars { display: flex; flex-direction: column; gap: 0.625rem; }
-.status-bar-row {
-  display: grid;
-  grid-template-columns: 90px 1fr auto;
-  align-items: center;
-  gap: 0.625rem;
-}
-.status-bar-row--exception .status-bar-label { font-weight: 700; }
-.status-bar-label {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-bar-track {
-  height: 8px;
-  background: var(--surface-100);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.status-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.4s ease;
-  min-width: 2px;
-}
-.status-bar-count {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.status-bar-pct {
-  font-weight: 500;
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-}
-
-/* Sidebar cards */
-.ops-sidebar-card { padding: 1.125rem; }
-.ops-sidebar-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-bottom: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-/* Activity */
-.activity-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.activity-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-.activity-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.625rem;
-  height: 1.625rem;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-.activity-icon--success { background: var(--success-light); color: var(--success); }
-.activity-icon--destructive { background: var(--danger-light); color: var(--danger); }
-.activity-icon--info { background: var(--info-light, var(--accent-surface)); color: var(--info, var(--accent)); }
-.activity-icon--accent { background: var(--accent-surface); color: var(--accent); }
-.activity-icon--default { background: var(--surface-100); color: var(--muted-foreground); }
-.activity-detail {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.activity-entity {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.activity-meta {
-  font-size: 0.625rem;
-  color: var(--muted-foreground);
-  margin-top: 0.0625rem;
-}
-.activity-view-all {
-  display: block;
-  width: 100%;
-  text-align: center;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding-top: 0.625rem;
-  margin-top: 0.375rem;
-  border-top: 1px solid var(--border);
-}
-.activity-view-all:hover { text-decoration: underline; }
-
-/* Quick actions */
-.ops-quick-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-.ops-quick-btn {
-  justify-content: flex-start !important;
-  font-size: 0.6875rem !important;
-}
-
-/* ===== Shared: Empty State ===== */
-.empty-state {
-  text-align: center;
-  padding: 2.5rem 1rem;
-  color: var(--muted-foreground);
-  font-size: 0.8125rem;
-}
-.empty-state-sm {
-  text-align: center;
-  padding: 1rem 0.5rem;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-}
-.empty-icon {
-  color: var(--success);
-  margin: 0 auto 0.5rem;
-  display: block;
-}
-
-/* ===== Modal ===== */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  z-index: 50;
-}
-.modal-card {
-  max-width: 28rem;
-  width: 100%;
-  padding: 1.5rem;
-}
-.modal-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-}
-.modal-label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.375rem;
-}
-.bulk-confirm-stats {
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.875rem;
-}
-.bulk-confirm-note {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin: 0 0 0.625rem;
-}
-.bulk-confirm-note--muted {
-  color: var(--muted-foreground);
-}
-.bulk-confirm-note--warning {
-  color: var(--warning-dark);
-  font-weight: 600;
-}
-
-/* ===== Table helpers ===== */
-.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.font-semibold { font-weight: 600; }
-.text-center { text-align: center; }
-.whitespace-nowrap { white-space: nowrap; }
-.cell-ellip {
-  max-width: 12rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ml-2 { margin-left: 0.5rem; }
-.mb-4 { margin-bottom: 1rem; }
-.flex { display: flex; }
-.flex-1 { flex: 1; }
-.gap-2 { gap: 0.5rem; }
-.text-accent { color: var(--accent); }
-/* ===== Teacher / Student shared styles ===== */
-.hero-section { margin-bottom: 1.5rem; }
-.hero-title {
-  font-size: 1.375rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
-  line-height: 1.2;
-}
-@media (min-width: 640px) { .hero-title { font-size: 1.5rem; } }
-.hero-subtitle {
-  color: var(--muted-foreground);
-  font-size: 0.8125rem;
-  margin-top: 0.25rem;
-}
-.hero-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-.items-tracked-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 0.875rem 1.5rem;
-  min-width: 120px;
-  box-shadow: var(--shadow-card);
-}
-.items-tracked-count {
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-.items-tracked-label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  margin-top: 0.125rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* Stat grid */
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.625rem;
-  margin-bottom: 1.25rem;
-}
-.stat-grid-2 { grid-template-columns: repeat(2, 1fr); }
-.stat-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 1rem;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
-}
-.stat-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
-}
-.stat-value {
-  font-size: 1.625rem;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-.stat-label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  margin-top: 0.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* Tab bar (teacher) */
-.tab-bar {
-  display: flex;
-  gap: 0.125rem;
-  border-bottom: 1px solid var(--border);
-  margin: -1.25rem -1.25rem 1.25rem;
-  padding: 0 1.25rem;
-  overflow-x: auto;
-}
-.tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.625rem 0.75rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.12s, border-color 0.12s;
-}
-.tab-btn:hover { color: var(--text-secondary); }
-.tab-btn.active { color: var(--text-primary); border-bottom-color: var(--accent); }
-.tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.125rem;
-  height: 1.125rem;
-  padding: 0 0.3125rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-}
-.tab-badge.danger { background: var(--danger-light); color: var(--danger); }
-.tab-badge.warning { background: var(--warning-light); color: var(--warning-dark); }
-.tab-badge.neutral { background: var(--accent-surface); color: var(--accent); }
-
-/* Section card / header / link */
-.section-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
-  padding: 1.25rem;
-  margin-bottom: 0.75rem;
-  box-shadow: var(--shadow-card);
-}
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.section-title-danger { color: var(--danger); }
-.section-title-warning { color: var(--warning-dark); }
-.section-title-accent { color: var(--accent); }
-.section-link {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.12s;
-}
-.section-link:hover { opacity: 0.8; }
-.tab-section { margin-bottom: 1.25rem; }
-.tab-section:last-of-type { margin-bottom: 0; }
-
-/* Table striped (teacher) */
-.table-striped {
-  width: 100%;
-  font-size: 0.75rem;
-  border-collapse: collapse;
-}
-.table-striped th {
-  text-align: left;
-  padding: 0.5rem 0.625rem;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  font-size: 0.625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
-}
-.table-striped td {
-  padding: 0.5rem 0.625rem;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border);
-}
-
-/* Quick actions (student) */
-.quick-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-.quick-action-card {
-  padding: 1.25rem 1rem;
-  border-radius: var(--radius-xl);
-  border: none;
-  cursor: pointer;
-  text-align: center;
-  transition: transform 0.12s, box-shadow 0.12s;
-  overflow: hidden;
-}
-.quick-action-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.action-blue { background: var(--accent-surface); border: 1px solid rgba(99, 102, 241, 0.15); }
-.action-green { background: var(--success-light); border: 1px solid rgba(34, 197, 94, 0.15); }
-.quick-action-icon { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
-.quick-action-text { font-size: 0.8125rem; font-weight: 700; color: var(--text-primary); }
-
-/* Record list */
-.record-list { display: flex; flex-direction: column; }
-.record-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 0;
-  border-bottom: 1px solid var(--border);
-  gap: 0.75rem;
-}
-.record-item:last-child { border-bottom: none; }
-.record-main { min-width: 0; flex: 1; }
-.record-name {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.record-id { font-size: 0.6875rem; color: var(--muted-foreground); }
-.record-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
-.record-date { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.125rem; }
-.record-more { text-align: center; font-size: 0.8125rem; color: var(--muted-foreground); padding-top: 0.75rem; }
-</style>
+<style scoped src="./HomePage.scoped.css"></style>

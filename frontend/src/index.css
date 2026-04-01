@@ -46,6 +46,8 @@
   --surface-1: #141728;
   --surface-2: #1a1e35;
   --surface-3: #222745;
+  --surface-50: #161a2e;
+  --surface-100: #1c2038;
   --surface-glass: rgba(20, 23, 40, 0.85);
 
   /* Shadows */
@@ -110,39 +112,41 @@
   --popover-foreground: #0f1629;
   --muted: #f0f1f5;
   --muted-foreground: #64748b;
-  --border: rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.14);
+  --border: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.20);
   --input: #ffffff;
   --ring: rgba(99, 102, 241, 0.3);
 
   --accent: #4f46e5;
   --accent-foreground: #fff;
-  --accent-glow: rgba(79, 70, 229, 0.10);
-  --accent-surface: rgba(79, 70, 229, 0.04);
+  --accent-glow: rgba(79, 70, 229, 0.14);
+  --accent-surface: rgba(79, 70, 229, 0.08);
 
   --success: #16a34a;
-  --success-light: rgba(22, 163, 74, 0.07);
+  --success-light: rgba(22, 163, 74, 0.12);
   --success-dark: #15803d;
   --danger: #dc2626;
-  --danger-light: rgba(220, 38, 38, 0.06);
+  --danger-light: rgba(220, 38, 38, 0.10);
   --danger-dark: #b91c1c;
   --warning: #d97706;
-  --warning-light: rgba(217, 119, 6, 0.06);
+  --warning-light: rgba(217, 119, 6, 0.10);
   --warning-dark: #b45309;
   --info: #2563eb;
-  --info-light: rgba(37, 99, 235, 0.06);
+  --info-light: rgba(37, 99, 235, 0.10);
   --info-dark: #1d4ed8;
 
   --surface-0: #f5f6fa;
   --surface-1: #ffffff;
   --surface-2: #f8f9fc;
   --surface-3: #f0f1f5;
+  --surface-50: #eef0f6;
+  --surface-100: #e5e8f2;
   --surface-glass: rgba(255, 255, 255, 0.88);
 
   --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
   --shadow-sm: 0 2px 6px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
   --shadow-xl: 0 20px 60px rgba(0,0,0,0.10);
   --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px var(--border);
   --shadow-card-hover: 0 8px 30px rgba(0,0,0,0.08), 0 0 0 1px rgba(79,70,229,0.15);
@@ -154,7 +158,7 @@
   --thead-bg: #f8f9fc;
   --row-even: #ffffff;
   --row-odd: #fafafc;
-  --row-hover: rgba(79, 70, 229, 0.03);
+  --row-hover: rgba(79, 70, 229, 0.05);
 
   --nav-bg: rgba(255, 255, 255, 0.95);
   --nav-border: rgba(15, 23, 42, 0.06);

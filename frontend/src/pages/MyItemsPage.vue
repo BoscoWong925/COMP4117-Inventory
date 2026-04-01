@@ -1,17 +1,14 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h2 class="page-title">My Items</h2>
-      <p class="page-description">{{ isTeacher ? 'Items you own and borrow' : 'Items you are currently borrowing' }}</p>
-    </div>
+    <ModulePageHeader title="My Items" :subtitle="isTeacher ? 'Items you own and borrow' : 'Items you are currently borrowing'">
+    </ModulePageHeader>
 
     <!-- Search -->
     <div class="mb-4">
-      <input
+      <Input
         type="text"
         placeholder="Search by name, ID, or description..."
         v-model="searchText"
-        class="form-input"
       />
     </div>
 
@@ -39,32 +36,22 @@
 
     <!-- Stats for teacher owned tab -->
     <div v-if="isTeacher && activeTab === 'owned'" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <div class="theme-card p-4 text-center">
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold text-accent">{{ allOwnedItems.length }}</p>
         <p class="text-xs text-muted">Total Owned</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--success)">{{ allOwnedItems.filter(i => i.status === 'Available').length }}</p>
         <p class="text-xs text-muted">Available</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--warning)">{{ allOwnedItems.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--info)">{{ allOwnedItems.filter(i => i.canBorrow).length }}</p>
         <p class="text-xs text-muted">Borrowable</p>
-      </div>
-    </div>
-
-    <!-- Bulk Actions for Owned Items Tab -->
-    <div v-if="isTeacher && activeTab === 'owned' && selectedOwnedItemIds.length > 0" class="mb-4 flex gap-2">
-      <button @click="showBulkSetInuseModal = true" class="btn btn-outline-warning">
-        Set In-use ({{ selectedOwnedItemIds.length }})
-      </button>
-      <button @click="showBulkSetAvailableModal = true" class="btn btn-outline-success">
-        Set Available ({{ selectedOwnedItemIds.length }})
-      </button>
+      </Card>
     </div>
 
     <div v-if="loading" class="empty-state">Loading items...</div>
@@ -74,50 +61,97 @@
       <div v-if="filteredOwnedItems.length === 0" class="empty-state">
         <p>No owned items found</p>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAllOwned" :checked="allOwnedSelected" />
-              </th>
-              <th>Item ID</th>
-              <th>Name</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Location</th>
-              <th>Current Borrower</th>
-              <th class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in paginatedOwnedItems" :key="item.id" @click="showDetail(item)" class="cursor-pointer">
-              <td class="text-center" @click.stop>
-                <input type="checkbox" :value="item.id" v-model="selectedOwnedItemIds" />
-              </td>
-              <td class="text-sm" style="font-weight:600">{{ item.id }}</td>
-              <td class="text-sm">{{ item.name }}</td>
-              <td class="text-sm">{{ item.category }}</td>
-              <td class="text-sm">
-                <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(item.status)}`">
-                  {{ item.status }}
-                </span>
-              </td>
-              <td class="text-sm">{{ item.location || '-' }}</td>
-              <td class="text-sm">{{ item.currentBorrowerName || item.currentBorrower || '-' }}</td>
-              <td class="text-center whitespace-nowrap" @click.stop>
-                <template v-if="item.status === 'Available'">
-                  <button @click="changeStatus(item, 'In-use')" class="btn btn-outline-warning text-xs">Set In-use</button>
+      <Card v-else class="myitems-table-card">
+        <Transition name="bulk-bar">
+          <div v-if="selectedOwnedItemIds.length > 0" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <span class="bulk-chip">{{ selectedOwnedItemIds.length }} selected</span>
+              <DropdownMenu align="start">
+                <template #trigger>
+                  <button class="toolbar-btn">
+                    <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                  </button>
                 </template>
-                <template v-else-if="item.status === 'In-use'">
-                  <button @click="changeStatus(item, 'Available')" class="btn btn-outline-success text-xs">Set Available</button>
+                <template #default="{ close }">
+                  <DropdownMenuItem @click="showBulkSetInuseModal = true; close()">
+                    <AlertCircle :size="12" /> Set In-use ({{ selectedOwnedItemIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem success @click="showBulkSetAvailableModal = true; close()">
+                    <CircleCheck :size="12" /> Set Available ({{ selectedOwnedItemIds.length }})
+                  </DropdownMenuItem>
                 </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="ownedCount" :pageSize="pageSize" />
-      </div>
+              </DropdownMenu>
+              <button class="bulk-clear-btn" @click="selectedOwnedItemIds = []">Clear</button>
+            </div>
+          </div>
+        </Transition>
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th class="text-center" style="width:2.5rem">
+                  <Checkbox
+                    :checked="allOwnedSelected"
+                    :indeterminate="selectedOwnedItemIds.length > 0 && !allOwnedSelected"
+                    @update:checked="toggleSelectAllOwned"
+                  />
+                </th>
+                <th>Item ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Location</th>
+                <th>Current Borrower</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in paginatedOwnedItems" :key="item.id" @click="showDetail(item)" class="cursor-pointer">
+                <td class="text-center" @click.stop>
+                  <Checkbox
+                    :checked="selectedOwnedItemIds.includes(item.id)"
+                    @update:checked="toggleOwnedSelection(item.id, $event)"
+                  />
+                </td>
+                <td class="text-sm" style="font-weight:600">{{ item.id }}</td>
+                <td class="text-sm">{{ item.name }}</td>
+                <td class="text-sm">{{ item.category }}</td>
+                <td class="text-sm">
+                  <Badge :variant="getStatusBadgeVariant(item.status)">{{ item.status }}</Badge>
+                </td>
+                <td class="text-sm">{{ item.location || '-' }}</td>
+                <td class="text-sm">{{ item.currentBorrowerName || item.currentBorrower || '-' }}</td>
+                <td class="text-center" @click.stop>
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <template v-if="item.status === 'Available'">
+                        <DropdownMenuItem @click="changeStatus(item, 'In-use'); close()">
+                          <AlertCircle :size="12" /> Set In-use
+                        </DropdownMenuItem>
+                      </template>
+                      <template v-else-if="item.status === 'In-use'">
+                        <DropdownMenuItem success @click="changeStatus(item, 'Available'); close()">
+                          <CircleCheck :size="12" /> Set Available
+                        </DropdownMenuItem>
+                      </template>
+                    </template>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="ownedCount"
+        />
+      </Card>
     </template>
 
     <!-- Teacher borrowed items table -->
@@ -126,29 +160,35 @@
         <p>No borrowed items</p>
         <p class="text-sm mt-1">You haven't borrowed any items yet.</p>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Request ID</th>
-              <th>Status</th>
-              <th>Return Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="req in paginatedBorrowedItems" :key="req.id">
-              <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
-              <td class="text-sm">{{ req.id }}</td>
-              <td class="text-sm">
-                <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Borrowed</span>
-              </td>
-              <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="borrowedCount" :pageSize="pageSize" />
-      </div>
+      <Card v-else class="myitems-table-card">
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Request ID</th>
+                <th>Status</th>
+                <th>Return Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in paginatedBorrowedItems" :key="req.id">
+                <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
+                <td class="text-sm">{{ req.id }}</td>
+                <td class="text-sm">
+                  <Badge variant="info">Borrowed</Badge>
+                </td>
+                <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="borrowedCount"
+        />
+      </Card>
     </template>
 
     <!-- Student view: only checked-out borrowed items -->
@@ -156,29 +196,35 @@
       <div v-if="filteredBorrowedItems.length === 0" class="empty-state">
         <p>No items currently checked out to you</p>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Request ID</th>
-              <th>Status</th>
-              <th>Return Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="req in paginatedBorrowedItems" :key="req.id">
-              <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
-              <td class="text-sm">{{ req.id }}</td>
-              <td class="text-sm">
-                <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Borrowed</span>
-              </td>
-              <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="borrowedCount" :pageSize="pageSize" />
-      </div>
+      <Card v-else class="myitems-table-card">
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Request ID</th>
+                <th>Status</th>
+                <th>Return Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in paginatedBorrowedItems" :key="req.id">
+                <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
+                <td class="text-sm">{{ req.id }}</td>
+                <td class="text-sm">
+                  <Badge variant="info">Borrowed</Badge>
+                </td>
+                <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="borrowedCount"
+        />
+      </Card>
     </template>
 
     <!-- Item Detail Modal (owned items only) -->
@@ -215,12 +261,10 @@
     <div v-if="showBulkSetInuseModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Set In-use ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-4">
-          Mark all selected items as In-use?
-        </p>
+        <p class="text-sm text-secondary mb-4">Mark all selected items as In-use?</p>
         <div class="flex gap-2">
-          <button @click="handleBulkSetInuse" class="btn btn-outline-warning flex-1">Set In-use</button>
-          <button @click="showBulkSetInuseModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkSetInuse">Set In-use</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkSetInuseModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -229,12 +273,10 @@
     <div v-if="showBulkSetAvailableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Set Available ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-4">
-          Mark all selected items as Available?
-        </p>
+        <p class="text-sm text-secondary mb-4">Mark all selected items as Available?</p>
         <div class="flex gap-2">
-          <button @click="handleBulkSetAvailable" class="btn btn-outline-success flex-1">Set Available</button>
-          <button @click="showBulkSetAvailableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkSetAvailable">Set Available</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkSetAvailableModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -244,11 +286,26 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
-import { formatDate, getStatusColor } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { formatDate } from '../utils/helpers'
+import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown } from 'lucide-vue-next'
+import {
+  UiModulePageHeader as ModulePageHeader,
+  UiTablePaginationBar as TablePaginationBar,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiCheckbox as Checkbox,
+  UiBadge as Badge,
+  UiCard as Card,
+  UiButton as Button,
+  UiInput as Input
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
+  components: {
+    ModulePageHeader, TablePaginationBar, DropdownMenu, DropdownMenuItem,
+    Checkbox, Badge, Card, Button, Input,
+    MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown
+  },
   props: {
     pageParams: { type: Object, default: () => ({}) }
   },
@@ -262,6 +319,7 @@ export default {
     const loading = ref(true)
     const currentPage = ref(1)
     const pageSize = 15
+    const pageSizeRef = ref(pageSize)
     const activeTab = ref('owned')
     const selectedOwnedItemIds = ref([])
     const showBulkSetInuseModal = ref(false)
@@ -353,14 +411,27 @@ export default {
       }
     }
 
-    const toggleSelectAllOwned = (event) => {
+    const toggleSelectAllOwned = (checked) => {
       const pageIds = paginatedOwnedItems.value.map(item => item.id)
-      if (event.target.checked) {
+      if (checked) {
         const newSet = new Set([...selectedOwnedItemIds.value, ...pageIds])
         selectedOwnedItemIds.value = Array.from(newSet)
       } else {
         selectedOwnedItemIds.value = selectedOwnedItemIds.value.filter(id => !pageIds.includes(id))
       }
+    }
+
+    const toggleOwnedSelection = (id, checked) => {
+      if (checked) {
+        if (!selectedOwnedItemIds.value.includes(id)) selectedOwnedItemIds.value.push(id)
+      } else {
+        selectedOwnedItemIds.value = selectedOwnedItemIds.value.filter(x => x !== id)
+      }
+    }
+
+    const getStatusBadgeVariant = (status) => {
+      const map = { 'Available': 'success', 'In-use': 'warning', 'Pending': 'info' }
+      return map[status] || 'secondary'
     }
 
     const handleBulkSetInuse = async () => {
@@ -411,17 +482,55 @@ export default {
 
     return {
       allOwnedItems, borrowedItems, searchText, statusFilter, selectedItem, loading,
-      currentPage, pageSize, activeTab, isTeacher,
+      currentPage, pageSize, pageSizeRef, activeTab, isTeacher,
       ownedCount, borrowedCount,
       filteredOwnedItems, filteredBorrowedItems,
       paginatedOwnedItems, paginatedBorrowedItems,
       selectedOwnedItemIds, showBulkSetInuseModal, showBulkSetAvailableModal, allOwnedSelected,
-      showDetail, changeStatus, toggleSelectAllOwned, handleBulkSetInuse, handleBulkSetAvailable,
-      formatDate, getStatusColor
+      showDetail, changeStatus, toggleSelectAllOwned, toggleOwnedSelection,
+      handleBulkSetInuse, handleBulkSetAvailable,
+      getStatusBadgeVariant, formatDate
     }
   }
 }
 </script>
 
 <style scoped>
+.myitems-table-card { overflow: hidden; }
+
+.kebab-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--muted-foreground); cursor: pointer; transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
+
+.bulk-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border); background: var(--surface-50);
+}
+.bulk-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.bulk-chip {
+  display: inline-flex; align-items: center;
+  font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
+  border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
+}
+.toolbar-btn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+}
+.toolbar-btn:hover { background: var(--surface-100); }
+.bulk-clear-btn {
+  font-size: 0.7rem; color: var(--muted-foreground); background: none;
+  border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+.bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
+.bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
+.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
 </style>

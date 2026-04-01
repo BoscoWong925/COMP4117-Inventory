@@ -3,12 +3,6 @@
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
       <ModulePageHeader title="Inventory Items" :subtitle="itemsSummaryText">
-        <Button v-if="isAdmin && selectedItemIds.length > 0" variant="destructive" size="sm" @click="showDeleteConfirm = true">
-          Delete ({{ selectedItemIds.length }})
-        </Button>
-        <Button variant="outline" size="sm" @click="showFilterPanel = !showFilterPanel">
-          {{ showFilterPanel ? 'Hide Filters' : 'Filters' }}
-        </Button>
         <Button as="label" variant="outline" size="sm" class="cursor-pointer">
           Import Excel
           <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
@@ -24,69 +18,96 @@
         <Button variant="ghost" size="sm" @click="activeStatusFilter = ''">Clear Filter</Button>
       </Card>
 
-      <ModuleFilterPanel v-if="showFilterPanel" @clear="clearFilters">
-        <div class="items-filter-grid">
-          <div>
-            <label class="filter-label">Item ID</label>
-            <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" />
+      <!-- Quick Filter Toolbar -->
+      <div class="quick-filter-bar">
+        <div class="quick-filter-fields">
+          <div class="qf-search">
+            <Search :size="14" class="qf-search-icon" />
+            <Input v-model="searchFilters.name" type="text" placeholder="Search name or ID..." class="qf-search-input" />
           </div>
-          <div>
-            <label class="filter-label">Name</label>
-            <Input v-model="searchFilters.name" type="text" placeholder="Search name..." />
-          </div>
-          <div>
-            <label class="filter-label">Type</label>
-            <Select v-model="searchFilters.type">
-              <option value="">All Types</option>
-              <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
-            </Select>
-          </div>
-          <div>
-            <label class="filter-label">Category</label>
-            <Select v-model="searchFilters.category">
-              <option value="">All Categories</option>
-              <option v-for="c in mutableCategories.filter(x => x !== 'Other')" :key="c" :value="c">{{ c }}</option>
-            </Select>
-          </div>
-          <div>
-            <label class="filter-label">Status</label>
-            <Select v-model="searchFilters.status">
-              <option value="">All Statuses</option>
-              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-            </Select>
-          </div>
-          <div>
-            <label class="filter-label">Location</label>
-            <Select v-model="searchFilters.location">
-              <option value="">All Locations</option>
-              <option v-for="l in mutableLocations.filter(x => x !== 'Other')" :key="l" :value="l">{{ l }}</option>
-            </Select>
-          </div>
-          <div>
-            <label class="filter-label">Vendor</label>
-            <Select v-model="searchFilters.vendor">
-              <option value="">All Vendors</option>
-              <option v-for="v in uniqueVendors" :key="v" :value="v">{{ v }}</option>
-            </Select>
-          </div>
-          <div>
-            <label class="filter-label">Supplier</label>
-            <Input v-model="searchFilters.supplier" type="text" placeholder="Search supplier..." />
-          </div>
-          <div>
-            <label class="filter-label">University ID</label>
-            <Input v-model="searchFilters.universityID" type="text" placeholder="Search uni ID..." />
-          </div>
-          <div>
-            <label class="filter-label">Warranty End</label>
-            <Input v-model="searchFilters.warrantyEnd" type="date" />
-          </div>
-          <div>
-            <label class="filter-label">Description</label>
-            <Input v-model="searchFilters.description" type="text" placeholder="Search description..." />
-          </div>
+          <Select v-model="searchFilters.status" class="qf-select">
+            <option value="">All Statuses</option>
+            <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+          </Select>
+          <Select v-model="searchFilters.type" class="qf-select">
+            <option value="">All Types</option>
+            <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
+          </Select>
+          <Select v-model="searchFilters.location" class="qf-select">
+            <option value="">All Locations</option>
+            <option v-for="l in mutableLocations.filter(x => x !== 'Other')" :key="l" :value="l">{{ l }}</option>
+          </Select>
         </div>
-      </ModuleFilterPanel>
+        <div class="quick-filter-actions">
+          <button class="qf-toggle-btn" :class="{ 'qf-toggle-btn--active': showAdvancedFilters }" @click="showAdvancedFilters = !showAdvancedFilters">
+            <SlidersHorizontal :size="13" />
+            More Filters
+            <span v-if="advancedFilterCount > 0" class="qf-badge">{{ advancedFilterCount }}</span>
+          </button>
+          <button v-if="hasAnyFilter" class="qf-clear-btn" @click="clearFilters">Clear all</button>
+        </div>
+      </div>
+
+      <!-- Advanced Filter Panel -->
+      <Transition name="adv-panel">
+        <Card v-if="showAdvancedFilters" class="adv-filter-card">
+          <div class="adv-filter-header">
+            <span class="adv-filter-title">Advanced Filters</span>
+            <button class="qf-clear-btn" @click="clearAdvancedFilters">Clear section</button>
+          </div>
+          <div class="adv-filter-grid">
+            <div class="adv-filter-group">
+              <span class="adv-group-label">Identification</span>
+              <div class="adv-group-fields">
+                <div>
+                  <label class="adv-field-label">Item ID</label>
+                  <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" />
+                </div>
+                <div>
+                  <label class="adv-field-label">University ID</label>
+                  <Input v-model="searchFilters.universityID" type="text" placeholder="Search uni ID..." />
+                </div>
+                <div>
+                  <label class="adv-field-label">Description</label>
+                  <Input v-model="searchFilters.description" type="text" placeholder="Search description..." />
+                </div>
+              </div>
+            </div>
+            <div class="adv-filter-group">
+              <span class="adv-group-label">Classification</span>
+              <div class="adv-group-fields">
+                <div>
+                  <label class="adv-field-label">Category</label>
+                  <Select v-model="searchFilters.category">
+                    <option value="">All Categories</option>
+                    <option v-for="c in mutableCategories.filter(x => x !== 'Other')" :key="c" :value="c">{{ c }}</option>
+                  </Select>
+                </div>
+                <div>
+                  <label class="adv-field-label">Vendor</label>
+                  <Select v-model="searchFilters.vendor">
+                    <option value="">All Vendors</option>
+                    <option v-for="v in uniqueVendors" :key="v" :value="v">{{ v }}</option>
+                  </Select>
+                </div>
+                <div>
+                  <label class="adv-field-label">Supplier</label>
+                  <Input v-model="searchFilters.supplier" type="text" placeholder="Search supplier..." />
+                </div>
+              </div>
+            </div>
+            <div class="adv-filter-group">
+              <span class="adv-group-label">Warranty</span>
+              <div class="adv-group-fields">
+                <div>
+                  <label class="adv-field-label">Warranty end date</label>
+                  <Input v-model="searchFilters.warrantyEnd" type="date" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </Transition>
 
       <Card v-if="importMessage" class="items-import-alert" :class="{ 'items-import-alert--error': !importSuccess }">
         <span>{{ importMessage }}</span>
@@ -94,6 +115,26 @@
       </Card>
 
       <Card class="items-table-card">
+        <Transition name="bulk-bar">
+          <div v-if="isAdmin && selectedItemIds.length > 0" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <span class="bulk-chip">{{ selectedItemIds.length }} selected</span>
+              <DropdownMenu align="start">
+                <template #trigger>
+                  <button class="toolbar-btn">
+                    <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                  </button>
+                </template>
+                <template #default="{ close }">
+                  <DropdownMenuItem destructive @click="showDeleteConfirm = true; close()">
+                    <Trash2 :size="12" /> Delete ({{ selectedItemIds.length }})
+                  </DropdownMenuItem>
+                </template>
+              </DropdownMenu>
+              <button class="bulk-clear-btn" @click="selectedItemIds = []">Clear</button>
+            </div>
+          </div>
+        </Transition>
         <div class="table-responsive">
           <table class="table-striped theme-table">
             <thead>
@@ -129,17 +170,10 @@
 
             <tbody>
               <template v-if="showItemsSkeleton">
-                <tr v-for="idx in itemSkeletonRows" :key="'item-skel-' + idx" class="items-row-skeleton">
-                  <td v-if="isAdmin" style="text-align:center"><span class="items-skeleton-box"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-id"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-name"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td><span class="items-skeleton-line items-skeleton-short"></span></td>
-                  <td style="text-align:center"><span class="items-skeleton-box"></span></td>
+                <tr>
+                  <td :colspan="isAdmin ? 10 : 9" class="table-spinner-cell">
+                    <Spinner size="lg" label="Loading items..." />
+                  </td>
                 </tr>
               </template>
 
@@ -164,7 +198,24 @@
                   <td><Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge></td>
                   <td>{{ formatDate(item.warrantyEnd) }}</td>
                   <td style="text-align:center">
-                    <Button variant="ghost" size="sm" @click="handleEdit(item)">Edit</Button>
+                    <DropdownMenu align="end">
+                      <template #trigger>
+                        <button class="kebab-trigger" aria-label="Row actions">
+                          <MoreVertical :size="14" />
+                        </button>
+                      </template>
+                      <template #default="{ close }">
+                        <DropdownMenuItem @click="handleEdit(item); close()">
+                          <Pencil :size="12" /> Edit
+                        </DropdownMenuItem>
+                        <template v-if="isAdmin">
+                          <DropdownMenuItem separator />
+                          <DropdownMenuItem destructive @click="singleDeleteTarget = item; showDeleteConfirm = true; close()">
+                            <Trash2 :size="12" /> Delete
+                          </DropdownMenuItem>
+                        </template>
+                      </template>
+                    </DropdownMenu>
                   </td>
                 </tr>
               </template>
@@ -193,11 +244,14 @@
       <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
         <div class="modal-card max-w-md w-full">
           <h3 class="modal-title">Confirm Delete</h3>
-          <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedItemIds.length }}</strong> item(s)?</p>
+          <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">
+            Are you sure you want to delete
+            <strong>{{ singleDeleteTarget ? singleDeleteTarget.name : `${selectedItemIds.length} item(s)` }}</strong>?
+          </p>
           <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
           <div class="flex gap-2">
             <Button variant="destructive" class="flex-1" @click="handleDeleteItems">Delete</Button>
-            <Button variant="outline" class="flex-1" @click="showDeleteConfirm = false">Cancel</Button>
+            <Button variant="outline" class="flex-1" @click="showDeleteConfirm = false; singleDeleteTarget = null">Cancel</Button>
           </div>
         </div>
       </div>
@@ -207,18 +261,17 @@
     <template v-if="showForm">
       <div class="max-w-3xl mx-auto pt-4">
         <div class="flex items-center justify-between mb-4">
-          <button @click="showForm = false; resetForm()" class="btn btn-ghost" style="padding:0.375rem 0.75rem;min-height:auto">
+          <Button variant="ghost" size="sm" @click="showForm = false; resetForm()">
             &larr; Back
-          </button>
-          <button
+          </Button>
+          <Button
             v-if="editingItem"
-            type="button"
+            variant="destructive"
+            size="sm"
             @click="deleteWhileEditing"
-            title="Delete this item"
-            class="btn btn-outline-danger" style="font-size:0.8125rem"
           >
             Delete Item
-          </button>
+          </Button>
         </div>
         <h2 class="page-title mb-6">
           {{ editingItem ? 'Edit Item' : 'Add New Item' }}
@@ -273,12 +326,7 @@
               <p class="font-semibold mb-2">{{ isDraggingInvoice ? 'Drop invoice here' : 'Click to upload or drag & drop' }}</p>
               <p class="text-sm text-muted mb-4">PNG, JPG, PDF (Max 10MB)</p>
               <div class="p-3 theme-card inline-block">
-                <button 
-                  type="button"
-                  class="btn btn-outline-primary px-6 py-2 shadow-md hover:shadow-lg"
-                >
-                  <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> Browse Files
-                </button>
+                <Button type="button" variant="outline">Browse Files</Button>
               </div>
             </div>
           </div>
@@ -384,20 +432,8 @@
               <span class="text-xs text-muted">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
             </div>
             <div class="flex gap-2 p-3 border-2 rounded-lg theme-card">
-              <button 
-                type="button"
-                @click="viewInvoice"
-                class="btn btn-outline-primary px-4 py-2 text-sm font-medium shadow-md hover:shadow-lg"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View
-              </button>
-              <button 
-                type="button"
-                @click="downloadInvoice"
-                class="btn btn-outline-success px-4 py-2 text-sm font-medium shadow-md hover:shadow-lg"
-              >
-                <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download
-              </button>
+              <Button variant="outline" size="sm" @click="viewInvoice">View</Button>
+              <Button variant="success" size="sm" @click="downloadInvoice">Download</Button>
             </div>
           </div>
         </div>
@@ -405,29 +441,19 @@
         <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 pr-2">
           <div>
             <label class="form-label">Name *</label>
-            <input
-              type="text"
-              required
-              v-model="formData.name"
-              class="form-input"
-            />
+            <Input type="text" required v-model="formData.name" />
           </div>
 
           <div>
             <label class="form-label">University ID *</label>
-            <input
-              type="text"
-              required
-              v-model="formData.universityID"
-              class="form-input"
-            />
+            <Input type="text" required v-model="formData.universityID" />
           </div>
 
           <div>
             <label class="form-label">Type</label>
-            <select v-model="formData.type" class="form-select">
+            <Select v-model="formData.type">
               <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -442,9 +468,9 @@
 
           <div>
             <label class="form-label">Status</label>
-            <select v-model="formData.status" class="form-select">
+            <Select v-model="formData.status">
               <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -459,97 +485,59 @@
 
           <div>
             <label class="form-label">Department ID</label>
-            <input
-              type="text"
-              v-model="formData.departmentID"
-              class="form-input"
-              placeholder="e.g. COMP"
-            />
+            <Input type="text" v-model="formData.departmentID" placeholder="e.g. COMP" />
           </div>
 
           <div>
             <label class="form-label">Mother ID</label>
-            <input
-              type="text"
-              v-model="formData.motherID"
-              class="form-input"
-              placeholder="For components only"
-            />
+            <Input type="text" v-model="formData.motherID" placeholder="For components only" />
           </div>
 
           <div>
             <label class="form-label">Supplier</label>
-            <input
-              type="text"
-              v-model="formData.supplier"
-              class="form-input"
-            />
+            <Input type="text" v-model="formData.supplier" />
           </div>
 
           <div>
             <label class="form-label">Invoice #</label>
-            <input
-              type="text"
-              v-model="formData.invoiceNumber"
-              class="form-input"
-            />
+            <Input type="text" v-model="formData.invoiceNumber" />
           </div>
 
           <div>
             <label class="form-label">Warranty Start</label>
-            <input
-              type="date"
-              v-model="formData.warrantyStartDate"
-              class="form-input"
-            />
+            <Input type="date" v-model="formData.warrantyStartDate" />
           </div>
 
           <div>
             <label class="form-label">Warranty End</label>
-            <input
-              type="date"
-              v-model="formData.warrantyEnd"
-              class="form-input"
-            />
+            <Input type="date" v-model="formData.warrantyEnd" />
           </div>
 
           <div>
             <label class="form-label">Owner</label>
-            <select v-model="formData.owner" class="form-select">
+            <Select v-model="formData.owner">
               <option value="department">Department</option>
               <option v-for="t in teachers" :key="t.userId" :value="t.userId">
                 {{ t.name }} ({{ t.userId }})
               </option>
-            </select>
+            </Select>
           </div>
 
           <div class="flex items-center pt-6">
             <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="formData.canBorrow" class="rounded" />
+              <Checkbox v-model="formData.canBorrow" />
               <span class="form-label mb-0">Can be Borrowed</span>
             </label>
           </div>
 
           <div class="col-span-2">
             <label class="form-label">Description</label>
-            <textarea
-              v-model="formData.description"
-              class="form-input"
-              rows="3"
-            />
+            <Textarea v-model="formData.description" rows="3" />
           </div>
 
           <div class="col-span-2 flex gap-3 justify-end p-4 form-action-bar">
-            <button type="submit" class="btn btn-outline-success px-6 py-2 shadow-md hover:shadow-lg">
-              <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{{ editingItem ? 'Update' : 'Add' }} Item
-            </button>
-            <button
-              type="button"
-              @click="showForm = false; resetForm()"
-              class="btn btn-outline-secondary px-6 py-2 shadow-md hover:shadow-lg"
-            >
-              <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>Cancel
-            </button>
+            <Button type="submit" variant="success">{{ editingItem ? 'Update' : 'Add' }} Item</Button>
+            <Button type="button" variant="outline" @click="showForm = false; resetForm()">Cancel</Button>
           </div>
         </form>
 
@@ -571,6 +559,7 @@ import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
+import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, SlidersHorizontal } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
 import {
@@ -578,11 +567,14 @@ import {
   UiButton as Button,
   UiCard as Card,
   UiCheckbox as Checkbox,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
   UiInput as Input,
-  UiModuleFilterPanel as ModuleFilterPanel,
   UiModulePageHeader as ModulePageHeader,
   UiSelect as Select,
+  UiTextarea as Textarea,
   UiTablePaginationBar as TablePaginationBar,
+  UiSpinner as Spinner,
 } from '../components/ui'
 
 const itemTypes = ["Hardware", "Software", "Component"]
@@ -634,13 +626,23 @@ export default {
     Button,
     Card,
     Checkbox,
+    ChevronDown,
     DeleteBlockModal,
+    DropdownMenu,
+    DropdownMenuItem,
     DropdownWithOther,
     Input,
-    ModuleFilterPanel,
     ModulePageHeader,
+    MoreVertical,
+    Pencil,
+    Search,
     Select,
+    SlidersHorizontal,
+    Spinner,
+    Textarea,
     TablePaginationBar,
+    Trash2,
+    Zap,
   },
   props: {
     pageParams: { type: Object, default: () => ({}) }
@@ -673,6 +675,7 @@ export default {
     const showDeleteBlock = ref(false)
     const selectedItemIds = ref([])
     const showDeleteConfirm = ref(false)
+    const singleDeleteTarget = ref(null)
     const sortField = ref('')
     const sortDir = ref('asc')
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
@@ -683,13 +686,35 @@ export default {
     let searchDebounceTimer = null
     let loadRequestToken = 0
 
-    const showFilterPanel = ref(false)
+    const showAdvancedFilters = ref(false)
     const activeStatusFilter = ref('')
     const searchFilters = ref({
       id: '', name: '', type: '', category: '', status: '',
       location: '', vendor: '', supplier: '', universityID: '',
       warrantyEnd: '', description: ''
     })
+
+    const advancedFilterCount = computed(() => {
+      const f = searchFilters.value
+      return [f.id, f.category, f.vendor, f.supplier, f.universityID, f.warrantyEnd, f.description]
+        .filter(v => v !== '').length
+    })
+
+    const hasAnyFilter = computed(() => {
+      const f = searchFilters.value
+      return Object.values(f).some(v => v !== '') || activeStatusFilter.value !== ''
+    })
+
+    const clearAdvancedFilters = () => {
+      const f = searchFilters.value
+      f.id = ''
+      f.category = ''
+      f.vendor = ''
+      f.supplier = ''
+      f.universityID = ''
+      f.warrantyEnd = ''
+      f.description = ''
+    }
 
     const isAdmin = computed(() => {
       const user = authService.getCurrentUser()
@@ -1085,19 +1110,25 @@ export default {
     const handleDeleteItems = async () => {
       showDeleteConfirm.value = false
       try {
-        // Delete all selected items
-        for (const id of selectedItemIds.value) {
-          try {
-            await inventoryService.deleteItem(id)
-          } catch (e) {
-            console.error(`Failed to delete item ${id}:`, e)
+        if (singleDeleteTarget.value) {
+          // Single item delete from kebab menu
+          await inventoryService.deleteItem(singleDeleteTarget.value.id)
+          singleDeleteTarget.value = null
+        } else {
+          // Bulk delete selected items
+          for (const id of selectedItemIds.value) {
+            try {
+              await inventoryService.deleteItem(id)
+            } catch (e) {
+              console.error(`Failed to delete item ${id}:`, e)
+            }
           }
+          selectedItemIds.value = []
         }
-        // Clear selection and reload
-        selectedItemIds.value = []
         loadItems()
       } catch (e) {
         console.error('Failed to delete items:', e)
+        singleDeleteTarget.value = null
       }
     }
 
@@ -1564,10 +1595,13 @@ export default {
       sortDir,
       uploadedImage,
       showDeleteBlock,
-      showFilterPanel,
+      showAdvancedFilters,
       searchFilters,
       uniqueVendors,
       clearFilters,
+      clearAdvancedFilters,
+      advancedFilterCount,
+      hasAnyFilter,
       mutableLocations,
       mutableCategories,
       addLocationOption,
@@ -1593,6 +1627,7 @@ export default {
       teachers,
       getOwnerName,
       selectedItemIds,
+      singleDeleteTarget,
       showDeleteConfirm,
       isAdmin,
       allSelected,
@@ -1605,6 +1640,11 @@ export default {
 </script>
 
 <style scoped>
+.table-spinner-cell {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  background: var(--card);
+}
 .items-status-banner {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
@@ -1622,30 +1662,205 @@ export default {
   font-weight: 600;
 }
 
-.items-filter-grid {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 0.75rem;
+/* ── Quick Filter Bar ───────────────────────────── */
+.quick-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+  flex-wrap: wrap;
 }
 
-@media (min-width: 768px) {
-  .items-filter-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.quick-filter-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-@media (min-width: 1200px) {
-  .items-filter-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.qf-search {
+  position: relative;
+  flex: 1 1 10rem;
+  min-width: 8rem;
+  max-width: 16rem;
 }
 
-.filter-label {
+.qf-search-icon {
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.qf-search :deep(input) {
+  padding-left: 1.75rem;
+  height: 2rem;
+  font-size: 0.8125rem;
+}
+
+.qf-select {
+  width: 8rem;
+  flex-shrink: 0;
+}
+
+.qf-select :deep(select) {
+  height: 2rem;
+  font-size: 0.8125rem;
+}
+
+.quick-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.qf-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.qf-toggle-btn:hover {
+  background: var(--surface-100);
+  color: var(--text-secondary);
+}
+.qf-toggle-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-surface);
+}
+
+.qf-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+}
+.qf-toggle-btn--active .qf-badge {
+  color: #fff;
+  background: var(--accent);
+}
+
+.qf-clear-btn {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.qf-clear-btn:hover { color: var(--text-primary); }
+
+/* ── Advanced Filter Panel ─────────────────────── */
+.adv-filter-card {
+  margin: 0.75rem 1rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.adv-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.adv-filter-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.adv-filter-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.adv-filter-group {
+  padding: 0.75rem 1rem;
+}
+.adv-filter-group + .adv-filter-group {
+  border-top: 1px solid var(--border);
+}
+
+.adv-group-label {
   display: block;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.adv-group-fields {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0,1fr));
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .adv-group-fields { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (min-width: 1024px) {
+  .adv-group-fields { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+
+.adv-field-label {
+  display: block;
+  margin-bottom: 0.25rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted-foreground);
+}
+
+/* Advanced panel slide transition */
+.adv-panel-enter-active,
+.adv-panel-leave-active {
+  transition: max-height 0.3s ease, opacity 0.25s ease;
+  overflow: hidden;
+}
+.adv-panel-enter-from,
+.adv-panel-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.adv-panel-enter-to,
+.adv-panel-leave-from {
+  max-height: 30rem;
+  opacity: 1;
 }
 
 .items-import-alert {
@@ -1741,5 +1956,93 @@ export default {
 }
 thead th:hover .sort-icon {
   color: var(--text-primary);
+}
+
+/* Kebab action trigger */
+.kebab-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
+
+/* Bulk toolbar */
+.bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+}
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.bulk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+}
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: var(--surface-100); color: var(--text-secondary); }
+.bulk-clear-btn {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+/* Bulk bar slide animation */
+.bulk-bar-enter-active,
+.bulk-bar-leave-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.bulk-bar-enter-from,
+.bulk-bar-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.bulk-bar-enter-to,
+.bulk-bar-leave-from {
+  max-height: 4rem;
+  opacity: 1;
 }
 </style>

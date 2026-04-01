@@ -129,11 +129,11 @@ defineExpose({ close })
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: var(--radius-lg, 0.5rem);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--card);
   padding: 0.25rem;
   color: var(--text-primary);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   animation: scaleIn 0.12s ease-out;
 }
 

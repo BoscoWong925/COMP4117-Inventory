@@ -24,30 +24,32 @@
         </button>
       </div>
 
-      <div class="request-toolbar">
-        <div class="request-toolbar-info">
-          <span v-if="selectedCount > 0" class="request-selected-chip">{{ selectedCount }} selected</span>
-          <span v-if="requestsLoadState.isFetching" class="request-fetch-chip">Updating...</span>
+      <Transition name="bulk-bar">
+        <div v-if="selectedCount > 0" class="request-toolbar">
+          <div class="request-toolbar-info">
+            <span class="request-selected-chip">{{ selectedCount }} selected</span>
+            <span v-if="requestsLoadState.isFetching" class="request-fetch-chip">Updating...</span>
+          </div>
+          <div class="request-toolbar-actions">
+            <template v-if="activeTab === 'pending' && selectedPendingIds.length > 0">
+              <Button variant="success" size="sm" @click="showBulkApproveForm = true">
+                <CheckCircle2 :size="14" /> Approve ({{ selectedPendingIds.length }})
+              </Button>
+              <Button variant="destructive" size="sm" @click="showBulkRejectForm = true">
+                <XCircle :size="14" /> Reject ({{ selectedPendingIds.length }})
+              </Button>
+            </template>
+            <template v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0">
+              <Button size="sm" @click="showBulkCheckoutForm = true">
+                <Package :size="14" /> Borrowed Out ({{ selectedCheckoutIds.length }})
+              </Button>
+              <Button variant="destructive" size="sm" @click="showBulkDenyForm = true">
+                <XCircle :size="14" /> Deny ({{ selectedCheckoutIds.length }})
+              </Button>
+            </template>
+          </div>
         </div>
-        <div class="request-toolbar-actions">
-          <template v-if="activeTab === 'pending' && selectedPendingIds.length > 0">
-            <Button variant="success" size="sm" @click="showBulkApproveForm = true">
-              <CheckCircle2 :size="14" /> Approve ({{ selectedPendingIds.length }})
-            </Button>
-            <Button variant="destructive" size="sm" @click="showBulkRejectForm = true">
-              <XCircle :size="14" /> Reject ({{ selectedPendingIds.length }})
-            </Button>
-          </template>
-          <template v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0">
-            <Button size="sm" @click="showBulkCheckoutForm = true">
-              <Package :size="14" /> Borrowed Out ({{ selectedCheckoutIds.length }})
-            </Button>
-            <Button variant="destructive" size="sm" @click="showBulkDenyForm = true">
-              <XCircle :size="14" /> Deny ({{ selectedCheckoutIds.length }})
-            </Button>
-          </template>
-        </div>
-      </div>
+      </Transition>
 
       <div class="table-responsive">
         <table class="table-striped theme-table request-table">
@@ -92,16 +94,10 @@
 
           <tbody>
             <template v-if="showRequestsSkeleton">
-              <tr v-for="idx in tableSkeletonRows" :key="'req-skel-' + idx" class="request-row-skeleton">
-                <td class="text-center"><span class="req-skeleton-box"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-id"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-item"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-user"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
-                <td><span class="req-skeleton-line req-skeleton-line-short"></span></td>
-                <td class="text-center"><span class="req-skeleton-box"></span></td>
+              <tr>
+                <td colspan="9" class="table-spinner-cell">
+                  <Spinner size="lg" label="Loading requests..." />
+                </td>
               </tr>
             </template>
 
@@ -132,9 +128,6 @@
                   <td class="request-waiting-text">{{ waitingTime(group.parent.requestDate) }}</td>
                   <td class="request-cell-reason">{{ group.parent.reason || '-' }}</td>
                   <td class="text-center request-action-cell">
-                    <Button variant="success" size="sm" @click="openApproveModal(group.parent.id)">
-                      Approve{{ group.children.length > 0 ? ' All' : '' }}
-                    </Button>
                     <DropdownMenu align="end">
                       <template #trigger>
                         <button class="request-row-menu-trigger" aria-label="Row actions">
@@ -142,9 +135,13 @@
                         </button>
                       </template>
                       <template #default="{ close }">
-                        <DropdownMenuItem @click="showRejectForm = group.parent.id; close()">
+                        <DropdownMenuItem success @click="openApproveModal(group.parent.id); close()">
+                          <CheckCircle2 :size="12" /> Approve{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem destructive @click="showRejectForm = group.parent.id; close()">
                           <XCircle :size="12" /> Reject{{ group.children.length > 0 ? ' All' : '' }}
                         </DropdownMenuItem>
+                        <DropdownMenuItem separator />
                         <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
                           <Mail :size="12" /> Email Borrower
                         </DropdownMenuItem>
@@ -193,9 +190,6 @@
                   <td class="request-waiting-text">{{ waitingTime(group.parent.approvalDate) }}</td>
                   <td>{{ formatDate(group.parent.returnDate) || '-' }}</td>
                   <td class="text-center request-action-cell">
-                    <Button size="sm" @click="handleCheckout(group.parent.id)">
-                      Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
-                    </Button>
                     <DropdownMenu align="end">
                       <template #trigger>
                         <button class="request-row-menu-trigger" aria-label="Row actions">
@@ -203,9 +197,13 @@
                         </button>
                       </template>
                       <template #default="{ close }">
-                        <DropdownMenuItem @click="showDenyForm = group.parent.id; close()">
+                        <DropdownMenuItem success @click="handleCheckout(group.parent.id); close()">
+                          <Package :size="12" /> Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem destructive @click="showDenyForm = group.parent.id; close()">
                           <XCircle :size="12" /> Deny{{ group.children.length > 0 ? ' All' : '' }}
                         </DropdownMenuItem>
+                        <DropdownMenuItem separator />
                         <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
                           <Mail :size="12" /> Email Borrower
                         </DropdownMenuItem>
@@ -253,7 +251,7 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <input type="date" v-model="returnDate" class="form-input" />
+          <Input type="date" v-model="returnDate" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -283,7 +281,7 @@
         <h3 class="modal-title">Reject Request</h3>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="rejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
+          <Textarea v-model="rejectReason" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
           <Button variant="destructive" class="flex-1" @click="handleReject(showRejectForm)">Reject</Button>
@@ -300,7 +298,7 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="denyReason" class="form-input" rows="4" placeholder="Enter reason for denying check-out..." />
+          <Textarea v-model="denyReason" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
           <Button variant="destructive" class="flex-1" @click="handleDeny(showDenyForm)">Deny</Button>
@@ -314,7 +312,7 @@
         <h3 class="modal-title">Approve {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <input type="date" v-model="bulkReturnDate" class="form-input" />
+          <Input type="date" v-model="bulkReturnDate" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -344,7 +342,7 @@
         <h3 class="modal-title">Reject {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="bulkRejectReason" class="form-input" rows="4" placeholder="Enter rejection reason..." />
+          <Textarea v-model="bulkRejectReason" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
           <Button variant="destructive" class="flex-1" @click="handleBulkReject">Reject All</Button>
@@ -370,7 +368,7 @@
         <p class="text-sm text-secondary mb-3">This will reject the approved requests and make the items available again.</p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="bulkDenyReason" class="form-input" rows="4" placeholder="Enter reason for denying check-out..." />
+          <Textarea v-model="bulkDenyReason" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
           <Button variant="destructive" class="flex-1" @click="handleBulkDeny">Deny All</Button>
@@ -405,14 +403,17 @@ import {
   UiCheckbox as Checkbox,
   UiDropdownMenu as DropdownMenu,
   UiDropdownMenuItem as DropdownMenuItem,
+  UiInput as Input,
+  UiTextarea as Textarea,
   UiModulePageHeader as ModulePageHeader,
-  UiTablePaginationBar as TablePaginationBar
+  UiTablePaginationBar as TablePaginationBar,
+  UiSpinner as Spinner,
 } from '../components/ui'
 
 export default {
   components: {
     Button, Card, Badge, Checkbox, DropdownMenu, DropdownMenuItem,
-    ModulePageHeader, TablePaginationBar,
+    ModulePageHeader, TablePaginationBar, Spinner, Input, Textarea,
     DropdownWithOther, RemarkBox, SendEmailModal,
     Download, MoreVertical, Mail, CheckCircle2, XCircle, Package
   },
@@ -880,6 +881,11 @@ export default {
 </script>
 
 <style scoped>
+.table-spinner-cell {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  background: var(--card);
+}
 .request-table-card {
   padding: 0;
   overflow: hidden;
@@ -932,6 +938,23 @@ export default {
   min-height: 2.5rem;
   padding: 0.625rem 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* Bulk bar slide animation */
+.bulk-bar-enter-active,
+.bulk-bar-leave-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.bulk-bar-enter-from,
+.bulk-bar-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.bulk-bar-enter-to,
+.bulk-bar-leave-from {
+  max-height: 4rem;
+  opacity: 1;
 }
 
 .request-toolbar-info,

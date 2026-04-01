@@ -5,14 +5,6 @@
         {{ showFilterPanel ? 'Hide Filters' : 'Show Filters' }}
       </Button>
       <Button size="sm" @click="exportFiltered">Export to Excel</Button>
-      <Button
-        v-if="selectedReturnIds.length > 0"
-        variant="destructive"
-        size="sm"
-        @click="showBulkReturnModal = true"
-      >
-        Return Bulk ({{ selectedReturnIds.length }})
-      </Button>
     </ModulePageHeader>
 
     <Card v-if="activeStatusFilter" class="checked-banner">
@@ -84,6 +76,26 @@
     </ModuleFilterPanel>
 
     <Card class="checked-table-card">
+      <Transition name="bulk-bar">
+        <div v-if="selectedReturnIds.length > 0" class="bulk-toolbar">
+          <div class="bulk-toolbar-left">
+            <span class="bulk-chip">{{ selectedReturnIds.length }} selected</span>
+            <DropdownMenu align="start">
+              <template #trigger>
+                <button class="toolbar-btn">
+                  <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                </button>
+              </template>
+              <template #default="{ close }">
+                <DropdownMenuItem success @click="showBulkReturnModal = true; close()">
+                  <RotateCcw :size="12" /> Return Bulk ({{ selectedReturnIds.length }})
+                </DropdownMenuItem>
+              </template>
+            </DropdownMenu>
+            <button class="bulk-clear-btn" @click="selectedReturnIds = []">Clear</button>
+          </div>
+        </div>
+      </Transition>
       <div class="table-responsive">
         <table class="table-striped theme-table">
           <thead>
@@ -118,16 +130,10 @@
 
           <tbody>
             <template v-if="showLentSkeleton">
-              <tr v-for="idx in lentSkeletonRows" :key="'lent-skel-' + idx" class="checked-row-skeleton">
-                <td class="text-center"><span class="checked-skeleton-box"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-id"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-name"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
-                <td><span class="checked-skeleton-line checked-skeleton-short"></span></td>
-                <td class="text-center"><span class="checked-skeleton-box"></span></td>
+              <tr>
+                <td colspan="9" class="table-spinner-cell">
+                  <Spinner size="lg" label="Loading items..." />
+                </td>
               </tr>
             </template>
 
@@ -160,19 +166,21 @@
                 <td>{{ group.parent.supplier }}</td>
                 <td>{{ group.parent.location }}</td>
                 <td class="text-center">
-                  <Button variant="success" size="sm" @click="handleReturnItem(group.parent)">
-                    Return{{ group.children.length > 0 ? ' All' : '' }}
-                  </Button>
-                  <Button
-                    v-if="group.parent.currentBorrower"
-                    variant="ghost"
-                    size="icon"
-                    class="ml-1"
-                    @click="openEmailForBorrower(group.parent)"
-                    title="Send email to borrower"
-                  >
-                    ✉
-                  </Button>
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem success @click="handleReturnItem(group.parent); close()">
+                        <RotateCcw :size="12" /> Return{{ group.children.length > 0 ? ' All' : '' }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-if="group.parent.currentBorrower" @click="openEmailForBorrower(group.parent); close()">
+                        <Mail :size="12" /> Email Borrower
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
                 </td>
               </tr>
 
@@ -212,15 +220,15 @@
         </p>
         <div style="margin-bottom:14px;">
           <label class="form-label">Return Condition</label>
-          <select v-model="bulkReturnCondition" class="form-select" style="width:100%;">
+          <Select v-model="bulkReturnCondition" style="width:100%;">
             <option value="Good">Good</option>
             <option value="Fair">Fair</option>
             <option value="Damaged">Damaged</option>
-          </select>
+          </Select>
         </div>
         <div style="margin-bottom:14px;">
           <label class="form-label">Notes (Optional)</label>
-          <textarea v-model="bulkReturnNotes" class="form-textarea" style="width:100%;height:80px;" placeholder="Add any notes about the returns..." />
+          <Textarea v-model="bulkReturnNotes" style="width:100%;height:80px;" placeholder="Add any notes about the returns..." />
         </div>
         <div style="display:flex;gap:8px;">
           <Button variant="success" class="flex-1" @click="handleBulkReturn">Confirm Return</Button>
@@ -239,13 +247,13 @@
         <p class="text-muted" style="font-size:13px;margin-bottom:16px;">"{{ returnedItem.name }}" has been returned.<br/>Where should it be placed?</p>
         <div style="margin-bottom:14px;">
           <label class="form-label">Location</label>
-          <select v-model="newLocation" class="form-select" style="width:100%;">
+          <Select v-model="newLocation" style="width:100%;">
             <option v-for="loc in locationOptions" :key="loc" :value="loc">{{ loc }}</option>
-          </select>
+          </Select>
         </div>
         <div v-if="newLocation === 'Other'" style="margin-bottom:14px;">
           <label class="form-label">Enter new location</label>
-          <input v-model="otherLocation" type="text" class="form-input" style="width:100%;" placeholder="Type location name..." @keyup.enter="saveLocation" />
+          <Input v-model="otherLocation" type="text" style="width:100%;" placeholder="Type location name..." @keyup.enter="saveLocation" />
         </div>
         <div style="display:flex;gap:8px;">
           <Button variant="success" class="flex-1" @click="saveLocation">Save</Button>
@@ -268,16 +276,21 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { inventoryService, borrowingService } from '../utils/services'
 import { exportToExcel, getUniqueVendors } from '../utils/helpers'
+import { MoreVertical, Zap, ChevronDown, Mail, RotateCcw } from 'lucide-vue-next'
 import SendEmailModal from '../components/SendEmailModal.vue'
 import {
   UiButton as Button,
   UiCard as Card,
   UiCheckbox as Checkbox,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
   UiInput as Input,
   UiModuleFilterPanel as ModuleFilterPanel,
   UiModulePageHeader as ModulePageHeader,
   UiSelect as Select,
+  UiTextarea as Textarea,
   UiTablePaginationBar as TablePaginationBar,
+  UiSpinner as Spinner,
 } from '../components/ui'
 
 export default {
@@ -285,12 +298,21 @@ export default {
     Button,
     Card,
     Checkbox,
+    ChevronDown,
+    DropdownMenu,
+    DropdownMenuItem,
     Input,
+    Mail,
     ModuleFilterPanel,
     ModulePageHeader,
+    MoreVertical,
+    RotateCcw,
     Select,
     SendEmailModal,
+    Spinner,
+    Textarea,
     TablePaginationBar,
+    Zap,
   },
   props: {
     pageParams: { type: Object, default: () => ({}) }
@@ -775,6 +797,11 @@ export default {
 </script>
 
 <style scoped>
+.table-spinner-cell {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  background: var(--card);
+}
 .checked-banner {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
@@ -915,5 +942,93 @@ export default {
 }
 thead th:hover .sort-icon {
   color: var(--text-primary);
+}
+
+/* Kebab trigger */
+.kebab-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
+
+/* Bulk toolbar */
+.bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+}
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.bulk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+}
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: var(--surface-100); color: var(--text-secondary); }
+.bulk-clear-btn {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+/* Bulk bar animation */
+.bulk-bar-enter-active,
+.bulk-bar-leave-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.bulk-bar-enter-from,
+.bulk-bar-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.bulk-bar-enter-to,
+.bulk-bar-leave-from {
+  max-height: 4rem;
+  opacity: 1;
 }
 </style>

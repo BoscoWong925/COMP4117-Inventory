@@ -468,6 +468,11 @@ export default {
       applyThemePreference()
     })
 
+    // Sync theme class to <html> so Teleported content (dropdowns, modals) inherits correct CSS variables
+    watch(darkMode, (isDark) => {
+      document.documentElement.classList.toggle('light-mode', !isDark)
+    }, { immediate: true })
+
     watch(compactMode, (value) => {
       localStorage.setItem('inventory_compact', value ? 'true' : 'false')
     })

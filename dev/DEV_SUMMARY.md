@@ -289,3 +289,107 @@ Refined the admin/operator dashboard across 5 phases to improve interaction, cla
 - CSS: 82.78 KB (15.00 KB gzipped)
 - JS: 1,188.11 KB (362.96 KB gzipped)
 - Build time: ~4.5s
+
+---
+
+## Shadcn-Style UI Consistency Pass — 2026-04-01
+
+Systematically converted all remaining module pages to the shadcn-vue component shell established on the Dashboard. Every page now uses the same kebab dropdown row actions, animated bulk action toolbar, shared UI primitives, and CSS variable–driven theming for full dark/light mode support.
+
+### New UI Capabilities
+
+| Component | Change | Details |
+|---|---|---|
+| `DropdownMenuItem.vue` | Added `success` variant | Green (`--success`) text + `--success-light` hover background, matching `destructive` pattern |
+| `index.css` `.light-mode` | Increased contrast tokens | `--border` 0.08→0.12 opacity, `--border-strong` 0.14→0.20, `--surface-50` / `--surface-100` darker for visible distinction from white cards, `--success-light` / `--danger-light` / `--warning-light` / `--info-light` 0.06-0.07→0.10-0.12, `--accent-surface` 0.04→0.08, `--shadow-lg` 0.08→0.12, `--row-hover` 0.03→0.05 |
+| `DropdownMenu.vue` | Stronger panel border | `--border` → `--border-strong` for more visible dropdown boundary in light mode |
+
+### Pages Converted
+
+| # | Page | Changes |
+|---|---|---|
+| 1 | `ApproveRequestsPage.vue` | Approve/Check Out actions use `success` variant (green) in kebab menus |
+| 2 | `HomePage.vue` | Approve/Check Out actions use `success` variant; kebab-btn given border + card background for light theme visibility |
+| 3 | `ManageItemsPage.vue` | Header → `ModulePageHeader`; row buttons → kebab `DropdownMenu` (Edit/Delete/Set Status); bulk buttons → animated `DropdownMenu` toolbar with `Transition name="bulk-bar"`; `PaginationControl` → `TablePaginationBar` with `pageSizeRef`; checkboxes → `Checkbox`; table wrapped in `Card`; toolbar-btn background: none → var(--card) |
+| 4 | `ManageAccountsPage.vue` | Full rewrite from raw HTML to shadcn shell — `ModulePageHeader`, `ModuleFilterPanel`, `Card`, `Checkbox`, kebab menus (Edit/Email/Deactivate/Delete), animated bulk toolbar, `TablePaginationBar`, `Badge` for role/status, `Input`/`Select` in modals |
+| 5 | `LentOutFilterPage.vue` | Header → `ModulePageHeader`; row buttons → kebab (Return as `success`, Email); bulk → animated toolbar (Return All as `success`); `PaginationControl` → `TablePaginationBar`; `Checkbox`; `Card`; toolbar-btn background: none → var(--card) |
+| 6 | `TeacherRequestsPage.vue` | Header → `ModulePageHeader`; 2 animated bulk toolbars (Pending: Approve `success`/Reject `destructive`; Checkout: Borrowed Out `success`/Deny `destructive`); kebab menus per tab; `Checkbox`; `Badge` for status; `Card`; `TablePaginationBar` |
+| 7 | `MyItemsPage.vue` | Header → `ModulePageHeader`; search → `Input`; stats → `Card`; owned-tab bulk toolbar (Set In-use/Set Available `success`); kebab menus; `Checkbox`; `Badge`; `TablePaginationBar` |
+| 8 | `AuditLogPage.vue` | Header → `ModulePageHeader`; filters → `ModuleFilterPanel` + `Input`; table in `Card`; bulk toolbar (Delete `destructive`); `Checkbox` with indeterminate; `Badge` with `getActionBadgeVariant`; `TablePaginationBar`; scoped CSS rewritten to CSS variables |
+| 9 | `TeacherCheckoutPage.vue` | Header → `ModulePageHeader`; stats → `Card`; search → `Input`; kebab (Return `success`); `Badge`; `TablePaginationBar`; modal select → `Select`; modal buttons → `Button` |
+| 10 | `BorrowHistoryPage.vue` | Bulk Delete moved from header into animated toolbar inside `Card`; `DropdownMenu`/`DropdownMenuItem` imports added |
+
+### Consistent Patterns Applied Across All Pages
+
+| Pattern | Implementation |
+|---|---|
+| **Kebab trigger** | `<button class="kebab-trigger"><MoreVertical :size="14" /></button>` inside `<DropdownMenu align="end">` |
+| **Animated bulk toolbar** | `<Transition name="bulk-bar"><div v-if="hasSelection" class="bulk-toolbar">` with Zap+ChevronDown trigger, DropdownMenu for actions, bulk-chip count, clear button |
+| **Checkbox component** | `<Checkbox>` emitting `@update:checked` with boolean (not DOM event); `toggleSelectAll*` rewritten for boolean param |
+| **TablePaginationBar** | `v-model:pageSize` bound to `pageSizeRef = ref(pageSize)` (ref required by component) |
+| **Badge status helpers** | `getStatusBadgeVariant()` / `getActionBadgeVariant()` returning variant strings for `<Badge :variant="...">` |
+| **Action coloring** | Approve/positive = `success` (green), Reject/Delete = `destructive` (red), neutral = default |
+
+### Light Theme Fixes
+
+| # | Fix | Details |
+|---|---|---|
+| 1 | **CSS variable contrast boost** | Light-mode `--border`, `--surface-50`, `--surface-100`, color `-light` variants, `--shadow-lg` all increased for visible distinction from white backgrounds |
+| 2 | **DropdownMenu panel border** | Changed from `--border` to `--border-strong` for clearer dropdown boundary |
+| 3 | **toolbar-btn background** | Changed from `background: none` to `background: var(--card)` on HomePage, ManageItemsPage, ManageAccountsPage, LentOutFilterPage — white button on light-gray toolbar |
+| 4 | **HomePage kebab-btn** | Added `border: 1px solid var(--border)` + `background: var(--card)` (was borderless/transparent) |
+
+### Files Changed
+
+| File | Scope |
+|---|---|
+| `frontend/src/index.css` | Light-mode variable contrast adjustments (12 tokens) |
+| `frontend/src/components/ui/DropdownMenu.vue` | Border: `--border` → `--border-strong` |
+| `frontend/src/components/ui/DropdownMenuItem.vue` | Added `success` prop + green CSS |
+| `frontend/src/pages/HomePage.scoped.css` | toolbar-btn bg, kebab-btn border+bg |
+| `frontend/src/pages/ManageItemsPage.vue` | Full conversion: kebab, bulk toolbar, Card, Checkbox, Badge, TablePaginationBar, toolbar-btn bg |
+| `frontend/src/pages/ManageAccountsPage.vue` | Full rewrite to shadcn shell, toolbar-btn bg |
+| `frontend/src/pages/LentOutFilterPage.vue` | Full conversion: kebab, bulk toolbar, toolbar-btn bg |
+| `frontend/src/pages/TeacherRequestsPage.vue` | Full conversion: dual bulk toolbars, kebab, Checkbox, Badge |
+| `frontend/src/pages/MyItemsPage.vue` | Full conversion: bulk toolbar, kebab, Checkbox, Badge |
+| `frontend/src/pages/AuditLogPage.vue` | Full conversion: bulk toolbar, Checkbox, Badge, CSS rewrite |
+| `frontend/src/pages/TeacherCheckoutPage.vue` | Kebab, Badge, Select, Button, TablePaginationBar |
+| `frontend/src/pages/BorrowHistoryPage.vue` | Animated bulk toolbar, DropdownMenu imports, bulk CSS |
+| `frontend/src/pages/ApproveRequestsPage.vue` | Success variant for Approve/Checkout actions |
+
+### Build Output
+- CSS: 112.40 KB (18.00 KB gzipped)
+- JS: 1,232.02 KB (376.66 KB gzipped)
+- Build time: ~5.4s
+
+---
+
+## Input & Select v-model Fix — 2026-04-01
+
+### Root Cause
+
+The custom `Input.vue` and `Select.vue` UI components did not implement Vue 3 component `v-model` protocol. They relied on `v-bind="$attrs"` to pass through all attributes to the native element, but Vue 3's component `v-model` compiles to `:modelValue` + `@update:modelValue` — which native `<input>` and `<select>` elements don't understand (they need `:value` + `@input`/`@change`).
+
+This broke **all filter panels** across the application: changing a dropdown or typing in a search field had no effect because the reactive state was never updated, and therefore no API re-fetch was triggered.
+
+### Fix
+
+| File | Change |
+|---|---|
+| `frontend/src/components/ui/Input.vue` | Declared `modelValue` prop (`String\|Number`), added `defineEmits(['update:modelValue'])`, bound `:value="modelValue"` and `@input="emit('update:modelValue', $event.target.value)"` on native `<input>` |
+| `frontend/src/components/ui/Select.vue` | Declared `modelValue` prop (`String\|Number`), added `defineEmits(['update:modelValue'])`, bound `:value="modelValue"` and `@change="emit('update:modelValue', $event.target.value)"` on native `<select>` |
+
+### Pages Fixed (all `v-model` usages now work)
+
+- **ManageItemsPage** — 11 filter inputs (ID, Name, Type, Category, Status, Location, Vendor, Supplier, University ID, Warranty End, Description)
+- **ManageAccountsPage** — search text, role filter, status filter, form fields (userId, name, username, email, displayRole, department, password)
+- **AuditLogPage** — filter inputs
+- **TeacherCheckoutPage** — search input, modal select
+- **TeacherRequestsPage** — modal inputs
+- **MyItemsPage** — search input
+- **BorrowHistoryPage** — filter inputs
+
+### Build Output
+- CSS: 112.40 KB (18.00 KB gzipped)
+- JS: 1,232.39 KB (376.75 KB gzipped)
+- Build time: ~5.3s

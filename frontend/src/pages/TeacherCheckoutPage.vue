@@ -1,37 +1,34 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h2 class="page-title">Checkout / Returns</h2>
-      <p class="page-description">Items you've borrowed - return when done</p>
-    </div>
+    <ModulePageHeader title="Checkout / Returns" subtitle="Items you've borrowed - return when done">
+    </ModulePageHeader>
 
     <!-- Stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <div class="theme-card p-4 text-center">
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold text-accent">{{ borrowedItems.length }}</p>
         <p class="text-xs text-muted">Total Borrowed</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--warning)">{{ borrowedItems.filter(i => i.status === 'In-use').length }}</p>
         <p class="text-xs text-muted">In Use</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--info)">{{ borrowedItems.filter(i => i.status === 'Available').length }}</p>
         <p class="text-xs text-muted">Available for Return</p>
-      </div>
-      <div class="theme-card p-4 text-center">
+      </Card>
+      <Card class="p-4 text-center">
         <p class="text-2xl font-bold" style="color:var(--danger)">{{ overdueCount }}</p>
         <p class="text-xs text-muted">Overdue</p>
-      </div>
+      </Card>
     </div>
 
     <!-- Search -->
     <div class="mb-4">
-      <input
+      <Input
         type="text"
         placeholder="Search by item name or ID..."
         v-model="searchText"
-        class="form-input"
       />
     </div>
 
@@ -41,50 +38,60 @@
       <p>No borrowed items</p>
       <p class="text-sm mt-1">You haven't borrowed any items yet.</p>
     </div>
-    <div v-else class="table-responsive">
-      <table class="table-striped theme-table">
-        <thead>
-          <tr>
-            <th>Item ID</th>
-            <th>Item Name</th>
-            <th>Category</th>
-            <th>Status</th>
-            <th>Borrowed Date</th>
-            <th>Return Date</th>
-            <th>Days</th>
-            <th class="text-center">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in paginatedItems" :key="item.id">
-            <td class="text-sm" style="font-weight:600">{{ item.itemId }}</td>
-            <td class="text-sm">{{ item.itemName }}</td>
-            <td class="text-sm">{{ item.category }}</td>
-            <td class="text-sm">
-              <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(item.status)}`">
-                {{ item.status }}
-              </span>
-            </td>
-            <td class="text-sm">{{ formatDate(item.borrowDate || item.requestDate) }}</td>
-            <td class="text-sm">{{ formatDate(item.returnDate) || 'Not set' }}</td>
-            <td class="text-sm">
-              <span :class="`font-medium ${getDaysColor(item.daysOverdue)}`">
-                {{ item.daysOverdue > 0 ? `+${item.daysOverdue}` : '-' }}
-              </span>
-            </td>
-            <td class="text-center whitespace-nowrap">
-              <button 
-                @click="openReturnModal(item)" 
-                class="btn btn-outline-success text-sm"
-              >
-                Return
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
-    </div>
+    <Card v-else class="checkout-table-card">
+      <div class="table-responsive">
+        <table class="table-striped theme-table">
+          <thead>
+            <tr>
+              <th>Item ID</th>
+              <th>Item Name</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Borrowed Date</th>
+              <th>Return Date</th>
+              <th>Days</th>
+              <th class="text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in paginatedItems" :key="item.id">
+              <td class="text-sm" style="font-weight:600">{{ item.itemId }}</td>
+              <td class="text-sm">{{ item.itemName }}</td>
+              <td class="text-sm">{{ item.category }}</td>
+              <td class="text-sm">
+                <Badge :variant="getStatusBadgeVariant(item.status)">{{ item.status }}</Badge>
+              </td>
+              <td class="text-sm">{{ formatDate(item.borrowDate || item.requestDate) }}</td>
+              <td class="text-sm">{{ formatDate(item.returnDate) || 'Not set' }}</td>
+              <td class="text-sm">
+                <span :class="`font-medium ${getDaysColor(item.daysOverdue)}`">
+                  {{ item.daysOverdue > 0 ? `+${item.daysOverdue}` : '-' }}
+                </span>
+              </td>
+              <td class="text-center">
+                <DropdownMenu align="end">
+                  <template #trigger>
+                    <button class="kebab-trigger" aria-label="Row actions">
+                      <MoreVertical :size="14" />
+                    </button>
+                  </template>
+                  <template #default="{ close }">
+                    <DropdownMenuItem success @click="openReturnModal(item); close()">
+                      <RotateCcw :size="12" /> Return
+                    </DropdownMenuItem>
+                  </template>
+                </DropdownMenu>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <TablePaginationBar
+        v-model:currentPage="currentPage"
+        v-model:pageSize="pageSizeRef"
+        :total-items="totalItems"
+      />
+    </Card>
 
     <!-- Return Modal -->
     <div v-if="returnTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
@@ -96,28 +103,27 @@
         
         <div class="mb-4">
           <label class="modal-label">Condition *</label>
-          <select v-model="returnCondition" class="form-input">
+          <Select v-model="returnCondition">
             <option value="">Select condition...</option>
             <option value="Good">Good</option>
             <option value="Minor Damage">Minor Damage</option>
             <option value="Major Damage">Major Damage</option>
             <option value="Lost">Lost</option>
-          </select>
+          </Select>
         </div>
 
         <div class="mb-4">
           <label class="modal-label">Notes</label>
-          <textarea 
-            v-model="returnNotes" 
-            class="form-input" 
-            rows="3" 
+          <Textarea
+            v-model="returnNotes"
+            rows="3"
             placeholder="Any additional notes about the item's condition..."
           />
         </div>
 
         <div class="flex gap-2">
-          <button @click="handleReturn" class="btn btn-outline-success flex-1">Confirm Return</button>
-          <button @click="closeReturnModal" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleReturn">Confirm Return</Button>
+          <Button variant="ghost" class="flex-1" @click="closeReturnModal">Cancel</Button>
         </div>
       </div>
     </div>
@@ -128,16 +134,33 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { MoreVertical, RotateCcw } from 'lucide-vue-next'
+import {
+  UiModulePageHeader as ModulePageHeader,
+  UiTablePaginationBar as TablePaginationBar,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiBadge as Badge,
+  UiCard as Card,
+  UiButton as Button,
+  UiInput as Input,
+  UiSelect as Select,
+  UiTextarea as Textarea
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
+  components: {
+    ModulePageHeader, TablePaginationBar,
+    DropdownMenu, DropdownMenuItem, Badge, Card, Button, Input, Select, Textarea,
+    MoreVertical, RotateCcw
+  },
   setup() {
     const borrowedItems = ref([])
     const loading = ref(true)
     const searchText = ref('')
     const currentPage = ref(1)
     const pageSize = 10
+    const pageSizeRef = ref(pageSize)
     const totalItems = ref(0)
 
     const returnTarget = ref(null)
@@ -156,13 +179,9 @@ export default {
       }).length
     })
 
-    const getStatusColor = (status) => {
-      const map = {
-        'Available': 'px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-        'In-use': 'px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-        'Pending': 'px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      }
-      return map[status] || 'px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+    const getStatusBadgeVariant = (status) => {
+      const map = { 'Available': 'success', 'In-use': 'warning', 'Pending': 'info' }
+      return map[status] || 'secondary'
     }
 
     const getDaysColor = (days) => {
@@ -255,6 +274,7 @@ export default {
       searchText,
       currentPage,
       pageSize,
+      pageSizeRef,
       totalItems,
       returnTarget,
       returnCondition,
@@ -262,7 +282,7 @@ export default {
       filteredItems,
       paginatedItems,
       overdueCount,
-      getStatusColor,
+      getStatusBadgeVariant,
       getDaysColor,
       openReturnModal,
       closeReturnModal,
@@ -274,4 +294,13 @@ export default {
 </script>
 
 <style scoped>
+.checkout-table-card { overflow: hidden; }
+
+.kebab-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--muted-foreground); cursor: pointer; transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
 </style>

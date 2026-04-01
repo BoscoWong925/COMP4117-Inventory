@@ -1,29 +1,7 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">My Item Requests</h2>
-        <p class="page-description">Manage borrow requests for items you own</p>
-      </div>
-      <!-- Bulk Actions for Pending Tab -->
-      <div v-if="activeTab === 'pending' && selectedPendingIds.length > 0" class="flex gap-2">
-        <button @click="showBulkApproveModal = true" class="btn btn-outline-success">
-          Approve ({{ selectedPendingIds.length }})
-        </button>
-        <button @click="showBulkRejectModal = true" class="btn btn-outline-danger">
-          Reject ({{ selectedPendingIds.length }})
-        </button>
-      </div>
-      <!-- Bulk Actions for Check-Out Tab -->
-      <div v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0" class="flex gap-2">
-        <button @click="showBulkCheckoutModal = true" class="btn btn-outline-primary">
-          Borrowed Out ({{ selectedCheckoutIds.length }})
-        </button>
-        <button @click="showBulkDenyModal = true" class="btn btn-outline-danger">
-          Deny ({{ selectedCheckoutIds.length }})
-        </button>
-      </div>
-    </div>
+    <ModulePageHeader title="My Item Requests" subtitle="Manage borrow requests for items you own">
+    </ModulePageHeader>
 
     <!-- Tabs -->
     <div class="mb-4 flex gap-2">
@@ -56,47 +34,99 @@
         <p>No pending requests</p>
         <p class="text-sm mt-1">Students haven't requested any of your items yet.</p>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAllPending" :checked="allPendingSelected" />
-              </th>
-              <th>Request ID</th>
-              <th>Item</th>
-              <th>Borrower</th>
-              <th>Request Date</th>
-              <th>Status</th>
-              <th>Waiting</th>
-              <th>Reason</th>
-              <th class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="req in pendingRequests" :key="req.id || req._id">
-              <td class="text-center">
-                <input type="checkbox" :value="req.requestId || req.id" v-model="selectedPendingIds" />
-              </td>
-              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
-              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
-              <td class="text-sm">
-                <span class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-              </td>
-              <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.requestDate) }}</td>
-              <td class="text-sm">{{ req.reason || '-' }}</td>
-              <td class="text-center whitespace-nowrap">
-                <button @click="openApprove(req)" class="btn btn-outline-success text-sm">Approve</button>
-                <button @click="openReject(req)" class="btn btn-outline-danger text-sm ml-1">Reject</button>
-                <button @click="openEmailForRequest(req)" class="btn btn-ghost text-sm ml-1" title="Email Borrower">✉</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="pendingCount" :pageSize="pageSize" />
-      </div>
+      <Card v-else class="teacher-table-card">
+        <Transition name="bulk-bar">
+          <div v-if="selectedPendingIds.length > 0" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <span class="bulk-chip">{{ selectedPendingIds.length }} selected</span>
+              <DropdownMenu align="start">
+                <template #trigger>
+                  <button class="toolbar-btn">
+                    <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                  </button>
+                </template>
+                <template #default="{ close }">
+                  <DropdownMenuItem success @click="showBulkApproveModal = true; close()">
+                    <CheckCircle2 :size="12" /> Approve ({{ selectedPendingIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive @click="showBulkRejectModal = true; close()">
+                    <XCircle :size="12" /> Reject ({{ selectedPendingIds.length }})
+                  </DropdownMenuItem>
+                </template>
+              </DropdownMenu>
+              <button class="bulk-clear-btn" @click="selectedPendingIds = []">Clear</button>
+            </div>
+          </div>
+        </Transition>
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th class="text-center" style="width:2.5rem">
+                  <Checkbox
+                    :checked="allPendingSelected"
+                    :indeterminate="selectedPendingIds.length > 0 && !allPendingSelected"
+                    @update:checked="toggleSelectAllPending"
+                  />
+                </th>
+                <th>Request ID</th>
+                <th>Item</th>
+                <th>Borrower</th>
+                <th>Request Date</th>
+                <th>Status</th>
+                <th>Waiting</th>
+                <th>Reason</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in pendingRequests" :key="req.id || req._id">
+                <td class="text-center">
+                  <Checkbox
+                    :checked="selectedPendingIds.includes(req.requestId || req.id)"
+                    @update:checked="togglePendingSelection(req.requestId || req.id, $event)"
+                  />
+                </td>
+                <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+                <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+                <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+                <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
+                <td class="text-sm">
+                  <Badge variant="warning">Pending</Badge>
+                </td>
+                <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.requestDate) }}</td>
+                <td class="text-sm">{{ req.reason || '-' }}</td>
+                <td class="text-center">
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem success @click="openApprove(req); close()">
+                        <CheckCircle2 :size="12" /> Approve
+                      </DropdownMenuItem>
+                      <DropdownMenuItem destructive @click="openReject(req); close()">
+                        <XCircle :size="12" /> Reject
+                      </DropdownMenuItem>
+                      <DropdownMenuItem separator />
+                      <DropdownMenuItem @click="openEmailForRequest(req); close()">
+                        <Mail :size="12" /> Email Borrower
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="pendingCount"
+        />
+      </Card>
     </template>
 
     <!-- ========== PENDING CHECK-OUT TAB ========== -->
@@ -105,47 +135,99 @@
       <div v-else-if="pendingRequests.length === 0" class="empty-state">
         <p>No items pending check-out</p>
       </div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAllCheckout" :checked="allCheckoutSelected" />
-              </th>
-              <th>Request ID</th>
-              <th>Item</th>
-              <th>Borrower</th>
-              <th>Approved Date</th>
-              <th>Status</th>
-              <th>Waiting</th>
-              <th>Return Date</th>
-              <th class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="req in pendingRequests" :key="req.id || req._id">
-              <td class="text-center">
-                <input type="checkbox" :value="req.requestId || req.id" v-model="selectedCheckoutIds" />
-              </td>
-              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
-              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="text-sm">{{ formatDate(req.approvalDate) }}</td>
-              <td class="text-sm">
-                <span class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-              </td>
-              <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.approvalDate) }}</td>
-              <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
-              <td class="text-center whitespace-nowrap">
-                <button @click="handleCheckout(req)" class="btn btn-outline-primary text-sm">Borrowed Out</button>
-                <button @click="openDeny(req)" class="btn btn-outline-danger text-sm ml-1">Deny</button>
-                <button @click="openEmailForRequest(req)" class="btn btn-ghost text-sm ml-1" title="Email Borrower">✉</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="checkoutCount" :pageSize="pageSize" />
-      </div>
+      <Card v-else class="teacher-table-card">
+        <Transition name="bulk-bar">
+          <div v-if="selectedCheckoutIds.length > 0" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <span class="bulk-chip">{{ selectedCheckoutIds.length }} selected</span>
+              <DropdownMenu align="start">
+                <template #trigger>
+                  <button class="toolbar-btn">
+                    <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                  </button>
+                </template>
+                <template #default="{ close }">
+                  <DropdownMenuItem success @click="showBulkCheckoutModal = true; close()">
+                    <Package :size="12" /> Borrowed Out ({{ selectedCheckoutIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive @click="showBulkDenyModal = true; close()">
+                    <XCircle :size="12" /> Deny ({{ selectedCheckoutIds.length }})
+                  </DropdownMenuItem>
+                </template>
+              </DropdownMenu>
+              <button class="bulk-clear-btn" @click="selectedCheckoutIds = []">Clear</button>
+            </div>
+          </div>
+        </Transition>
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th class="text-center" style="width:2.5rem">
+                  <Checkbox
+                    :checked="allCheckoutSelected"
+                    :indeterminate="selectedCheckoutIds.length > 0 && !allCheckoutSelected"
+                    @update:checked="toggleSelectAllCheckout"
+                  />
+                </th>
+                <th>Request ID</th>
+                <th>Item</th>
+                <th>Borrower</th>
+                <th>Approved Date</th>
+                <th>Status</th>
+                <th>Waiting</th>
+                <th>Return Date</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in pendingRequests" :key="req.id || req._id">
+                <td class="text-center">
+                  <Checkbox
+                    :checked="selectedCheckoutIds.includes(req.requestId || req.id)"
+                    @update:checked="toggleCheckoutSelection(req.requestId || req.id, $event)"
+                  />
+                </td>
+                <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+                <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+                <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+                <td class="text-sm">{{ formatDate(req.approvalDate) }}</td>
+                <td class="text-sm">
+                  <Badge variant="info">Pending Check-Out</Badge>
+                </td>
+                <td class="text-sm" style="color:var(--warning-dark);font-weight:500">{{ waitingTime(req.approvalDate) }}</td>
+                <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
+                <td class="text-center">
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem success @click="handleCheckout(req); close()">
+                        <Package :size="12" /> Borrowed Out
+                      </DropdownMenuItem>
+                      <DropdownMenuItem destructive @click="openDeny(req); close()">
+                        <XCircle :size="12" /> Deny
+                      </DropdownMenuItem>
+                      <DropdownMenuItem separator />
+                      <DropdownMenuItem @click="openEmailForRequest(req); close()">
+                        <Mail :size="12" /> Email Borrower
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="checkoutCount"
+        />
+      </Card>
     </template>
 
     <!-- ========== HISTORY TAB ========== -->
@@ -160,37 +242,41 @@
       </div>
       <div v-if="loadingHistory" class="empty-state">Loading history...</div>
       <div v-else-if="historyRequests.length === 0" class="empty-state">No history records found</div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th>Request ID</th>
-              <th>Item</th>
-              <th>Borrower</th>
-              <th>Request Date</th>
-              <th>Status</th>
-              <th>Return Date</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="req in historyRequests" :key="req.id || req._id">
-              <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
-              <td class="text-sm">{{ req.itemName || req.itemID }}</td>
-              <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
-              <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
-              <td class="text-sm">
-                <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getStatusBadge(req.status)}`">
-                  {{ req.status }}
-                </span>
-              </td>
-              <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
-              <td class="text-sm">{{ req.reason || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="totalHistory" :pageSize="pageSize" />
-      </div>
+      <Card v-else class="teacher-table-card">
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th>Request ID</th>
+                <th>Item</th>
+                <th>Borrower</th>
+                <th>Request Date</th>
+                <th>Status</th>
+                <th>Return Date</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in historyRequests" :key="req.id || req._id">
+                <td class="text-sm" style="font-weight:600">{{ req.requestId || req.id }}</td>
+                <td class="text-sm">{{ req.itemName || req.itemID }}</td>
+                <td class="text-sm">{{ req.borrowerName || req.borrowerID }}</td>
+                <td class="text-sm">{{ formatDate(req.requestDate) }}</td>
+                <td class="text-sm">
+                  <Badge :variant="getStatusBadgeVariant(req.status)">{{ req.status }}</Badge>
+                </td>
+                <td class="text-sm">{{ formatDate(req.returnDate) || '-' }}</td>
+                <td class="text-sm">{{ req.reason || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="totalHistory"
+        />
+      </Card>
     </template>
 
     <!-- Approve Modal -->
@@ -203,15 +289,15 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Return Date *</label>
-          <input type="date" v-model="returnDate" class="form-input" />
+          <Input type="date" v-model="returnDate" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Remark</label>
-          <textarea v-model="approveRemark" class="form-input" rows="2" placeholder="Add any notes..." />
+          <Textarea v-model="approveRemark" rows="2" placeholder="Add any notes..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleApprove" class="btn btn-outline-success flex-1">Approve</button>
-          <button @click="approveTarget = null; returnDate = ''; approveRemark = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleApprove">Approve</Button>
+          <Button variant="ghost" class="flex-1" @click="approveTarget = null; returnDate = ''; approveRemark = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -226,11 +312,11 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Reason for Rejection *</label>
-          <textarea v-model="rejectReason" class="form-input" rows="3" placeholder="Enter rejection reason..." />
+          <Textarea v-model="rejectReason" rows="3" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleReject" class="btn btn-outline-danger flex-1">Reject</button>
-          <button @click="rejectTarget = null; rejectReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleReject">Reject</Button>
+          <Button variant="outline" class="flex-1" @click="rejectTarget = null; rejectReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -244,11 +330,11 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="denyReason" class="form-input" rows="3" placeholder="Enter reason for denying check-out..." />
+          <Textarea v-model="denyReason" rows="3" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleDeny" class="btn btn-outline-danger flex-1">Deny</button>
-          <button @click="denyTarget = null; denyReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleDeny">Deny</Button>
+          <Button variant="outline" class="flex-1" @click="denyTarget = null; denyReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -257,20 +343,18 @@
     <div v-if="showBulkApproveModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Approve ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-3">
-          Approve all selected requests.
-        </p>
+        <p class="text-sm text-secondary mb-3">Approve all selected requests.</p>
         <div class="mb-4">
           <label class="modal-label">Return Date *</label>
-          <input type="date" v-model="bulkReturnDate" class="form-input" />
+          <Input type="date" v-model="bulkReturnDate" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Remark</label>
-          <textarea v-model="bulkApproveRemark" class="form-input" rows="2" placeholder="Add any notes..." />
+          <Textarea v-model="bulkApproveRemark" rows="2" placeholder="Add any notes..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleBulkApprove" class="btn btn-outline-success flex-1">Approve</button>
-          <button @click="showBulkApproveModal = false; bulkReturnDate = ''; bulkApproveRemark = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkApprove">Approve</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkApproveModal = false; bulkReturnDate = ''; bulkApproveRemark = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -279,16 +363,14 @@
     <div v-if="showBulkRejectModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Reject ({{ selectedPendingIds.length }} request{{ selectedPendingIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-3">
-          Reject all selected requests.
-        </p>
+        <p class="text-sm text-secondary mb-3">Reject all selected requests.</p>
         <div class="mb-4">
           <label class="modal-label">Reason *</label>
-          <textarea v-model="bulkRejectReason" class="form-input" rows="3" placeholder="Enter rejection reason..." />
+          <Textarea v-model="bulkRejectReason" rows="3" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleBulkReject" class="btn btn-outline-danger flex-1">Reject</button>
-          <button @click="showBulkRejectModal = false; bulkRejectReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleBulkReject">Reject</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkRejectModal = false; bulkRejectReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -297,12 +379,10 @@
     <div v-if="showBulkCheckoutModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Borrowed Out ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-4">
-          Mark all selected items as borrowed out?
-        </p>
+        <p class="text-sm text-secondary mb-4">Mark all selected items as borrowed out?</p>
         <div class="flex gap-2">
-          <button @click="handleBulkCheckout" class="btn btn-outline-primary flex-1">Borrowed Out</button>
-          <button @click="showBulkCheckoutModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkCheckout">Borrowed Out</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkCheckoutModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -311,16 +391,14 @@
     <div v-if="showBulkDenyModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Bulk Deny ({{ selectedCheckoutIds.length }} item{{ selectedCheckoutIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-3">
-          Deny checkout for all selected items.
-        </p>
+        <p class="text-sm text-secondary mb-3">Deny checkout for all selected items.</p>
         <div class="mb-4">
           <label class="modal-label">Reason</label>
-          <textarea v-model="bulkDenyReason" class="form-input" rows="3" placeholder="Enter reason..." />
+          <Textarea v-model="bulkDenyReason" rows="3" placeholder="Enter reason..." />
         </div>
         <div class="flex gap-2">
-          <button @click="handleBulkDeny" class="btn btn-outline-danger flex-1">Deny</button>
-          <button @click="showBulkDenyModal = false; bulkDenyReason = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleBulkDeny">Deny</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkDenyModal = false; bulkDenyReason = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -340,11 +418,28 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate, waitingTime } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { MoreVertical, CheckCircle2, XCircle, Package, Mail, Zap, ChevronDown } from 'lucide-vue-next'
+import {
+  UiModulePageHeader as ModulePageHeader,
+  UiTablePaginationBar as TablePaginationBar,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiCheckbox as Checkbox,
+  UiBadge as Badge,
+  UiCard as Card,
+  UiButton as Button,
+ UiInput as Input,
+ UiTextarea as Textarea
+} from '../components/ui'
 import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
-  components: { PaginationControl, SendEmailModal },
+  components: {
+    ModulePageHeader, TablePaginationBar, DropdownMenu, DropdownMenuItem,
+    Checkbox, Badge, Card, Button, Input, Textarea,
+    MoreVertical, CheckCircle2, XCircle, Package, Mail, Zap, ChevronDown,
+    SendEmailModal
+  },
   setup() {
     const activeTab = ref('pending')
     const pendingRequests = ref([])
@@ -355,6 +450,7 @@ export default {
     const historyStatus = ref('All')
     const currentPage = ref(1)
     const pageSize = 10
+    const pageSizeRef = ref(pageSize)
 
     // Approve modal
     const approveTarget = ref(null)
@@ -437,14 +533,14 @@ export default {
       }
     })
 
-    const getStatusBadge = (status) => {
+    const getStatusBadgeVariant = (status) => {
       const map = {
-        'Approved': 'action-badge action-badge-success',
-        'Rejected': 'action-badge action-badge-danger',
-        'Returned': 'action-badge action-badge-accent',
-        'Pending': 'action-badge action-badge-warning'
+        'Approved': 'success',
+        'Rejected': 'destructive',
+        'Returned': 'info',
+        'Pending': 'warning'
       }
-      return map[status] || 'action-badge action-badge-neutral'
+      return map[status] || 'secondary'
     }
 
     const openApprove = (req) => {
@@ -523,9 +619,9 @@ export default {
       }
     }
 
-    const toggleSelectAllPending = (event) => {
+    const toggleSelectAllPending = (checked) => {
       const pageIds = pendingRequests.value.map(req => req.requestId || req.id)
-      if (event.target.checked) {
+      if (checked) {
         const newSet = new Set([...selectedPendingIds.value, ...pageIds])
         selectedPendingIds.value = Array.from(newSet)
       } else {
@@ -533,13 +629,29 @@ export default {
       }
     }
 
-    const toggleSelectAllCheckout = (event) => {
+    const toggleSelectAllCheckout = (checked) => {
       const pageIds = pendingRequests.value.map(req => req.requestId || req.id)
-      if (event.target.checked) {
+      if (checked) {
         const newSet = new Set([...selectedCheckoutIds.value, ...pageIds])
         selectedCheckoutIds.value = Array.from(newSet)
       } else {
         selectedCheckoutIds.value = selectedCheckoutIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
+
+    const togglePendingSelection = (id, checked) => {
+      if (checked) {
+        if (!selectedPendingIds.value.includes(id)) selectedPendingIds.value.push(id)
+      } else {
+        selectedPendingIds.value = selectedPendingIds.value.filter(x => x !== id)
+      }
+    }
+
+    const toggleCheckoutSelection = (id, checked) => {
+      if (checked) {
+        if (!selectedCheckoutIds.value.includes(id)) selectedCheckoutIds.value.push(id)
+      } else {
+        selectedCheckoutIds.value = selectedCheckoutIds.value.filter(x => x !== id)
       }
     }
 
@@ -637,7 +749,7 @@ export default {
 
     return {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
-      historyStatus, currentPage, pageSize, totalHistory,
+      historyStatus, currentPage, pageSize, pageSizeRef, totalHistory,
       pendingCount, checkoutCount,
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
@@ -646,9 +758,10 @@ export default {
       showBulkApproveModal, showBulkRejectModal, showBulkCheckoutModal, showBulkDenyModal,
       bulkReturnDate, bulkApproveRemark, bulkRejectReason, bulkDenyReason,
       showEmailModal, emailTarget,
-      getStatusBadge, openApprove, openReject, openDeny,
+      getStatusBadgeVariant, openApprove, openReject, openDeny,
       handleApprove, handleReject, handleCheckout, handleDeny,
       toggleSelectAllPending, toggleSelectAllCheckout,
+      togglePendingSelection, toggleCheckoutSelection,
       handleBulkApprove, handleBulkReject, handleBulkCheckout, handleBulkDeny,
       loadPending, loadHistory,
       formatDate, waitingTime,
@@ -659,4 +772,41 @@ export default {
 </script>
 
 <style scoped>
+.teacher-table-card { overflow: hidden; }
+
+.kebab-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--muted-foreground); cursor: pointer; transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
+
+.bulk-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border); background: var(--surface-50);
+}
+.bulk-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.bulk-chip {
+  display: inline-flex; align-items: center;
+  font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
+  border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
+}
+.toolbar-btn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+}
+.toolbar-btn:hover { background: var(--surface-100); }
+.bulk-clear-btn {
+  font-size: 0.7rem; color: var(--muted-foreground); background: none;
+  border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+.bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
+.bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
+.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
 </style>

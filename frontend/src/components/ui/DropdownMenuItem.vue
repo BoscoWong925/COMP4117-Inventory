@@ -6,6 +6,7 @@ const props = defineProps({
   class: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   destructive: { type: Boolean, default: false },
+  success: { type: Boolean, default: false },
   separator: { type: Boolean, default: false },
   label: { type: Boolean, default: false },
   checkable: { type: Boolean, default: false },
@@ -20,6 +21,7 @@ const classes = computed(() => {
   return cn(
     'dropdown-menu-item',
     props.destructive && 'dropdown-menu-item--destructive',
+    props.success && 'dropdown-menu-item--success',
     props.disabled && 'dropdown-menu-item--disabled',
     props.class
   )
@@ -80,6 +82,13 @@ function handleClick(e) {
 .dropdown-menu-item--destructive:hover {
   background: var(--danger-light);
   color: var(--danger);
+}
+.dropdown-menu-item--success {
+  color: var(--success);
+}
+.dropdown-menu-item--success:hover {
+  background: var(--success-light);
+  color: var(--success);
 }
 .dropdown-menu-item--disabled {
   pointer-events: none;

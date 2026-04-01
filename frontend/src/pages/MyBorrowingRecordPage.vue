@@ -89,13 +89,14 @@
             </div>
 
             <div class="flex gap-2 flex-wrap">
-              <button
+              <Button
                 v-if="group.parent.status === 'Approved' && !group.parent.returnedDate"
+                variant="outline"
+                size="sm"
                 @click="openDeclareReturn(group.parent)"
-                class="btn btn-outline-primary text-sm"
               >
                 Declare Return Date
-              </button>
+              </Button>
             </div>
 
           </div>
@@ -116,17 +117,16 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <input
+          <Input
             type="date"
             v-model="declareReturnDateValue"
             :max="declareReturnMaxDate"
-            class="form-input"
           />
         </div>
         <div v-if="declareReturnError" class="text-sm mb-3" style="color:var(--danger)">{{ declareReturnError }}</div>
         <div class="flex gap-2">
-          <button @click="confirmDeclareReturn" class="btn btn-outline-success flex-1">Confirm</button>
-          <button @click="declareReturnTarget = null; declareReturnDateValue = ''; declareReturnError = ''" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="success" class="flex-1" @click="confirmDeclareReturn">Confirm</Button>
+          <Button variant="outline" class="flex-1" @click="declareReturnTarget = null; declareReturnDateValue = ''; declareReturnError = ''">Cancel</Button>
         </div>
       </div>
     </div>
@@ -138,9 +138,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, isOverdue } from '../utils/helpers'
 import PaginationControl from '../components/PaginationControl.vue'
+import {
+  UiButton as Button,
+  UiInput as Input,
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
+  components: { PaginationControl, Button, Input },
   setup() {
     const records = ref([])
     const currentPage = ref(1)

@@ -1,9 +1,6 @@
 ﻿<template>
   <div class="page-container">
     <ModulePageHeader title="Borrowing History" :subtitle="historySummaryText">
-      <Button v-if="isAdmin && selectedHistoryIds.length > 0" variant="destructive" size="sm" @click="showDeleteConfirm = true">
-        Delete ({{ selectedHistoryIds.length }})
-      </Button>
       <Button variant="outline" size="sm" @click="showFilters = !showFilters">
         {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
       </Button>
@@ -53,6 +50,27 @@
     </ModuleFilterPanel>
 
     <Card class="history-table-card">
+      <Transition name="bulk-bar">
+        <div v-if="isAdmin && selectedHistoryIds.length > 0" class="bulk-toolbar">
+          <div class="bulk-toolbar-left">
+            <span class="bulk-chip">{{ selectedHistoryIds.length }} selected</span>
+            <DropdownMenu align="start">
+              <template #trigger>
+                <button class="toolbar-btn">
+                  <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                </button>
+              </template>
+              <template #default="{ close }">
+                <DropdownMenuItem destructive @click="showDeleteConfirm = true; close()">
+                  <Trash2 :size="12" /> Delete ({{ selectedHistoryIds.length }})
+                </DropdownMenuItem>
+              </template>
+            </DropdownMenu>
+            <button class="bulk-clear-btn" @click="selectedHistoryIds = []">Clear</button>
+          </div>
+        </div>
+      </Transition>
+
       <div class="history-tabs">
         <button
           v-for="status in statusTabs"
@@ -93,16 +111,10 @@
 
           <tbody>
             <template v-if="showHistorySkeleton">
-              <tr v-for="idx in historySkeletonRows" :key="'history-skel-' + idx" class="history-row-skeleton">
-                <td v-if="isAdmin" class="text-center"><span class="history-skeleton-box"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-id"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-item"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-user"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
-                <td><span class="history-skeleton-line history-skeleton-short"></span></td>
+              <tr>
+                <td :colspan="isAdmin ? 9 : 8" class="table-spinner-cell">
+                  <Spinner size="lg" label="Loading history..." />
+                </td>
               </tr>
             </template>
 
@@ -161,7 +173,7 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { Download } from 'lucide-vue-next'
+import { Download, Zap, ChevronDown, Trash2 } from 'lucide-vue-next'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, exportToExcel } from '../utils/helpers'
 import {
@@ -174,13 +186,17 @@ import {
   UiModulePageHeader as ModulePageHeader,
   UiModuleFilterPanel as ModuleFilterPanel,
   UiTablePaginationBar as TablePaginationBar,
+  UiSpinner as Spinner,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
 } from '../components/ui'
 
 export default {
   components: {
     Button, Card, Badge, Checkbox, Input, Select,
-    ModulePageHeader, ModuleFilterPanel, TablePaginationBar,
-    Download
+    ModulePageHeader, ModuleFilterPanel, TablePaginationBar, Spinner,
+    DropdownMenu, DropdownMenuItem,
+    Download, Zap, ChevronDown, Trash2
   },
   props: {
     pageParams: {
@@ -472,6 +488,11 @@ export default {
 </script>
 
 <style scoped>
+.table-spinner-cell {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  background: var(--card);
+}
 .history-filter-grid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -632,4 +653,32 @@ export default {
   color: var(--muted-foreground);
   font-size: 0.875rem;
 }
+
+.bulk-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border); background: var(--surface-50);
+}
+.bulk-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.bulk-chip {
+  display: inline-flex; align-items: center;
+  font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
+  border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
+}
+.toolbar-btn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+}
+.toolbar-btn:hover { background: var(--surface-100); }
+.bulk-clear-btn {
+  font-size: 0.7rem; color: var(--muted-foreground); background: none;
+  border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+.bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
+.bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
+.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
 </style>

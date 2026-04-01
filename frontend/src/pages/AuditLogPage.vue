@@ -1,50 +1,37 @@
 ﻿<template>
   <div class="page-container">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">Audit Log & Trail</h2>
-        <p class="page-description">{{ totalLogs }} log entries</p>
-      </div>
-      <div class="flex gap-2">
-        <button v-if="isAdmin && selectedLogIds.length > 0" @click="showDeleteConfirm = true" class="btn btn-outline-danger">
-          Delete ({{ selectedLogIds.length }})
-        </button>
-        <button @click="showFilters = !showFilters" class="btn btn-ghost">
-          {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
-        </button>
-        <button @click="exportLogs" class="btn">Export to Excel</button>
-      </div>
-    </div>
+    <ModulePageHeader title="Audit Log & Trail" :subtitle="totalLogs + ' log entries'">
+      <Button variant="outline" size="sm" @click="showFilters = !showFilters">
+        {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
+      </Button>
+      <Button size="sm" @click="exportLogs">Export to Excel</Button>
+    </ModulePageHeader>
 
     <!-- Filter Panel -->
-    <div v-if="showFilters" class="filter-panel">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="filter-panel-title">Search &amp; Filter</h3>
-        <button @click="clearAllFilters" class="filter-clear-btn">Clear All</button>
-      </div>
+    <ModuleFilterPanel v-if="showFilters" @clear="clearAllFilters">
       <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
         <div>
           <label class="filter-label">Search</label>
-          <input v-model="searchText" type="text" class="form-input text-sm" placeholder="User, details, item ID..." />
+          <Input v-model="searchText" type="text" placeholder="User, details, item ID..." />
         </div>
         <div>
           <label class="filter-label">User ID</label>
-          <input v-model="filters.userID" type="text" class="form-input text-sm" placeholder="e.g. U001, S00123456" />
+          <Input v-model="filters.userID" type="text" placeholder="e.g. U001, S00123456" />
         </div>
         <div>
           <label class="filter-label">Item ID</label>
-          <input v-model="filters.itemID" type="text" class="form-input text-sm" placeholder="e.g. INV-001" />
+          <Input v-model="filters.itemID" type="text" placeholder="e.g. INV-001" />
         </div>
         <div>
           <label class="filter-label">Date From</label>
-          <input v-model="filters.dateFrom" type="date" class="form-input text-sm" />
+          <Input v-model="filters.dateFrom" type="date" />
         </div>
         <div>
           <label class="filter-label">Date To</label>
-          <input v-model="filters.dateTo" type="date" class="form-input text-sm" />
+          <Input v-model="filters.dateTo" type="date" />
         </div>
       </div>
-    </div>
+    </ModuleFilterPanel>
 
     <!-- Filter Dropdown Bar -->
     <div class="mb-4">
@@ -110,49 +97,76 @@
     <div v-if="logs.length === 0 && !loading" class="empty-state">
       No logs found
     </div>
-    <div v-else class="table-responsive">
-      <table class="table-striped theme-table">
-        <thead>
-          <tr>
-            <th v-if="isAdmin" class="text-center" style="width:2.5rem">
-              <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
-            </th>
-            <th class="cursor-pointer select-none" @click="toggleSort('timestamp')">
-              Timestamp <span class="sort-icon">{{ getSortIcon('timestamp') }}</span>
-            </th>
-            <th>User</th>
-            <th>Action</th>
-            <th>Details</th>
-            <th>Item ID</th>
-            <th>Old Value</th>
-            <th>New Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="log in paginatedLogs" :key="log.id">
-            <td v-if="isAdmin" class="text-center">
-              <input type="checkbox" :value="log.logId || log.id || log._id" v-model="selectedLogIds" />
-            </td>
-            <td class="text-sm whitespace-nowrap">{{ formatDateTime(log.timestamp) }}</td>
-            <td class="text-sm">{{ log.userID }}</td>
-            <td class="text-sm">
-              <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getActionColor(log.action)}`">
-                {{ formatAction(log.action) }}
-              </span>
-            </td>
-            <td class="text-sm text-secondary">{{ log.details }}</td>
-            <td class="text-sm">{{ log.affectedItemID || '-' }}</td>
-            <td class="text-sm">{{ log.oldValue || '-' }}</td>
-            <td class="text-sm">{{ log.newValue || '-' }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <PaginationControl
+    <Card v-else class="audit-table-card">
+      <Transition name="bulk-bar">
+        <div v-if="isAdmin && selectedLogIds.length > 0" class="bulk-toolbar">
+          <div class="bulk-toolbar-left">
+            <span class="bulk-chip">{{ selectedLogIds.length }} selected</span>
+            <DropdownMenu align="start">
+              <template #trigger>
+                <button class="toolbar-btn">
+                  <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                </button>
+              </template>
+              <template #default="{ close }">
+                <DropdownMenuItem destructive @click="showDeleteConfirm = true; close()">
+                  <Trash2 :size="12" /> Delete ({{ selectedLogIds.length }})
+                </DropdownMenuItem>
+              </template>
+            </DropdownMenu>
+            <button class="bulk-clear-btn" @click="selectedLogIds = []">Clear</button>
+          </div>
+        </div>
+      </Transition>
+      <div class="table-responsive">
+        <table class="table-striped theme-table">
+          <thead>
+            <tr>
+              <th v-if="isAdmin" class="text-center" style="width:2.5rem">
+                <Checkbox
+                  :checked="allSelected"
+                  :indeterminate="selectedLogIds.length > 0 && !allSelected"
+                  @update:checked="toggleSelectAll"
+                />
+              </th>
+              <th class="cursor-pointer select-none" @click="toggleSort('timestamp')">
+                Timestamp <span class="sort-icon">{{ getSortIcon('timestamp') }}</span>
+              </th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Details</th>
+              <th>Item ID</th>
+              <th>Old Value</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="log in paginatedLogs" :key="log.id">
+              <td v-if="isAdmin" class="text-center">
+                <Checkbox
+                  :checked="selectedLogIds.includes(log.logId || log.id || log._id)"
+                  @update:checked="toggleLogSelection(log.logId || log.id || log._id, $event)"
+                />
+              </td>
+              <td class="text-sm whitespace-nowrap">{{ formatDateTime(log.timestamp) }}</td>
+              <td class="text-sm">{{ log.userID }}</td>
+              <td class="text-sm">
+                <Badge :variant="getActionBadgeVariant(log.action)">{{ formatAction(log.action) }}</Badge>
+              </td>
+              <td class="text-sm text-secondary">{{ log.details }}</td>
+              <td class="text-sm">{{ log.affectedItemID || '-' }}</td>
+              <td class="text-sm">{{ log.oldValue || '-' }}</td>
+              <td class="text-sm">{{ log.newValue || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <TablePaginationBar
         v-model:currentPage="currentPage"
-        :totalItems="totalLogs"
-        :pageSize="pageSize"
+        v-model:pageSize="pageSizeRef"
+        :total-items="totalLogs"
       />
-    </div>
+    </Card>
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
@@ -160,8 +174,8 @@
         <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedLogIds.length }}</strong> log entries?</p>
         <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
-          <button @click="handleDeleteLogs" class="btn btn-outline-danger flex-1">Delete</button>
-          <button @click="showDeleteConfirm = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleDeleteLogs">Delete</Button>
+          <Button variant="outline" class="flex-1" @click="showDeleteConfirm = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -172,10 +186,26 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { auditService, authService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import { Zap, ChevronDown, Trash2 } from 'lucide-vue-next'
+import {
+  UiModulePageHeader as ModulePageHeader,
+  UiModuleFilterPanel as ModuleFilterPanel,
+  UiTablePaginationBar as TablePaginationBar,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiCheckbox as Checkbox,
+  UiBadge as Badge,
+  UiCard as Card,
+  UiButton as Button,
+  UiInput as Input
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
+  components: {
+    ModulePageHeader, ModuleFilterPanel, TablePaginationBar,
+    DropdownMenu, DropdownMenuItem, Checkbox, Badge, Card, Button, Input,
+    Zap, ChevronDown, Trash2
+  },
   setup() {
     const logs = ref([])
     const totalLogs = ref(0)
@@ -193,6 +223,7 @@ export default {
     const sortDir = ref('desc')
     const currentPage = ref(1)
     const pageSize = 15
+    const pageSizeRef = ref(pageSize)
     const selectedLogIds = ref([])
     const showDeleteConfirm = ref(false)
     const isAdmin = computed(() => {
@@ -396,20 +427,20 @@ export default {
       return map[action] || action
     }
 
-    const getActionColor = (action) => {
+    const getActionBadgeVariant = (action) => {
       const map = {
-        'LOGIN': 'action-badge action-badge-neutral',
-        'LOGOUT': 'action-badge action-badge-neutral',
-        'BORROW_REQUEST_CREATED': 'action-badge action-badge-info',
-        'BORROW_REQUEST_APPROVED': 'action-badge action-badge-success',
-        'BORROW_REQUEST_REJECTED': 'action-badge action-badge-danger',
-        'ITEM_RETURNED': 'action-badge action-badge-accent',
-        'ITEM_ADDED': 'action-badge action-badge-accent',
-        'ITEM_DELETED': 'action-badge action-badge-danger',
-        'ITEM_STATUS_CHANGE': 'action-badge action-badge-warning',
-        'INVENTORY_ITEM_ADDED': 'action-badge action-badge-accent'
+        'LOGIN': 'secondary',
+        'LOGOUT': 'secondary',
+        'BORROW_REQUEST_CREATED': 'info',
+        'BORROW_REQUEST_APPROVED': 'success',
+        'BORROW_REQUEST_REJECTED': 'destructive',
+        'ITEM_RETURNED': 'info',
+        'ITEM_ADDED': 'info',
+        'ITEM_DELETED': 'destructive',
+        'ITEM_STATUS_CHANGE': 'warning',
+        'INVENTORY_ITEM_ADDED': 'info'
       }
-      return map[action] || 'action-badge action-badge-neutral'
+      return map[action] || 'secondary'
     }
 
     const allSelected = computed(() => {
@@ -417,15 +448,22 @@ export default {
       return paginatedLogs.value.every(l => selectedLogIds.value.includes(l.logId || l.id || l._id))
     })
 
-    const toggleSelectAll = () => {
-      if (allSelected.value) {
-        const pageIds = paginatedLogs.value.map(l => l.logId || l.id || l._id)
-        selectedLogIds.value = selectedLogIds.value.filter(id => !pageIds.includes(id))
-      } else {
-        const pageIds = paginatedLogs.value.map(l => l.logId || l.id || l._id)
+    const toggleSelectAll = (checked) => {
+      const pageIds = paginatedLogs.value.map(l => l.logId || l.id || l._id)
+      if (checked) {
         const current = new Set(selectedLogIds.value)
         pageIds.forEach(id => current.add(id))
         selectedLogIds.value = [...current]
+      } else {
+        selectedLogIds.value = selectedLogIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
+
+    const toggleLogSelection = (id, checked) => {
+      if (checked) {
+        if (!selectedLogIds.value.includes(id)) selectedLogIds.value.push(id)
+      } else {
+        selectedLogIds.value = selectedLogIds.value.filter(x => x !== id)
       }
     }
 
@@ -487,6 +525,7 @@ export default {
       filters,
       currentPage,
       pageSize,
+      pageSizeRef,
       actionCategories,
       paginatedLogs,
       clearAllFilters,
@@ -494,7 +533,7 @@ export default {
       toggleSort,
       getSortIcon,
       formatAction,
-      getActionColor,
+      getActionBadgeVariant,
       exportLogs,
       formatDateTime,
       selectedLogIds,
@@ -502,6 +541,7 @@ export default {
       isAdmin,
       allSelected,
       toggleSelectAll,
+      toggleLogSelection,
       handleDeleteLogs,
       openDropdown,
       selectedTimeRange,
@@ -517,26 +557,57 @@ export default {
 </script>
 
 <style scoped>
+.audit-table-card { overflow: hidden; }
+
 .sort-icon {
   display: inline-block;
   width: 14px;
   text-align: center;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted-foreground);
 }
 thead th:hover .sort-icon {
-  color: #1f2937;
+  color: var(--text-primary);
 }
+
+.bulk-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border); background: var(--surface-50);
+}
+.bulk-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.bulk-chip {
+  display: inline-flex; align-items: center;
+  font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
+  border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
+}
+.toolbar-btn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+}
+.toolbar-btn:hover { background: var(--surface-100); }
+.bulk-clear-btn {
+  font-size: 0.7rem; color: var(--muted-foreground); background: none;
+  border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+.bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
+.bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
+.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
+
 .dropdown-menu {
   position: absolute;
   top: 100%;
   left: 0;
   margin-top: 4px;
   min-width: 200px;
-  background: var(--color-bg-card, #1e293b);
-  border: 1px solid var(--color-border, #334155);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   z-index: 50;
   overflow: hidden;
 }
@@ -546,7 +617,7 @@ thead th:hover .sort-icon {
   text-align: left;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  color: var(--color-text, #e2e8f0);
+  color: var(--text-primary);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -554,10 +625,10 @@ thead th:hover .sort-icon {
   white-space: nowrap;
 }
 .dropdown-item:hover {
-  background: var(--color-bg-hover, rgba(99, 102, 241, 0.15));
+  background: var(--surface-100);
 }
 .dropdown-item-active {
-  background: var(--color-bg-active, rgba(99, 102, 241, 0.25));
+  background: var(--accent-surface);
   font-weight: 600;
 }
 </style>

@@ -2,147 +2,180 @@
   <div class="page-container">
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
-      <div class="page-header">
-        <div>
-          <h2 class="page-title">Manage Accounts</h2>
-          <p class="page-description">{{ totalUsers }} accounts</p>
-        </div>
-        <div class="flex gap-2">
-          <button v-if="selectedUserIds.length > 0" @click="openBulkDisableModal" class="btn btn-outline-warning text-sm">
-            Disable ({{ selectedUserIds.length }})
-          </button>
-          <button v-if="selectedUserIds.length > 0" @click="openBulkEnableModal" class="btn btn-ghost text-sm">
-            Enable ({{ selectedUserIds.length }})
-          </button>
-          <button v-if="selectedUserIds.length > 0" @click="openBulkDeleteModal" class="btn btn-outline-danger text-sm">
-            Delete ({{ selectedUserIds.length }})
-          </button>
-          <button @click="openNewUserForm" class="btn">Add New Account</button>
-        </div>
-      </div>
+      <ModulePageHeader title="Manage Accounts" :subtitle="`${totalUsers} accounts`">
+        <Button variant="outline" size="sm" @click="showFilterPanel = !showFilterPanel">
+          {{ showFilterPanel ? 'Hide Filters' : 'Filters' }}
+        </Button>
+        <Button size="sm" @click="openNewUserForm">Add New Account</Button>
+      </ModulePageHeader>
 
-      <!-- Filters -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-        <div>
-          <label class="filter-label">Search</label>
-          <input v-model="searchText" type="text" class="form-input text-sm" placeholder="Name, ID, email..." />
+      <ModuleFilterPanel v-if="showFilterPanel" @clear="clearFilters">
+        <div class="accounts-filter-grid">
+          <div>
+            <label class="filter-label">Search</label>
+            <Input v-model="searchText" type="text" placeholder="Name, ID, email..." />
+          </div>
+          <div>
+            <label class="filter-label">Role</label>
+            <Select v-model="filterRole">
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="operator">Operator</option>
+              <option value="teacher">Teacher</option>
+              <option value="student">Student</option>
+            </Select>
+          </div>
+          <div>
+            <label class="filter-label">Status</label>
+            <Select v-model="filterStatus">
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </Select>
+          </div>
         </div>
-        <div>
-          <label class="filter-label">Role</label>
-          <select v-model="filterRole" class="form-select text-sm">
-            <option value="">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="operator">Operator</option>
-            <option value="teacher">Teacher</option>
-            <option value="student">Student</option>
-          </select>
-        </div>
-        <div>
-          <label class="filter-label">Status</label>
-          <select v-model="filterStatus" class="form-select text-sm">
-            <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-        <div class="flex items-end">
-          <button @click="clearFilters" class="filter-clear-btn">Clear All</button>
-        </div>
-      </div>
+      </ModuleFilterPanel>
 
       <!-- Stats -->
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-        <div class="theme-card p-3 text-center">
+        <Card class="p-3 text-center">
           <p class="text-xl font-bold text-accent">{{ allCounts.total }}</p>
           <p class="text-xs text-muted">Total</p>
-        </div>
-        <div class="theme-card p-3 text-center">
+        </Card>
+        <Card class="p-3 text-center">
           <p class="text-xl font-bold" style="color:#ef4444">{{ allCounts.admin }}</p>
           <p class="text-xs text-muted">Admins</p>
-        </div>
-        <div class="theme-card p-3 text-center">
+        </Card>
+        <Card class="p-3 text-center">
           <p class="text-xl font-bold" style="color:#f59e0b">{{ allCounts.operator }}</p>
           <p class="text-xs text-muted">Operators</p>
-        </div>
-        <div class="theme-card p-3 text-center">
+        </Card>
+        <Card class="p-3 text-center">
           <p class="text-xl font-bold" style="color:#8b5cf6">{{ allCounts.teacher }}</p>
           <p class="text-xs text-muted">Teachers</p>
-        </div>
-        <div class="theme-card p-3 text-center">
+        </Card>
+        <Card class="p-3 text-center">
           <p class="text-xl font-bold" style="color:#22c55e">{{ allCounts.student }}</p>
           <p class="text-xs text-muted">Students</p>
+        </Card>
+      </div>
+
+      <Card class="accounts-table-card">
+        <Transition name="bulk-bar">
+          <div v-if="selectedUserIds.length > 0" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
+              <span class="bulk-chip">{{ selectedUserIds.length }} selected</span>
+              <DropdownMenu align="start">
+                <template #trigger>
+                  <button class="toolbar-btn">
+                    <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                  </button>
+                </template>
+                <template #default="{ close }">
+                  <DropdownMenuItem @click="openBulkDisableModal(); close()">
+                    <ShieldOff :size="12" /> Disable ({{ selectedUserIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem success @click="openBulkEnableModal(); close()">
+                    <ShieldCheck :size="12" /> Enable ({{ selectedUserIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem separator />
+                  <DropdownMenuItem destructive @click="openBulkDeleteModal(); close()">
+                    <Trash2 :size="12" /> Delete ({{ selectedUserIds.length }})
+                  </DropdownMenuItem>
+                </template>
+              </DropdownMenu>
+              <button class="bulk-clear-btn" @click="selectedUserIds = []">Clear</button>
+            </div>
+          </div>
+        </Transition>
+        <div class="table-responsive">
+          <table class="table-striped theme-table">
+            <thead>
+              <tr>
+                <th class="text-center" style="width:2.5rem">
+                  <Checkbox
+                    :checked="allSelected"
+                    :indeterminate="selectedUserIds.length > 0 && !allSelected"
+                    @update:checked="toggleSelectAll"
+                  />
+                </th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Status</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in users" :key="u.userId">
+                <td class="text-center">
+                  <Checkbox
+                    :checked="selectedUserIds.includes(u.userId)"
+                    @update:checked="toggleUserSelection(u.userId, $event)"
+                  />
+                </td>
+                <td class="text-sm" style="font-weight:600">{{ u.userId }}</td>
+                <td class="text-sm">{{ u.name }}</td>
+                <td class="text-sm">{{ u.username }}</td>
+                <td class="text-sm">{{ u.email || '-' }}</td>
+                <td class="text-sm">
+                  <Badge :variant="getRoleBadgeVariant(u)">{{ getDisplayRole(u) }}</Badge>
+                </td>
+                <td class="text-sm">{{ u.department || '-' }}</td>
+                <td class="text-sm">
+                  <Badge :variant="u.isActive !== false ? 'success' : 'destructive'">
+                    {{ u.isActive !== false ? 'Active' : 'Inactive' }}
+                  </Badge>
+                </td>
+                <td class="text-center">
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem @click="editUser(u); close()">
+                        <Pencil :size="12" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @click="openEmailModal(u); close()">
+                        <Mail :size="12" /> Send Email
+                      </DropdownMenuItem>
+                      <DropdownMenuItem separator />
+                      <DropdownMenuItem v-if="u.isActive !== false" @click="toggleStatus(u, false); close()">
+                        <ShieldOff :size="12" /> Disable
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-else success @click="toggleStatus(u, true); close()">
+                        <ShieldCheck :size="12" /> Enable
+                      </DropdownMenuItem>
+                      <DropdownMenuItem destructive @click="confirmDelete(u); close()">
+                        <Trash2 :size="12" /> Delete
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
-
-      <p class="results-summary">
-        Showing {{ users.length }} of {{ totalUsers }} accounts
-      </p>
-
-      <div v-if="users.length === 0" class="empty-state">No accounts found</div>
-      <div v-else class="table-responsive">
-        <table class="table-striped theme-table">
-          <thead>
-            <tr>
-              <th class="text-center" style="width:2.5rem">
-                <input type="checkbox" @change="toggleSelectAll" :checked="allSelected" />
-              </th>
-              <th>User ID</th>
-              <th>Name</th>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Department</th>
-              <th>Status</th>
-              <th class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="u in users" :key="u.userId">
-              <td class="text-center">
-                <input type="checkbox" :value="u.userId" v-model="selectedUserIds" />
-              </td>
-              <td class="text-sm" style="font-weight:600">{{ u.userId }}</td>
-              <td class="text-sm">{{ u.name }}</td>
-              <td class="text-sm">{{ u.username }}</td>
-              <td class="text-sm">{{ u.email || '-' }}</td>
-              <td class="text-sm">
-                <span :class="`px-2 py-0.5 rounded text-xs font-medium ${getRoleBadge(u)}`">
-                  {{ getDisplayRole(u) }}
-                </span>
-              </td>
-              <td class="text-sm">{{ u.department || '-' }}</td>
-              <td class="text-sm">
-                <span v-if="u.isActive !== false" class="px-2 py-0.5 rounded text-xs font-medium action-badge action-badge-success">Active</span>
-                <span v-else class="px-2 py-0.5 rounded text-xs font-medium action-badge action-badge-danger">Inactive</span>
-              </td>
-              <td class="text-center whitespace-nowrap">
-                <button @click="editUser(u)" class="btn btn-ghost text-sm" style="padding:0.25rem 0.5rem;min-height:auto">Edit</button>
-                <button
-                  v-if="u.isActive !== false"
-                  @click="toggleStatus(u, false)"
-                  class="btn btn-outline-danger text-sm ml-1"
-                >Disable</button>
-                <button
-                  v-else
-                  @click="toggleStatus(u, true)"
-                  class="btn btn-ghost text-sm ml-1"
-                >Enable</button>
-                <button @click="confirmDelete(u)" class="btn btn-outline-danger text-sm ml-1">Delete</button>
-                <button @click="openEmailModal(u)" class="btn btn-ghost text-sm ml-1" title="Send Email">✉</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControl v-model:currentPage="currentPage" :totalItems="totalUsers" :pageSize="pageSize" />
-      </div>
+        <TablePaginationBar
+          v-model:currentPage="currentPage"
+          v-model:pageSize="pageSizeRef"
+          :total-items="totalUsers"
+        />
+      </Card>
+      <div v-if="users.length === 0 && !showFilterPanel" class="empty-state">No accounts found</div>
     </template>
 
     <!-- ========== FORM VIEW ========== -->
     <template v-if="showForm">
       <div class="max-w-2xl mx-auto pt-4">
-        <button @click="showForm = false; resetForm()" class="btn btn-ghost mb-2" style="padding:0.375rem 0.75rem;min-height:auto">
+        <Button variant="ghost" size="sm" @click="showForm = false; resetForm()" class="mb-2">
           &larr; Back
-        </button>
+        </Button>
         <h2 class="page-title mb-6">
           {{ editingUser ? 'Edit Account' : 'Create New Account' }}
         </h2>
@@ -150,51 +183,51 @@
         <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4">
           <div>
             <label class="form-label">User ID *</label>
-            <input type="text" required v-model="formData.userId" class="form-input" :disabled="!!editingUser" />
+            <Input type="text" required v-model="formData.userId" :disabled="!!editingUser" />
           </div>
           <div>
             <label class="form-label">Name *</label>
-            <input type="text" required v-model="formData.name" class="form-input" />
+            <Input type="text" required v-model="formData.name" />
           </div>
           <div>
             <label class="form-label">Username *</label>
-            <input type="text" required v-model="formData.username" class="form-input" :disabled="!!editingUser" />
+            <Input type="text" required v-model="formData.username" :disabled="!!editingUser" />
           </div>
           <div>
             <label class="form-label">Email *</label>
-            <input type="email" v-model="formData.email" class="form-input" :required="!editingUser" />
+            <Input type="email" v-model="formData.email" :required="!editingUser" />
           </div>
           <div>
             <label class="form-label">Role *</label>
-            <select v-model="formData.displayRole" class="form-select" @change="onRoleChange">
+            <Select v-model="formData.displayRole" @change="onRoleChange">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="teacher">Teacher</option>
               <option value="student">Student</option>
-            </select>
+            </Select>
           </div>
           <div>
             <label class="form-label">Department *</label>
-            <input type="text" v-model="formData.department" class="form-input" placeholder="e.g. COMP" :required="!editingUser" />
+            <Input type="text" v-model="formData.department" placeholder="e.g. COMP" :required="!editingUser" />
           </div>
           <div>
             <label class="form-label">{{ editingUser ? 'New Password (leave blank to keep)' : 'Password *' }}</label>
-            <input :type="showPassword ? 'text' : 'password'" v-model="formData.password" class="form-input" :required="!editingUser" :placeholder="editingUser ? 'Leave blank to keep current' : ''" />
+            <Input :type="showPassword ? 'text' : 'password'" v-model="formData.password" :required="!editingUser" :placeholder="editingUser ? 'Leave blank to keep current' : ''" />
           </div>
           <div class="flex items-end">
             <label class="flex items-center gap-2 cursor-pointer mb-2">
-              <input type="checkbox" v-model="showPassword" class="rounded" />
+              <Checkbox :checked="showPassword" @update:checked="showPassword = $event" />
               <span class="text-sm">Show password</span>
             </label>
           </div>
 
           <div class="col-span-2 flex gap-3 justify-end p-4 form-action-bar">
-            <button type="submit" class="btn btn-outline-success px-6 py-2">
+            <Button variant="outline" type="submit">
               {{ editingUser ? 'Update' : 'Create' }} Account
-            </button>
-            <button type="button" @click="showForm = false; resetForm()" class="btn btn-outline-secondary px-6 py-2">
+            </Button>
+            <Button variant="ghost" type="button" @click="showForm = false; resetForm()">
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -207,8 +240,8 @@
         <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete account <strong>{{ deleteTarget?.name }}</strong> ({{ deleteTarget?.userId }})?</p>
         <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
-          <button @click="handleDelete" class="btn btn-outline-danger flex-1">Delete</button>
-          <button @click="showDeleteModal = false; deleteTarget = null" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleDelete">Delete</Button>
+          <Button variant="outline" class="flex-1" @click="showDeleteModal = false; deleteTarget = null">Cancel</Button>
         </div>
       </div>
     </div>
@@ -220,8 +253,8 @@
         <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to disable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
         <p class="text-sm mb-4" style="color:var(--warning)">These accounts will no longer be able to access the system.</p>
         <div class="flex gap-2">
-          <button @click="handleBulkDisable" class="btn btn-outline-warning flex-1">Disable</button>
-          <button @click="showBulkDisableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkDisable">Disable</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkDisableModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -233,8 +266,8 @@
         <p class="mb-4">Are you sure you want to enable <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
         <p class="text-sm text-secondary mb-4">These accounts will be able to access the system again.</p>
         <div class="flex gap-2">
-          <button @click="handleBulkEnable" class="btn btn-outline-primary flex-1">Enable</button>
-          <button @click="showBulkEnableModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="outline" class="flex-1" @click="handleBulkEnable">Enable</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkEnableModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -246,8 +279,8 @@
         <p class="mb-4" style="color:var(--text-secondary);font-size:0.875rem">Are you sure you want to delete <strong>{{ selectedUserIds.length }}</strong> account(s)?</p>
         <p class="text-sm mb-4" style="color:var(--danger)">This action cannot be undone.</p>
         <div class="flex gap-2">
-          <button @click="handleBulkDelete" class="btn btn-outline-danger flex-1">Delete</button>
-          <button @click="showBulkDeleteModal = false" class="btn btn-outline-secondary flex-1">Cancel</button>
+          <Button variant="destructive" class="flex-1" @click="handleBulkDelete">Delete</Button>
+          <Button variant="outline" class="flex-1" @click="showBulkDeleteModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -270,12 +303,31 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
+import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Mail, ShieldOff, ShieldCheck } from 'lucide-vue-next'
 import { userService } from '../utils/services'
-import PaginationControl from '../components/PaginationControl.vue'
 import SendEmailModal from '../components/SendEmailModal.vue'
+import {
+  UiBadge as Badge,
+  UiButton as Button,
+  UiCard as Card,
+  UiCheckbox as Checkbox,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
+  UiInput as Input,
+  UiModuleFilterPanel as ModuleFilterPanel,
+  UiModulePageHeader as ModulePageHeader,
+  UiSelect as Select,
+  UiTablePaginationBar as TablePaginationBar,
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl, SendEmailModal },
+  components: {
+    Badge, Button, Card, Checkbox, ChevronDown,
+    DropdownMenu, DropdownMenuItem, Input, Mail,
+    ModuleFilterPanel, ModulePageHeader, MoreVertical,
+    Pencil, Select, SendEmailModal, ShieldCheck, ShieldOff,
+    TablePaginationBar, Trash2, Zap,
+  },
   setup() {
     const users = ref([])
     const showForm = ref(false)
@@ -288,6 +340,7 @@ export default {
     const filterStatus = ref('')
     const currentPage = ref(1)
     const pageSize = 15
+    const pageSizeRef = ref(pageSize)
     const totalUsers = ref(0)
     const message = ref('')
     const messageSuccess = ref(true)
@@ -298,6 +351,7 @@ export default {
     const showBulkDeleteModal = ref(false)
     const showEmailModal = ref(false)
     const emailTarget = ref(null)
+    const showFilterPanel = ref(false)
     let searchDebounceTimer = null
 
     const formData = ref({
@@ -312,11 +366,11 @@ export default {
       return 'Student'
     }
 
-    const getRoleBadge = (u) => {
-      if (u.role === 'admin') return 'action-badge action-badge-danger'
-      if (u.role === 'operator') return 'action-badge action-badge-warning'
-      if (u.role === 'user' && u.subRole === 'teacher') return 'action-badge action-badge-accent'
-      return 'action-badge action-badge-success'
+    const getRoleBadgeVariant = (u) => {
+      if (u.role === 'admin') return 'destructive'
+      if (u.role === 'operator') return 'warning'
+      if (u.role === 'user' && u.subRole === 'teacher') return 'info'
+      return 'success'
     }
 
     const loadUsers = async () => {
@@ -483,13 +537,23 @@ export default {
       return users.value.length > 0 && users.value.every(user => selectedUserIds.value.includes(user.userId))
     })
 
-    const toggleSelectAll = (event) => {
+    const toggleSelectAll = (checked) => {
       const pageIds = users.value.map(user => user.userId)
-      if (event.target.checked) {
+      if (checked) {
         const newSet = new Set([...selectedUserIds.value, ...pageIds])
         selectedUserIds.value = Array.from(newSet)
       } else {
         selectedUserIds.value = selectedUserIds.value.filter(id => !pageIds.includes(id))
+      }
+    }
+
+    const toggleUserSelection = (userId, checked) => {
+      if (checked) {
+        if (!selectedUserIds.value.includes(userId)) {
+          selectedUserIds.value = [...selectedUserIds.value, userId]
+        }
+      } else {
+        selectedUserIds.value = selectedUserIds.value.filter(id => id !== userId)
       }
     }
 
@@ -578,14 +642,15 @@ export default {
     return {
       users, showForm, editingUser, showDeleteModal, deleteTarget,
       showPassword, searchText, filterRole, filterStatus,
-      currentPage, pageSize, totalUsers, message, messageSuccess, formData,
+      currentPage, pageSizeRef, totalUsers, message, messageSuccess, formData,
       allCounts, selectedUserIds, showBulkDisableModal,
       showBulkEnableModal, showBulkDeleteModal,
-      showEmailModal, emailTarget,
-      getDisplayRole, getRoleBadge, clearFilters, onRoleChange,
+      showEmailModal, emailTarget, showFilterPanel,
+      getDisplayRole, getRoleBadgeVariant, clearFilters, onRoleChange,
       openNewUserForm, editUser, resetForm, handleSubmit,
       confirmDelete, handleDelete, toggleStatus, loadUsers,
-      allSelected, toggleSelectAll, openBulkDisableModal, openBulkEnableModal,
+      allSelected, toggleSelectAll, toggleUserSelection,
+      openBulkDisableModal, openBulkEnableModal,
       openBulkDeleteModal, handleBulkDisable, handleBulkEnable, handleBulkDelete,
       openEmailModal
     }
@@ -594,4 +659,113 @@ export default {
 </script>
 
 <style scoped>
+/* Filter grid */
+.accounts-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (min-width: 768px) {
+  .accounts-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.filter-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+/* Table card */
+.accounts-table-card { padding: 0; }
+
+/* Kebab trigger */
+.kebab-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.kebab-trigger:hover { background: var(--surface-100); color: var(--text-primary); }
+
+/* Bulk toolbar */
+.bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+}
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.bulk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+}
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: var(--surface-100); color: var(--text-secondary); }
+.bulk-clear-btn {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bulk-clear-btn:hover { color: var(--text-primary); }
+
+/* Bulk bar animation */
+.bulk-bar-enter-active,
+.bulk-bar-leave-active {
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.bulk-bar-enter-from,
+.bulk-bar-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.bulk-bar-enter-to,
+.bulk-bar-leave-from {
+  max-height: 4rem;
+  opacity: 1;
+}
 </style>
