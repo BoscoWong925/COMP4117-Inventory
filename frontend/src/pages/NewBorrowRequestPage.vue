@@ -64,7 +64,10 @@
             <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 theme-section border border-[color:var(--border)] rounded-lg">
               <h4 class="text-md font-bold mb-3">Components of {{ item.name }}</h4>
               <div v-if="linkedComponents.length === 0" class="text-muted text-sm">No linked components</div>
-              <div v-else class="space-y-2">
+              <div v-if="unavailableComponents.length > 0" class="mb-2 p-2 rounded text-sm font-medium" style="background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626);">
+                Cannot borrow: {{ unavailableComponents.length }} component(s) not available
+              </div>
+              <div v-if="linkedComponents.length > 0" class="space-y-2">
                 <div v-for="comp in linkedComponents" :key="comp.id" class="theme-card p-3 flex justify-between items-center">
                   <div>
                     <p class="font-medium text-sm">{{ comp.name }}</p>
@@ -132,7 +135,9 @@
 
             <button
               @click="handleSubmitRequest"
-              class="btn btn-outline-primary w-full"
+              :disabled="unavailableComponents.length > 0"
+              :title="unavailableComponents.length > 0 ? 'Some linked components are not available' : ''"
+              class="btn btn-outline-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Submit Request
             </button>
@@ -145,7 +150,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { getStatusColor } from '../utils/helpers'
 
@@ -161,6 +166,7 @@ export default {
     const uploadedFiles = ref([])
     const filePreviews = ref([])
     const autoBorrowedComponents = ref([])
+    const unavailableComponents = computed(() => linkedComponents.value.filter(c => c.status !== 'Available'))
     const ownerFilter = ref('')
     const owners = ref([])
     let searchDebounceTimer = null
@@ -202,12 +208,8 @@ export default {
       // Load linked components
       if (item.fixedComponents && item.fixedComponents.length > 0) {
         try {
-          const comps = []
-          for (const id of item.fixedComponents) {
-            const comp = await inventoryService.getItemById(id)
-            if (comp) comps.push(comp)
-          }
-          linkedComponents.value = comps
+          const results = await Promise.all(item.fixedComponents.map(id => inventoryService.getItemById(id)))
+          linkedComponents.value = results.filter(Boolean)
           showComponentViewer.value = true
         } catch (e) {
           console.error('Failed to load linked components:', e)
@@ -251,6 +253,11 @@ export default {
         alert('Please select an item and provide a reason')
         return
       }
+      if (unavailableComponents.value.length > 0) {
+        const names = unavailableComponents.value.map(c => `${c.name} (${c.status})`).join(', ')
+        alert(`Cannot submit request: the following linked component(s) are not available — ${names}`)
+        return
+      }
 
       try {
         const currentUser = await authService.getCurrentUser()
@@ -259,16 +266,13 @@ export default {
         // Create main request
         const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
 
-        // Auto-borrow linked components (mock behavior)
+        // Auto-borrow linked components in parallel
         autoBorrowedComponents.value = []
         if (selectedItem.value.fixedComponents && selectedItem.value.fixedComponents.length > 0) {
-          for (const compID of selectedItem.value.fixedComponents) {
-            const comp = await inventoryService.getItemById(compID)
-            if (comp && comp.status === 'Available') {
-              await borrowingService.createRequest(compID, borrowerID, `Auto-borrowed with ${selectedItem.value.name}`, mainReq.id)
-              autoBorrowedComponents.value.push(comp)
-            }
-          }
+          const comps = await Promise.all(selectedItem.value.fixedComponents.map(id => inventoryService.getItemById(id)))
+          const available = comps.filter(c => c && c.status === 'Available')
+          await Promise.all(available.map(comp => borrowingService.createRequest(comp.id, borrowerID, `Auto-borrowed with ${selectedItem.value.name}`, mainReq.id)))
+          autoBorrowedComponents.value = available
         }
 
         submitted.value = true
@@ -304,6 +308,7 @@ export default {
       uploadedFiles,
       filePreviews,
       autoBorrowedComponents,
+      unavailableComponents,
       ownerFilter,
       owners,
       selectItem,

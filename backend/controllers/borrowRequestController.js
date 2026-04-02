@@ -56,13 +56,15 @@ const populateRequests = async (requests) => {
 
   // Build lookup maps
   const itemMap = {};
-  items.forEach(i => { itemMap[i.itemId] = i.name; });
+  items.forEach(i => { itemMap[i.itemId] = i; });
   const userMap = {};
   users.forEach(u => { userMap[u.userId] = u.name; });
 
   return requests.map(req => {
     const reqObj = req.toObject ? req.toObject() : { ...req };
-    reqObj.itemName = itemMap[reqObj.itemID] || 'Unknown';
+    const itemData = itemMap[reqObj.itemID] || {};
+    reqObj.itemName = itemData.name || 'Unknown';
+    reqObj.category = itemData.category || '';
     reqObj.borrowerName = userMap[reqObj.borrowerID] || reqObj.borrowerID;
     reqObj.id = reqObj.requestId;
     return reqObj;
@@ -237,7 +239,15 @@ exports.getMyRequests = catchAsync(async (req, res) => {
   const sort = {};
   sort[sortBy] = sortDir === 'desc' ? -1 : 1;
 
-  const parentFilter = { ...filter, parentRequestId: null };
+  // Build parent filter: exclude child requests (parentRequestId must be null or absent)
+  // Using $and to avoid conflict with any existing $or in filter (e.g. search)
+  const parentOnlyCondition = { $or: [{ parentRequestId: null }, { parentRequestId: { $exists: false } }] };
+  const parentFilter = filter.$or
+    ? { $and: [{ $or: filter.$or }, parentOnlyCondition, ...Object.entries(filter)
+        .filter(([k]) => k !== '$or')
+        .map(([k, v]) => ({ [k]: v }))
+      ] }
+    : { ...filter, ...parentOnlyCondition };
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await BorrowRequest.countDocuments(parentFilter);
@@ -687,9 +697,16 @@ exports.returnRequest = catchAsync(async (req, res, next) => {
     return next(ApiError.badRequest(`Cannot return a request with status: ${request.status}`));
   }
 
-  // Users can only return their own items
-  if (req.user.role === 'user' && request.borrowerID !== req.user.userId) {
+  // Users can only return their own items; teachers can return items they own
+  if (req.user.role === 'user' && req.user.subRole !== 'teacher' && request.borrowerID !== req.user.userId) {
     return next(ApiError.forbidden('You can only return your own borrowed items'));
+  }
+  // Teachers can only process returns for items they own
+  if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    const ownedItem = await Item.findOne({ itemId: request.itemID, owner: req.user.userId });
+    if (!ownedItem && request.borrowerID !== req.user.userId) {
+      return next(ApiError.forbidden('You can only return items you own or borrowed'));
+    }
   }
 
   // Update request

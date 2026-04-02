@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <ModulePageHeader title="Checkout / Returns" subtitle="Items you've borrowed - return when done">
+    <ModulePageHeader title="Checkout / Returns" subtitle="Items borrowed from you - process returns when students hand back">
     </ModulePageHeader>
 
     <!-- Stats -->
@@ -49,13 +49,13 @@
               <th>Status</th>
               <th>Borrowed Date</th>
               <th>Return Date</th>
-              <th>Days</th>
+              <th>Overdue Days</th>
               <th class="text-center">Action</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in paginatedItems" :key="item.id">
-              <td class="text-sm" style="font-weight:600">{{ item.itemId }}</td>
+              <td class="text-sm" style="font-weight:600">{{ item.itemID }}</td>
               <td class="text-sm">{{ item.itemName }}</td>
               <td class="text-sm">{{ item.category }}</td>
               <td class="text-sm">
@@ -122,8 +122,17 @@
         </div>
 
         <div class="flex gap-2">
-          <Button variant="outline" class="flex-1" @click="handleReturn">Confirm Return</Button>
-          <Button variant="ghost" class="flex-1" @click="closeReturnModal">Cancel</Button>
+          <Button variant="outline" class="flex-1" :disabled="returnLoading" @click="handleReturn">
+            <span v-if="returnLoading" class="inline-flex items-center gap-2">
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+              </svg>
+              Processing...
+            </span>
+            <span v-else>Confirm Return</span>
+          </Button>
+          <Button variant="ghost" class="flex-1" :disabled="returnLoading" @click="closeReturnModal">Cancel</Button>
         </div>
       </div>
     </div>
@@ -166,8 +175,16 @@ export default {
     const returnTarget = ref(null)
     const returnCondition = ref('')
     const returnNotes = ref('')
+    const returnLoading = ref(false)
 
-    const filteredItems = computed(() => borrowedItems.value)
+    const filteredItems = computed(() => {
+      if (!searchText.value?.trim()) return borrowedItems.value
+      const q = searchText.value.trim().toLowerCase()
+      return borrowedItems.value.filter(i =>
+        (i.itemID || '').toLowerCase().includes(q) ||
+        (i.itemName || '').toLowerCase().includes(q)
+      )
+    })
 
     const paginatedItems = computed(() => filteredItems.value)
 
@@ -198,11 +215,8 @@ export default {
           pageSize,
           status: 'Approved'
         }
-        if (searchText.value?.trim()) {
-          params.search = searchText.value.trim()
-        }
 
-        const response = await borrowingService.getRequestsForUser(undefined, params)
+        const response = await borrowingService.getTeacherRequestHistory(params)
         const records = response.requests || []
         totalItems.value = response.total || 0
         
@@ -237,6 +251,7 @@ export default {
         return
       }
 
+      returnLoading.value = true
       try {
         const reqId = returnTarget.value.requestId || returnTarget.value._id || returnTarget.value.id
         
@@ -246,12 +261,14 @@ export default {
           notes: returnNotes.value
         })
 
-        alert('Item returned successfully!')
         closeReturnModal()
+        alert('Item returned successfully!')
         await loadBorrowedItems()
       } catch (e) {
         console.error('Failed to return item:', e)
         alert('Error: ' + e.message)
+      } finally {
+        returnLoading.value = false
       }
     }
 
@@ -261,7 +278,6 @@ export default {
 
     watch(searchText, () => {
       currentPage.value = 1
-      if (currentPage.value === 1) loadBorrowedItems()
     })
 
     watch(currentPage, () => {
@@ -279,6 +295,7 @@ export default {
       returnTarget,
       returnCondition,
       returnNotes,
+      returnLoading,
       filteredItems,
       paginatedItems,
       overdueCount,

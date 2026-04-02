@@ -184,7 +184,14 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   if (location) filter.location = location;
   if (type) filter.type = type;
   if (vendor) filter.vendor = vendor;
-  if (borrowerId) filter.currentBorrower = borrowerId;
+  if (borrowerId) {
+    filter.currentBorrower = borrowerId;
+  } else if (borrowerName) {
+    const nameRegex = new RegExp(borrowerName, 'i');
+    const matchingUsers = await User.find({ name: nameRegex }).select('userId').lean();
+    const matchingIds = matchingUsers.map(u => u.userId);
+    filter.currentBorrower = { $in: matchingIds.length > 0 ? matchingIds : ['__no_match__'] };
+  }
   if (year) filter.warrantyEnd = { $regex: year };
 
   if (statusFilter) {

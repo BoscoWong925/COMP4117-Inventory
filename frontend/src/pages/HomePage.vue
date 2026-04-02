@@ -294,7 +294,9 @@
                         <Checkbox :checked="selectedRows.has(row.type + '-' + row.id)" @update:checked="toggleRow(row.type + '-' + row.id)" />
                       </td>
                       <td v-if="visibleColumns.item" class="cell-item">
-                        <span class="cell-item-name">{{ row.name }}</span>
+                        <div class="cell-item-inner">
+                          <span class="cell-item-name">{{ row.name }}</span>
+                        </div>
                       </td>
                       <td v-if="visibleColumns.type">
                         <Badge variant="outline" class="cell-type-badge whitespace-nowrap">{{ row.typeShort }}</Badge>

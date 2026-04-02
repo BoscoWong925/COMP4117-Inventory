@@ -336,8 +336,8 @@ export default {
     const newLocation = ref('')
     const otherLocation = ref('')
     const typeFilter = ref('')
-    const sortField = ref('')
-    const sortDir = ref('asc')
+    const sortField = ref('lastUpdate')
+    const sortDir = ref('desc')
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
     const selectedReturnIds = ref([])
@@ -474,9 +474,10 @@ export default {
       if (f.vendor || vendorFilter.value) params.vendor = f.vendor || vendorFilter.value
       if (f.year || yearFilter.value) params.year = f.year || yearFilter.value
       if (f.borrowerId) params.borrowerId = f.borrowerId
+      if (f.borrowerName) params.borrowerName = f.borrowerName
       if (activeStatusFilter.value) params.statusFilter = activeStatusFilter.value
-      // Combine text searches
-      const textParts = [f.id, f.name, f.borrowerName].filter(Boolean)
+      // Combine text searches (item id / name only)
+      const textParts = [f.id, f.name].filter(Boolean)
       if (textParts.length > 0) params.search = textParts.join(' ')
       if (sortField.value) {
         params.sortBy = sortField.value

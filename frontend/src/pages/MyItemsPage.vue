@@ -320,7 +320,6 @@ export default {
     const currentPage = ref(1)
     const pageSize = 15
     const pageSizeRef = ref(pageSize)
-    const activeTab = ref('owned')
     const selectedOwnedItemIds = ref([])
     const showBulkSetInuseModal = ref(false)
     const showBulkSetAvailableModal = ref(false)
@@ -328,6 +327,7 @@ export default {
 
     const currentUser = authService.getCurrentUser()
     const isTeacher = computed(() => currentUser?.subRole === 'teacher')
+    const activeTab = ref(isTeacher.value ? 'owned' : 'borrowed')
 
     const getOwnerId = () => currentUser ? (currentUser.userId || currentUser.id) : null
 
@@ -381,10 +381,6 @@ export default {
           borrowedCount.value = response.total || 0
         }
 
-        // Student defaults to borrowed tab
-        if (!isTeacher.value && activeTab.value === 'owned') {
-          activeTab.value = 'borrowed'
-        }
       } catch (e) {
         console.error('Failed to load items:', e)
       }

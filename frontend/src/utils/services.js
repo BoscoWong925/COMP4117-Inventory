@@ -329,8 +329,10 @@ export const borrowingService = {
     return data.expiredCount || 0;
   },
 
-  returnItem: async (requestID, location = null) => {
+  returnItem: async (requestID, { condition = null, notes = null, location = null } = {}) => {
     const body = {};
+    if (condition) body.condition = condition;
+    if (notes) body.notes = notes;
     if (location) body.location = location;
     const data = await apiRequest(`/borrow-requests/${requestID}/return`, {
       method: 'PUT',

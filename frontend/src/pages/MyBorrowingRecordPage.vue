@@ -4,7 +4,10 @@
       <h2 class="page-title">My Borrowing Record</h2>
     </div>
 
-    <div v-if="records.length === 0" class="empty-state">
+    <div v-if="loadError" class="empty-state text-red-500">
+      Error loading records: {{ loadError }}
+    </div>
+    <div v-else-if="records.length === 0" class="empty-state">
       No borrowing records
     </div>
     <div v-else class="space-y-4">
@@ -147,6 +150,7 @@ export default {
   components: { PaginationControl, Button, Input },
   setup() {
     const records = ref([])
+    const loadError = ref('')
     const currentPage = ref(1)
     const pageSize = 10
     const declareReturnTarget = ref(null)
@@ -199,16 +203,26 @@ export default {
       const allRecords = [...records.value].sort((a, b) => 
         new Date(b.requestDate) - new Date(a.requestDate)
       )
-      const childIds = new Set(allRecords.filter(r => r.parentRequestId).map(r => r.id))
+
+      // Build a Map from parentId → children[] for O(1) lookup
+      const childrenByParent = new Map()
+      const parentIdSet = new Set()
+      allRecords.forEach(r => {
+        if (r.parentRequestId) {
+          if (!childrenByParent.has(r.parentRequestId)) childrenByParent.set(r.parentRequestId, [])
+          childrenByParent.get(r.parentRequestId).push(r)
+        } else {
+          parentIdSet.add(r.id)
+        }
+      })
 
       const groups = []
       // Parent/standalone records (sorted by newest requestDate)
       allRecords.filter(r => !r.parentRequestId).forEach(parent => {
-        const children = allRecords.filter(r => r.parentRequestId === parent.id)
-        groups.push({ parent, children })
+        groups.push({ parent, children: childrenByParent.get(parent.id) || [] })
       })
       // Orphan children (parent not in this user's records)
-      allRecords.filter(r => r.parentRequestId && !allRecords.find(p => p.id === r.parentRequestId))
+      allRecords.filter(r => r.parentRequestId && !parentIdSet.has(r.parentRequestId))
         .forEach(orphan => {
           groups.push({ parent: orphan, children: [] })
         })
@@ -219,6 +233,7 @@ export default {
     const totalItems = ref(0)
 
     const loadRecords = async () => {
+      loadError.value = ''
       try {
         const currentUser = authService.getCurrentUser()
         const userID = currentUser?.id || 'UNKNOWN'
@@ -231,6 +246,7 @@ export default {
         }))
       } catch (e) {
         console.error('Failed to load records:', e)
+        loadError.value = e.message || 'Failed to load records'
       }
     }
 
@@ -252,8 +268,9 @@ export default {
 
     return {
       records,
+      loadError,
       groupedRecords,
-      paginatedGroups,
+      totalItems,
       declareReturnTarget,
       declareReturnDateValue,
       declareReturnError,

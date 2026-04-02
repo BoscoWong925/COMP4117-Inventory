@@ -493,6 +493,7 @@ export default {
 
     const loadPending = async () => {
       loadingPending.value = true
+      pendingRequests.value = []
       try {
         selectedPendingIds.value = []
         selectedCheckoutIds.value = []
@@ -596,6 +597,10 @@ export default {
     }
 
     const handleCheckout = async (req) => {
+      if (req.status !== 'Pending Check-Out') {
+        alert('This request must be approved first before checking out.')
+        return
+      }
       try {
         const reqId = req.requestId || req.id || req._id
         await borrowingService.checkoutRequest(reqId)

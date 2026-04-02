@@ -116,8 +116,10 @@
                   </td>
                   <td class="request-cell-id">{{ group.parent.id }}</td>
                   <td class="request-cell-item">
-                    <span class="request-item-name">{{ group.parent.itemName }}</span>
-                    <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                    <div class="request-cell-item-inner">
+                      <span class="request-item-name">{{ group.parent.itemName }}</span>
+                      <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                    </div>
                   </td>
                   <td>
                     {{ group.parent.borrowerName || group.parent.borrowerID }}
@@ -175,8 +177,10 @@
                   </td>
                   <td class="request-cell-id">{{ group.parent.id }}</td>
                   <td class="request-cell-item">
-                    <span class="request-item-name">{{ group.parent.itemName }}</span>
-                    <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                    <div class="request-cell-item-inner">
+                      <span class="request-item-name">{{ group.parent.itemName }}</span>
+                      <span v-if="group.children.length > 0" class="request-item-sub">+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }}</span>
+                    </div>
                   </td>
                   <td>
                     {{ group.parent.borrowerName || group.parent.borrowerID }}
@@ -484,7 +488,10 @@ export default {
     }
 
     const pendingGroups = computed(() => buildGroups(requests.value.filter(r => r.status === 'Pending')))
-    const checkoutGroups = computed(() => buildGroups(requests.value.filter(r => r.status === 'Pending Check-Out')))
+    const checkoutGroups = computed(() => {
+      const groups = buildGroups(requests.value.filter(r => r.status === 'Pending Check-Out'))
+      return groups.sort((a, b) => new Date(b.parent.approvalDate) - new Date(a.parent.approvalDate))
+    })
 
     const currentGroups = computed(() => activeTab.value === 'pending' ? pendingGroups.value : checkoutGroups.value)
     const currentTotal = computed(() => activeTab.value === 'pending' ? pendingCount.value : checkoutCount.value)
@@ -998,6 +1005,10 @@ export default {
 }
 
 .request-cell-item {
+  min-width: 0;
+}
+
+.request-cell-item-inner {
   display: flex;
   align-items: center;
   gap: 0.375rem;
