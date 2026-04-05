@@ -1030,3 +1030,164 @@
 .record-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
 .record-date { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.125rem; }
 .record-more { text-align: center; font-size: 0.8125rem; color: var(--muted-foreground); padding-top: 0.75rem; }
+
+/* ===== Teacher / Student Dashboard ===== */
+.role-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.role-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.role-title {
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.role-subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.role-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.role-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 560px) {
+  .role-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .role-summary-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.role-summary-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  padding: 0.95rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.role-summary-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.role-summary-label {
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.role-summary-value {
+  font-size: 1.75rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.role-summary-value--success { color: var(--success); }
+.role-summary-value--warning { color: var(--warning-dark); }
+.role-summary-value--danger { color: var(--danger); }
+
+.role-summary-meta {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+
+.role-main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+@media (min-width: 1080px) {
+  .role-main-grid {
+    grid-template-columns: 1.5fr 1fr;
+  }
+}
+
+.role-section-card {
+  margin-bottom: 0;
+}
+
+.role-table th,
+.role-table td {
+  white-space: nowrap;
+}
+
+.role-shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.625rem;
+}
+
+@media (min-width: 520px) {
+  .role-shortcuts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.role-shortcut-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, var(--surface-50), var(--card));
+  padding: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.role-shortcut-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.role-shortcut-title {
+  font-size: 0.81rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.role-shortcut-meta {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}

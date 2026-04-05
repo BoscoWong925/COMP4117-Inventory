@@ -1,13 +1,13 @@
 ﻿<template>
   <div class="page-container">
-    <ModulePageHeader title="Borrow Requests" :subtitle="requestSummaryText">
+    <ModulePageHeader :title="requestPageTitle" :subtitle="requestSummaryText">
       <Button variant="outline" size="sm" @click="exportRequests">
         <Download :size="14" /> Export to Excel
       </Button>
     </ModulePageHeader>
 
     <Card class="request-table-card">
-      <div class="request-tabs">
+      <div v-if="!hideInternalTabs" class="request-tabs">
         <button
           :class="['request-tab', { active: activeTab === 'pending' }]"
           @click="activeTab = 'pending'"
@@ -415,13 +415,19 @@ import {
 } from '../components/ui'
 
 export default {
+  props: {
+    pageParams: {
+      type: Object,
+      default: () => ({})
+    }
+  },
   components: {
     Button, Card, Badge, Checkbox, DropdownMenu, DropdownMenuItem,
     ModulePageHeader, TablePaginationBar, Spinner, Input, Textarea,
     DropdownWithOther, RemarkBox, SendEmailModal,
     Download, MoreVertical, Mail, CheckCircle2, XCircle, Package
   },
-  setup() {
+  setup(props) {
     const requests = ref([])
     const allApprovedRequests = ref([])
     const selectedRequest = ref(null)
@@ -514,6 +520,9 @@ export default {
       return `${pendingCount.value + checkoutCount.value} request record(s)`
     })
 
+    const hideInternalTabs = computed(() => !!props.pageParams?.hideTabs)
+    const requestPageTitle = computed(() => activeTab.value === 'checkout' ? 'Pending Check-Out Requests' : 'Pending Approval Requests')
+
     const showRequestsSkeleton = computed(() => requestsLoadState.isFetching)
     const tableSkeletonRows = computed(() => Math.min(Math.max(pageSize.value, 5), 10))
     const requestsErrorMessage = computed(() => requestsLoadState.error || '')
@@ -521,6 +530,12 @@ export default {
     const clearCurrentSelection = () => {
       if (activeTab.value === 'pending') selectedPendingIds.value = []
       else selectedCheckoutIds.value = []
+    }
+
+    const applyIncomingTab = (tabValue) => {
+      if (tabValue === 'pending' || tabValue === 'checkout') {
+        activeTab.value = tabValue
+      }
     }
 
     const toggleSelectAllPending = (checked) => {
@@ -819,7 +834,12 @@ export default {
       await loadPendingRequests()
     })
 
+    watch(() => props.pageParams?.tab, (tabValue) => {
+      applyIncomingTab(tabValue)
+    })
+
     onMounted(() => {
+      applyIncomingTab(props.pageParams?.tab)
       loadPendingRequests()
     })
 
@@ -836,6 +856,8 @@ export default {
       tableSkeletonRows,
       requestsErrorMessage,
       requestSummaryText,
+      hideInternalTabs,
+      requestPageTitle,
       currentTotal,
       selectedCount,
       isCurrentAllSelected,

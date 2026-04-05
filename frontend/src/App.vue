@@ -10,57 +10,72 @@
   </div>
   <template v-else>
     <div :class="['app-shell', darkMode ? '' : 'light-mode', compactMode ? 'compact-mode' : '', reduceMotion ? 'reduce-motion' : '']" v-if="isAuthenticated">
-    <!-- ===== Top Header ===== -->
-    <header class="top-bar">
-      <div class="top-bar-inner">
-        <div class="top-bar-brand">
-          <button @click="handleNavigate('home')" class="logo-btn">
-            <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="logo-img" />
-            <img v-else :src="logoDark" alt="Department Logo" class="logo-img" />
-          </button>
-          <div class="nav-divider" aria-hidden="true"></div>
-          <!-- Primary nav tabs inline with brand -->
-          <nav class="nav-primary">
+    <div class="shell-layout">
+      <aside :class="['left-sidebar', sidebarCollapsed ? 'left-sidebar-collapsed' : '']">
+        <div class="sidebar-brand" @click="handleNavigate('home')">
+          <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="sidebar-logo" />
+          <img v-else :src="logoDark" alt="Department Logo" class="sidebar-logo" />
+        </div>
+
+        <nav class="sidebar-nav">
+          <div v-for="group in navGroups" :key="group.key" class="sidebar-group">
             <button
-              v-for="group in navGroups"
-              :key="group.key"
               @click="handleGroupClick(group)"
-              :class="['nav-primary-tab', activeGroup === group.key ? 'nav-primary-active' : '']"
+              :class="['sidebar-nav-btn', isGroupActive(group) ? 'sidebar-nav-btn-active' : '']"
+              :title="group.label"
             >
               <span class="nav-tab-icon" v-html="group.icon"></span>
-              <span class="nav-tab-label">{{ group.label }}</span>
-              <NotificationBadge v-if="group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
+              <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ group.label }}</span>
+              <NotificationBadge v-if="!sidebarCollapsed && group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
             </button>
-          </nav>
-        </div>
-        <div class="top-bar-actions">
-          <button @click="toggleTheme" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
-            <svg v-if="darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          </button>
-          <div class="user-chip" @click="showUserMenu = !showUserMenu">
-            <div class="avatar">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
-            <span class="user-name hidden sm:inline">{{ user?.name }}</span>
-            <svg class="user-chip-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+
+            <div v-if="!sidebarCollapsed && group.children?.length > 1 && expandedGroup === group.key" class="sidebar-subnav">
+              <button
+                v-for="item in group.children"
+                :key="item.key || (item.page + '-' + (item.params?.tab || 'default'))"
+                @click="handleNavigate(item.page, item.params || {})"
+                :class="['sidebar-subnav-btn', isSubnavItemActive(item) ? 'sidebar-subnav-active' : '']"
+              >
+                <span class="nav-tab-icon" v-html="item.icon"></span>
+                <span class="sidebar-subnav-label">{{ item.label }}</span>
+                <NotificationBadge v-if="item.page === 'approve-requests' || item.page === 'teacher-requests'" :count="pendingCount" />
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-      <!-- Sub-navigation row -->
-      <div class="nav-sub-row" v-if="activeSubItems.length">
-        <div class="nav-sub-inner">
-          <button
-            v-for="item in activeSubItems"
-            :key="item.page"
-            @click="handleNavigate(item.page)"
-            :class="['nav-sub-tab', currentPage === item.page ? 'nav-sub-active' : '']"
-          >
-            <span class="nav-tab-icon" v-html="item.icon"></span>
-            <span class="nav-tab-label">{{ item.label }}</span>
-            <NotificationBadge v-if="item.page === 'approve-requests' || item.page === 'teacher-requests'" :count="pendingCount" />
+        </nav>
+
+        <div class="sidebar-footer">
+          <button class="sidebar-footer-btn" @click="handleOpenSettings" :title="sidebarCollapsed ? 'Settings' : ''">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .69.4 1.31 1.02 1.58.26.12.55.19.85.19H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span v-if="!sidebarCollapsed">Settings</span>
+          </button>
+          <button class="sidebar-footer-btn sidebar-footer-btn-danger" @click="handleLogout" :title="sidebarCollapsed ? 'Logout' : ''">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span v-if="!sidebarCollapsed">Logout</span>
           </button>
         </div>
-      </div>
-    </header>
+      </aside>
+
+      <section class="shell-main-pane">
+        <header class="content-topbar">
+          <div class="content-topbar-left">
+            <div>
+              <h1 class="content-title">Inventory Management</h1>
+              <p class="content-subtitle">{{ headerDateTimeLabel }}</p>
+            </div>
+          </div>
+          <div class="top-bar-actions">
+            <button @click="toggleTheme" class="icon-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
+              <svg v-if="darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+            <div class="user-chip" @click="showUserMenu = !showUserMenu">
+              <div class="avatar">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
+              <span class="user-name hidden sm:inline">{{ user?.name }}</span>
+              <svg class="user-chip-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </header>
 
     <!-- User dropdown -->
     <div v-if="showUserMenu" class="user-dropdown" @click.self="showUserMenu = false">
@@ -102,10 +117,12 @@
       </div>
     </div>
 
-    <!-- ===== Main Content ===== -->
-    <main class="main-content">
-      <component :is="currentComponent" @navigate="handleNavigate" :pageParams="pageParams" />
-    </main>
+        <!-- ===== Main Content ===== -->
+        <main class="main-content">
+          <component :is="currentComponent" @navigate="handleNavigate" :pageParams="pageParams" />
+        </main>
+      </section>
+    </div>
   </div>
 
   <LoginPage v-else :onLogin="handleLogin" :darkMode="darkMode" @toggle-theme="darkMode = !darkMode" />
@@ -215,8 +232,12 @@ export default {
     const showUserMenu = ref(false)
     const showOverdueWarning = ref(false)
     const overdueItems = ref([])
+    const headerNow = ref(new Date())
     let pollTimer = null
+    let headerClockTimer = null
     const activeGroup = ref('dashboard')
+    const expandedGroup = ref(null)
+    const sidebarCollapsed = ref(localStorage.getItem('inventory_sidebar_collapsed') === 'true')
 
     // Navigation groups with sub-items (two-layer nav)
     const navGroups = computed(() => {
@@ -224,14 +245,17 @@ export default {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
           { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
-            { page: 'approve-requests', label: 'Approve Requests', icon: NAV_ICONS.requests },
-            { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+            { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
+            { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
           ]},
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
             { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
-            { page: 'lent-out-filter', label: 'Checked Out', icon: NAV_ICONS.checkedOut },
           ]},
-          { key: 'admin', label: 'Admin', icon: NAV_ICONS.accounts, children: [
+          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'lent-out-filter' },
+          { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
+            { page: 'borrow-history', label: 'Borrow History', icon: NAV_ICONS.history },
+          ]},
+          { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
             { page: 'manage-accounts', label: 'Accounts', icon: NAV_ICONS.accounts },
             { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
             { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
@@ -241,14 +265,17 @@ export default {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
           { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
-            { page: 'approve-requests', label: 'Approve Requests', icon: NAV_ICONS.requests },
-            { page: 'borrow-history', label: 'History', icon: NAV_ICONS.history },
+            { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
+            { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
           ]},
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
             { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
-            { page: 'lent-out-filter', label: 'Checked Out', icon: NAV_ICONS.checkedOut },
           ]},
-          { key: 'system', label: 'System', icon: NAV_ICONS.auditLog, children: [
+          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'lent-out-filter' },
+          { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
+            { page: 'borrow-history', label: 'Borrow History', icon: NAV_ICONS.history },
+          ]},
+          { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
             { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
             { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
           ]},
@@ -256,32 +283,54 @@ export default {
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
-          { key: 'manage', label: 'Manage', icon: NAV_ICONS.teacherRequests, children: [
-            { page: 'teacher-requests', label: 'Item Requests', icon: NAV_ICONS.teacherRequests },
-            { page: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems },
-            { page: 'teacher-checkout', label: 'Checkout', icon: NAV_ICONS.checkedOut },
+          { key: 'requests', label: 'Requests', icon: NAV_ICONS.teacherRequests, children: [
+            { page: 'teacher-requests', label: 'Handle Borrow Requests', icon: NAV_ICONS.teacherRequests },
+            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
           ]},
-          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
-            { page: 'new-borrow-request', label: 'New Request', icon: NAV_ICONS.newRequest },
-            { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
-            { page: 'my-borrowing-record', label: 'My Records', icon: NAV_ICONS.myRecords },
+          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
+            { page: 'my-items', label: 'Items', icon: NAV_ICONS.myItems },
+          ]},
+          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'teacher-checkout' },
+          { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
+            { page: 'my-borrowing-record', label: 'Borrow Records', icon: NAV_ICONS.myRecords },
           ]},
         ]
       } else if (user.value?.role === 'user') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
-          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
-            { page: 'new-borrow-request', label: 'New Request', icon: NAV_ICONS.newRequest },
-            { page: 'search-available', label: 'Search', icon: NAV_ICONS.search },
-            { page: 'my-borrowing-record', label: 'My Records', icon: NAV_ICONS.myRecords },
+          { key: 'requests', label: 'Requests', icon: NAV_ICONS.newRequest, children: [
+            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
           ]},
-          { key: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems, page: 'my-items' },
+          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
+            { page: 'my-items', label: 'Items', icon: NAV_ICONS.myItems },
+          ]},
+          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'my-borrowing-record' },
+          { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
+            { page: 'my-borrowing-record', label: 'Borrow Records', icon: NAV_ICONS.myRecords },
+          ]},
         ]
       }
       return [{ key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' }]
     })
 
-    const findGroupForPage = (page) => {
+    const routeParamsMatch = (expected = {}, actual = {}) => {
+      const keys = Object.keys(expected)
+      if (keys.length === 0) return true
+
+      return keys.every((key) => {
+        if (key === 'tab' && expected[key] === 'pending' && (actual[key] === undefined || actual[key] === null || actual[key] === '')) {
+          return true
+        }
+        return actual[key] === expected[key]
+      })
+    }
+
+    const findGroupForPage = (page, params = {}) => {
+      for (const group of navGroups.value) {
+        if (group.page === page && routeParamsMatch(group.params || {}, params || {})) return group.key
+        if (group.children?.some(c => c.page === page && routeParamsMatch(c.params || {}, params || {}))) return group.key
+      }
+
       for (const group of navGroups.value) {
         if (group.page === page) return group.key
         if (group.children?.some(c => c.page === page)) return group.key
@@ -289,21 +338,55 @@ export default {
       return 'dashboard'
     }
 
-    const activeSubItems = computed(() => {
-      const group = navGroups.value.find(g => g.key === activeGroup.value)
-      return group?.children || []
-    })
-
     const handleGroupClick = (group) => {
       activeGroup.value = group.key
       if (group.page) {
-        handleNavigate(group.page)
+        expandedGroup.value = null
+        handleNavigate(group.page, group.params || {})
       } else if (group.children?.length) {
-        const isOnChildPage = group.children.some(c => c.page === currentPage.value)
-        if (!isOnChildPage) {
-          handleNavigate(group.children[0].page)
+        if (group.children.length === 1) {
+          expandedGroup.value = null
+          const target = group.children[0]
+          handleNavigate(target.page, target.params || {})
+          return
         }
+
+        if (expandedGroup.value === group.key) {
+          expandedGroup.value = null
+          return
+        }
+
+        expandedGroup.value = group.key
       }
+    }
+
+    const isSubnavItemActive = (item) => {
+      if (currentPage.value !== item.page) return false
+      if (!item.params) return true
+
+      return Object.entries(item.params).every(([key, value]) => {
+        if (key === 'tab' && value === 'pending' && (pageParams.value[key] === undefined || pageParams.value[key] === null || pageParams.value[key] === '')) {
+          return true
+        }
+        return pageParams.value[key] === value
+      })
+    }
+
+    const isGroupActive = (group) => {
+      if (activeGroup.value === group.key) return true
+      if (group.page) {
+        return currentPage.value === group.page && routeParamsMatch(group.params || {}, pageParams.value || {})
+      }
+      return group.children?.some(child => isSubnavItemActive(child)) || false
+    }
+
+    const toggleSidebar = () => {
+      sidebarCollapsed.value = !sidebarCollapsed.value
+    }
+
+    const handleOpenSettings = () => {
+      showUserMenu.value = true
+      showSettings.value = true
     }
 
     const refreshPendingCount = async () => {
@@ -326,7 +409,9 @@ export default {
       sessionStorage.setItem('inventory_last_page', page)
       showUserMenu.value = false
       showSettings.value = false
-      activeGroup.value = findGroupForPage(page)
+      activeGroup.value = findGroupForPage(page, params || {})
+      const currentGroup = navGroups.value.find((group) => group.key === activeGroup.value)
+      expandedGroup.value = currentGroup?.children?.length > 1 ? currentGroup.key : null
     }
 
     const afterLoginSetup = async () => {
@@ -383,6 +468,9 @@ export default {
 
     onMounted(async () => {
       applyThemePreference()
+      headerClockTimer = setInterval(() => {
+        headerNow.value = new Date()
+      }, 1000)
       if (window.matchMedia) {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
         systemThemeListener = () => {
@@ -396,13 +484,19 @@ export default {
       }
       await initAuth()
       if (isAuthenticated.value) {
-        activeGroup.value = findGroupForPage(currentPage.value)
+        activeGroup.value = findGroupForPage(currentPage.value, pageParams.value || {})
+        const currentGroup = navGroups.value.find((group) => group.key === activeGroup.value)
+        expandedGroup.value = currentGroup?.children?.length > 1 ? currentGroup.key : null
         await afterLoginSetup()
       }
     })
 
     const currentComponent = computed(() => {
       switch (currentPage.value) {
+        case 'pending-approval-page':
+          return ApproveRequestsPage
+        case 'pending-checkout-page':
+          return ApproveRequestsPage
         case 'approve-requests':
           return ApproveRequestsPage
         case 'borrow-history':
@@ -436,6 +530,18 @@ export default {
       }
     })
 
+    const headerDateTimeLabel = computed(() => {
+      return headerNow.value.toLocaleString('en-HK', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    })
+
     onMounted(() => {
       if (isAuthenticated.value) {
         refreshPendingCount()
@@ -453,6 +559,7 @@ export default {
 
     onUnmounted(() => {
       if (pollTimer) clearInterval(pollTimer)
+      if (headerClockTimer) clearInterval(headerClockTimer)
       if (systemThemeListener && window.matchMedia) {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
         if (mediaQuery.removeEventListener) {
@@ -481,6 +588,10 @@ export default {
       localStorage.setItem('inventory_reduce_motion', value ? 'true' : 'false')
     })
 
+    watch(sidebarCollapsed, (value) => {
+      localStorage.setItem('inventory_sidebar_collapsed', value ? 'true' : 'false')
+    })
+
     return {
       user,
       isAuthenticated,
@@ -499,8 +610,14 @@ export default {
       showUserMenu,
       navGroups,
       activeGroup,
-      activeSubItems,
+      sidebarCollapsed,
+      expandedGroup,
+      headerDateTimeLabel,
       handleGroupClick,
+      isSubnavItemActive,
+      isGroupActive,
+      toggleSidebar,
+      handleOpenSettings,
       setThemePreference,
       toggleTheme,
       handleLogin,
@@ -520,11 +637,182 @@ export default {
 /* ===== App Shell ===== */
 .app-shell {
   min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  display: block;
   background: var(--background);
   color: var(--foreground);
   transition: background 0.25s ease, color 0.25s ease;
+}
+
+.shell-layout {
+  min-height: 100dvh;
+  display: flex;
+}
+
+.left-sidebar {
+  width: 16.5rem;
+  border-right: 1px solid var(--nav-border);
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  z-index: 35;
+}
+
+.left-sidebar-collapsed {
+  width: 4.75rem;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 0.75rem;
+  border-bottom: 1px solid var(--nav-border);
+  cursor: pointer;
+}
+
+.sidebar-logo {
+  width: auto;
+  height: 1.6rem;
+}
+
+.sidebar-brand-text {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.625rem 0.5rem;
+}
+
+.sidebar-group {
+  margin-bottom: 0.375rem;
+}
+
+.sidebar-nav-btn,
+.sidebar-subnav-btn,
+.sidebar-footer-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.sidebar-nav-btn {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sidebar-nav-btn:hover,
+.sidebar-subnav-btn:hover,
+.sidebar-footer-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.sidebar-nav-btn-active {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.sidebar-nav-label {
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0.25rem 1.5rem;
+}
+
+.sidebar-subnav-btn {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.sidebar-subnav-active {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.sidebar-subnav-label {
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--nav-border);
+  padding: 0.625rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sidebar-footer-btn {
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sidebar-footer-btn-danger {
+  color: var(--danger);
+}
+
+.shell-main-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-topbar {
+  height: 3.25rem;
+  border-bottom: 1px solid var(--nav-border);
+  background: var(--nav-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.content-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.content-title {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.content-subtitle {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
 }
 
 /* ===== Loading State ===== */
@@ -945,17 +1233,35 @@ export default {
 /* ===== Main Content ===== */
 .main-content {
   flex: 1;
-  max-width: 90rem;
   width: 100%;
-  margin: 0 auto;
   padding: 0 0 1.5rem;
 }
 
 /* ===== Compact Mode ===== */
-.compact-mode .top-bar-inner { height: 2.75rem; }
-.compact-mode .nav-primary-tab { padding: 0.25rem 0.5rem; }
-.compact-mode .nav-sub-tab { padding: 0.3rem 0.5rem; }
+.compact-mode .content-topbar { height: 2.75rem; }
+.compact-mode .sidebar-nav-btn { padding: 0.35rem 0.5rem; }
+.compact-mode .sidebar-subnav-btn { padding: 0.3rem 0.45rem; }
 .compact-mode .main-content { padding-bottom: 0.5rem; }
+
+@media (max-width: 980px) {
+  .left-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 45;
+    box-shadow: var(--shadow-xl);
+  }
+
+  .left-sidebar-collapsed {
+    transform: translateX(-100%);
+    width: 16.5rem;
+  }
+
+  .shell-main-pane {
+    width: 100%;
+  }
+}
 
 /* ===== Reduce motion ===== */
 .reduce-motion *,

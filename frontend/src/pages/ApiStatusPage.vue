@@ -133,7 +133,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002') + '/api'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') + '/api'
 
 export default {
   setup() {

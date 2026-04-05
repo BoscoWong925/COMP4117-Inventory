@@ -637,128 +637,144 @@
 
     <!-- ==================== TEACHER VIEW ==================== -->
     <template v-else-if="user?.subRole === 'teacher'">
-      <div class="hero-section animate-in">
-        <div class="hero-row">
+      <div class="role-dashboard role-dashboard--teacher">
+        <div class="role-header animate-in">
           <div>
-            <h2 class="hero-title">Teacher dashboard</h2>
-            <p class="hero-subtitle">{{ todayLabel }}</p>
+            <h2 class="role-title">Inventory Dashboard</h2>
+            <p class="role-subtitle">{{ todayLabel }} · Manage requests, items, and shortcuts.</p>
           </div>
-          <div class="items-tracked-box">
-            <span class="items-tracked-count">{{ teacherOwnedItems.length }}</span>
-            <span class="items-tracked-label">Items Owned</span>
+          <div class="role-header-actions">
+            <Button size="sm" @click="$emit('navigate', 'teacher-requests')">Review Requests</Button>
+            <Button variant="outline" size="sm" @click="$emit('navigate', 'search-available')">Search Available Items</Button>
           </div>
         </div>
-      </div>
 
-      <div class="stat-grid stat-grid-2 animate-in delay-1">
-        <button class="stat-card" @click="$emit('navigate', 'my-items', { filter: 'available' })">
-          <div class="stat-value" style="color: var(--success)">{{ teacherOwnedItems.filter(i => i.status === 'Available').length }}</div>
-          <div class="stat-label">Available to Borrow</div>
-        </button>
-        <button class="stat-card" @click="$emit('navigate', 'my-items', { filter: 'in-use' })">
-          <div class="stat-value" style="color: var(--warning)">{{ teacherCheckedOutCount }}</div>
-          <div class="stat-label">Checked Out</div>
-        </button>
-      </div>
-
-      <div class="section-card animate-in delay-2">
-        <div class="tab-bar">
-          <button
-            v-for="tab in teacherAttentionTabs"
-            :key="tab.key"
-            :class="['tab-btn', { active: teacherActiveTab === tab.key }]"
-            @click="teacherActiveTab = tab.key"
-          >
-            {{ tab.label }}
-            <span v-if="tab.count > 0" :class="['tab-badge', tab.severity]">{{ tab.count }}</span>
+        <div class="role-summary-grid animate-in delay-1">
+          <button class="role-summary-card" @click="$emit('navigate', 'teacher-requests')">
+            <span class="role-summary-label">Pending Approvals</span>
+            <span class="role-summary-value role-summary-value--danger">{{ teacherPendingOnly.length }}</span>
+            <span class="role-summary-meta">Needs your approval</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'teacher-checkout')">
+            <span class="role-summary-label">Pending Check-Out</span>
+            <span class="role-summary-value role-summary-value--warning">{{ teacherPendingCheckoutOnly.length }}</span>
+            <span class="role-summary-meta">Ready for handover</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'my-items', { filter: 'available' })">
+            <span class="role-summary-label">Available Items</span>
+            <span class="role-summary-value role-summary-value--success">{{ teacherOwnedAvailableCount }}</span>
+            <span class="role-summary-meta">Items ready to borrow</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'teacher-checkout')">
+            <span class="role-summary-label">In-use Items</span>
+            <span class="role-summary-value">{{ teacherOwnedInUseItems.length }}</span>
+            <span class="role-summary-meta">Currently borrowed out</span>
           </button>
         </div>
 
-        <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'pending') && teacherPendingRequests.length > 0" class="tab-section">
-          <div class="section-header">
-            <h3 class="section-title section-title-accent">Pending requests</h3>
-            <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-requests')">View all →</Button>
-          </div>
-          <div class="table-responsive">
-            <table class="table-striped">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Borrower</th>
-                  <th>Status</th>
-                  <th>Waiting</th>
-                  <th>Reason</th>
-                  <th class="text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="req in teacherPendingRequests.slice(0, 5)" :key="req.id">
-                  <td class="font-semibold">{{ req.itemName }}</td>
-                  <td>{{ req.borrowerName || req.borrowerID }}</td>
-                  <td>
-                    <span v-if="req.status === 'Pending'" class="px-2 py-0.5 rounded text-xs font-medium badge-warning">Pending</span>
-                    <span v-else class="px-2 py-0.5 rounded text-xs font-medium badge-info">Pending Check-Out</span>
-                  </td>
-                  <td>{{ waitingTime(req.requestDate) }}</td>
-                  <td class="cell-ellip">{{ req.reason || '—' }}</td>
-                  <td class="text-center whitespace-nowrap">
-                    <template v-if="req.status === 'Pending Check-Out'">
-                      <Button size="sm" @click="handleTeacherCheckout(req.id)">Borrowed Out</Button>
-                    </template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div v-if="(teacherActiveTab === 'all' || teacherActiveTab === 'checkout') && teacherOwnedItems.filter(i => i.status === 'In-use').length > 0" class="tab-section">
-          <div class="section-header">
-            <h3 class="section-title section-title-warning">Items currently checked out</h3>
-            <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-checkout')">View all →</Button>
-          </div>
-          <div class="table-responsive">
-            <table class="table-striped">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Borrower</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in teacherOwnedItems.filter(i => i.status === 'In-use').slice(0, 5)" :key="item.id">
-                  <td class="font-semibold">{{ item.name }}</td>
-                  <td>{{ item.currentBorrowerName || item.currentBorrower || '—' }}</td>
-                  <td><StatusBadge :status="item.status" type="item" /></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div v-if="teacherActiveTabEmpty" class="empty-state">
-          <p>No items need attention</p>
-        </div>
-      </div>
-
-      <div class="section-card animate-in delay-3">
-        <div class="section-header">
-          <h3 class="section-title">My borrow records</h3>
-          <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
-        </div>
-        <div v-if="myBorrows.length === 0" class="empty-state">
-          <p>No borrowing records yet</p>
-        </div>
-        <div v-else class="record-list">
-          <div v-for="borrow in myBorrows.slice(0, 5)" :key="borrow.id" class="record-item">
-            <div class="record-main">
-              <p class="record-name">{{ borrow.itemName }}</p>
-              <p class="record-id">#{{ borrow.id }}</p>
+        <div class="role-main-grid animate-in delay-2">
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Request Queue</h3>
+              <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-requests')">Open full queue →</Button>
             </div>
-            <div class="record-right">
-              <StatusBadge :status="borrow.status" type="request" />
-              <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
+            <div v-if="teacherPendingRequests.length === 0" class="empty-state-sm">No pending requests right now.</div>
+            <div v-else class="table-responsive">
+              <table class="table-striped role-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Borrower</th>
+                    <th>Status</th>
+                    <th>Waiting</th>
+                    <th class="text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="req in teacherPendingRequests.slice(0, 6)" :key="req.id">
+                    <td class="font-semibold">{{ req.itemName }}</td>
+                    <td>{{ req.borrowerName || req.borrowerID }}</td>
+                    <td><StatusBadge :status="req.status" type="request" /></td>
+                    <td>{{ waitingTime(req.requestDate) }}</td>
+                    <td class="text-center whitespace-nowrap">
+                      <Button v-if="req.status === 'Pending Check-Out'" size="sm" @click="handleTeacherCheckout(req.id)">Borrowed Out</Button>
+                      <Button v-else variant="outline" size="sm" @click="$emit('navigate', 'teacher-requests')">Review</Button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Shortcuts</h3>
+            </div>
+            <div class="role-shortcuts-grid">
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-items')">
+                <span class="role-shortcut-title">Items</span>
+                <span class="role-shortcut-meta">View all owned assets</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
+                <span class="role-shortcut-title">Request Borrow</span>
+                <span class="role-shortcut-meta">Create a new borrow request</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-borrowing-record')">
+                <span class="role-shortcut-title">Borrow Records</span>
+                <span class="role-shortcut-meta">Track your request history</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
+                <span class="role-shortcut-title">Search Available</span>
+                <span class="role-shortcut-meta">Find borrowable items</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-main-grid animate-in delay-3">
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Items Currently In-use</h3>
+              <Button variant="link" size="sm" @click="$emit('navigate', 'teacher-checkout')">View all →</Button>
+            </div>
+            <div v-if="teacherOwnedInUseItems.length === 0" class="empty-state-sm">No owned items are currently in-use.</div>
+            <div v-else class="table-responsive">
+              <table class="table-striped role-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Borrower</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in teacherOwnedInUseItems.slice(0, 6)" :key="item.id">
+                    <td class="font-semibold">{{ item.name }}</td>
+                    <td>{{ item.currentBorrowerName || item.currentBorrower || '—' }}</td>
+                    <td><StatusBadge :status="item.status" type="item" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Borrow Records</h3>
+              <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
+            </div>
+            <div v-if="myRecentBorrows.length === 0" class="empty-state-sm">No borrowing records yet.</div>
+            <div v-else class="record-list">
+              <div v-for="borrow in myRecentBorrows.slice(0, 6)" :key="borrow.id" class="record-item">
+                <div class="record-main">
+                  <p class="record-name">{{ borrow.itemName }}</p>
+                  <p class="record-id">#{{ borrow.id }}</p>
+                </div>
+                <div class="record-right">
+                  <StatusBadge :status="borrow.status" type="request" />
+                  <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -767,45 +783,85 @@
 
     <!-- ==================== STUDENT / USER VIEW ==================== -->
     <template v-else>
-      <div class="hero-section animate-in">
-        <h2 class="hero-title">My dashboard</h2>
-        <p class="hero-subtitle">{{ todayLabel }}</p>
-      </div>
-
-      <div class="quick-actions animate-in delay-1">
-        <button @click="$emit('navigate', 'new-borrow-request')" class="quick-action-card action-blue">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
-          <span class="quick-action-text">New borrow request</span>
-        </button>
-        <button @click="$emit('navigate', 'search-available')" class="quick-action-card action-green">
-          <span class="quick-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-          <span class="quick-action-text">Search items</span>
-        </button>
-      </div>
-
-      <div class="section-card animate-in delay-2">
-        <div class="section-header">
-          <h3 class="section-title">My borrow records</h3>
-          <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
+      <div class="role-dashboard role-dashboard--student">
+        <div class="role-header animate-in">
+          <div>
+            <h2 class="role-title">Inventory Dashboard</h2>
+            <p class="role-subtitle">{{ todayLabel }} · Review items, records, and shortcuts.</p>
+          </div>
+          <div class="role-header-actions">
+            <Button size="sm" @click="$emit('navigate', 'new-borrow-request')">Request Borrow</Button>
+            <Button variant="outline" size="sm" @click="$emit('navigate', 'search-available')">Search Available Items</Button>
+          </div>
         </div>
-        <div v-if="myBorrows.length === 0" class="empty-state">
-          <p>No borrowing records yet</p>
+
+        <div class="role-summary-grid animate-in delay-1">
+          <button class="role-summary-card" @click="$emit('navigate', 'my-items')">
+            <span class="role-summary-label">Active Items</span>
+            <span class="role-summary-value role-summary-value--success">{{ myActiveBorrows.length }}</span>
+            <span class="role-summary-meta">Currently using</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
+            <span class="role-summary-label">Pending Requests</span>
+            <span class="role-summary-value role-summary-value--warning">{{ myPendingBorrows.length }}</span>
+            <span class="role-summary-meta">Awaiting approval</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
+            <span class="role-summary-label">Overdue Returns</span>
+            <span class="role-summary-value role-summary-value--danger">{{ myOverdueBorrows.length }}</span>
+            <span class="role-summary-meta">Require immediate return</span>
+          </button>
+          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
+            <span class="role-summary-label">Borrow Records</span>
+            <span class="role-summary-value">{{ myBorrows.length }}</span>
+            <span class="role-summary-meta">Total request history</span>
+          </button>
         </div>
-        <div v-else class="record-list">
-          <div v-for="borrow in myBorrows.slice(0, 5)" :key="borrow.id" class="record-item">
-            <div class="record-main">
-              <p class="record-name">{{ borrow.itemName }}</p>
-              <p class="record-id">#{{ borrow.id }}</p>
+
+        <div class="role-main-grid animate-in delay-2">
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Recent Borrow Records</h3>
+              <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
             </div>
-            <div class="record-right">
-              <StatusBadge :status="borrow.status" type="request" />
-              <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
+            <div v-if="myRecentBorrows.length === 0" class="empty-state-sm">No borrowing records yet.</div>
+            <div v-else class="record-list">
+              <div v-for="borrow in myRecentBorrows.slice(0, 6)" :key="borrow.id" class="record-item">
+                <div class="record-main">
+                  <p class="record-name">{{ borrow.itemName }}</p>
+                  <p class="record-id">#{{ borrow.id }}</p>
+                </div>
+                <div class="record-right">
+                  <StatusBadge :status="borrow.status" type="request" />
+                  <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
+                </div>
+              </div>
             </div>
           </div>
-          <p v-if="myBorrows.length > 5" class="record-more">
-            Showing 5 of {{ myBorrows.length }}
-            <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">→ View all</Button>
-          </p>
+
+          <div class="section-card role-section-card">
+            <div class="section-header">
+              <h3 class="section-title">Shortcuts</h3>
+            </div>
+            <div class="role-shortcuts-grid">
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-items')">
+                <span class="role-shortcut-title">Items</span>
+                <span class="role-shortcut-meta">View currently borrowed items</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-borrowing-record')">
+                <span class="role-shortcut-title">Borrow Records</span>
+                <span class="role-shortcut-meta">View all request history</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
+                <span class="role-shortcut-title">Request Borrow</span>
+                <span class="role-shortcut-meta">Submit a new item request</span>
+              </button>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
+                <span class="role-shortcut-title">Search Available</span>
+                <span class="role-shortcut-meta">Browse available inventory</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -816,7 +872,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
-import { formatDate, waitingTime } from '../utils/helpers'
+import { formatDate, waitingTime, isOverdue } from '../utils/helpers'
 import {
   ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
   AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
@@ -1311,6 +1367,39 @@ export default {
       if (teacherActiveTab.value === 'pending') return teacherPendingRequests.value.length === 0
       if (teacherActiveTab.value === 'checkout') return teacherCheckedOutCount.value === 0
       return true
+    })
+
+    const normalizedStatus = (status) => String(status || '').trim().toLowerCase()
+    const teacherPendingOnly = computed(() =>
+      teacherPendingRequests.value.filter(req => normalizedStatus(req.status) === 'pending')
+    )
+    const teacherPendingCheckoutOnly = computed(() =>
+      teacherPendingRequests.value.filter(req => normalizedStatus(req.status) === 'pending check-out')
+    )
+    const teacherOwnedAvailableCount = computed(() =>
+      teacherOwnedItems.value.filter(item => normalizedStatus(item.status) === 'available').length
+    )
+    const teacherOwnedInUseItems = computed(() =>
+      teacherOwnedItems.value.filter(item => normalizedStatus(item.status) === 'in-use')
+    )
+    const myActiveBorrows = computed(() =>
+      myBorrows.value.filter((borrow) => {
+        const status = normalizedStatus(borrow.status)
+        return status === 'approved' || status === 'pending check-out'
+      })
+    )
+    const myPendingBorrows = computed(() =>
+      myBorrows.value.filter((borrow) => normalizedStatus(borrow.status) === 'pending')
+    )
+    const myOverdueBorrows = computed(() =>
+      myActiveBorrows.value.filter((borrow) => isOverdue(borrow.returnDate))
+    )
+    const myRecentBorrows = computed(() => {
+      return [...myBorrows.value].sort((a, b) => {
+        const aTime = new Date(a.requestDate || a.createdAt || a.updatedAt || 0).getTime()
+        const bTime = new Date(b.requestDate || b.createdAt || b.updatedAt || 0).getTime()
+        return bTime - aTime
+      })
     })
 
     // === Handlers ===
@@ -1847,6 +1936,9 @@ export default {
       relativeTime, getLogVariant, getLogIcon, formatAction,
       teacherOwnedItems, teacherPendingCount, teacherPendingRequests,
       teacherCheckedOutCount, teacherActiveTab, teacherAttentionTabs, teacherActiveTabEmpty,
+      teacherPendingOnly, teacherPendingCheckoutOnly,
+      teacherOwnedAvailableCount, teacherOwnedInUseItems,
+      myActiveBorrows, myPendingBorrows, myOverdueBorrows, myRecentBorrows,
     }
   }
 }
