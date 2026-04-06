@@ -316,7 +316,15 @@ exports.searchUsers = catchAsync(async (req, res) => {
 exports.getTeachers = catchAsync(async (req, res) => {
   const teachers = await User.find({ role: 'user', subRole: 'teacher', isActive: true })
     .select('-password')
-    .sort({ name: 1 });
+    .lean();
+
+  teachers.sort((a, b) => {
+    const aName = String(a?.name || '').toLowerCase();
+    const bName = String(b?.name || '').toLowerCase();
+    if (aName < bName) return -1;
+    if (aName > bName) return 1;
+    return 0;
+  });
 
   res.status(200).json({
     success: true,

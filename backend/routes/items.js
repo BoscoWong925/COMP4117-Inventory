@@ -9,13 +9,13 @@ router.use(authenticate);
 
 // Routes that must be defined BEFORE /:id to avoid conflicts
 router.get('/available', itemController.getAvailableItems);
-router.get('/lent-out', authorize('admin', 'operator'), itemController.getLentOutItems);
+router.get('/lent-out', itemController.getLentOutItems);
 router.get('/owners', authenticate, itemController.getItemOwners);
 router.get('/by-owner/:ownerId', authenticate, itemController.getItemsByOwner);
 router.post('/import', authorize('admin', 'operator'), upload.single('file'), itemController.importItems);
 
 // CRUD routes
-router.get('/', authorize('admin', 'operator'), itemController.getAllItems);
+router.get('/', itemController.getAllItems);
 router.post('/', authorize('admin', 'operator'), upload.single('invoiceFile'), itemController.createItem);
 
 // Parameterized routes

@@ -22,6 +22,16 @@ const borrowRequestSchema = new mongoose.Schema({
     enum: ['Pending', 'Pending Check-Out', 'Approved', 'Rejected', 'Returned'],
     default: 'Pending'
   },
+  historyStatus: {
+    type: String,
+    enum: ['Pending', 'Approved', 'Rejected', 'Returned'],
+    default: 'Pending'
+  },
+  requestStatus: {
+    type: String,
+    enum: ['Pending Approval', 'Pending Check-Out', null],
+    default: 'Pending Approval'
+  },
   requestDate: {
     type: Date,
     default: Date.now
@@ -77,11 +87,14 @@ const borrowRequestSchema = new mongoose.Schema({
     path: String
   }]
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'borrowrequests'
 });
 
 // Index for common queries
 borrowRequestSchema.index({ status: 1 });
+borrowRequestSchema.index({ historyStatus: 1 });
+borrowRequestSchema.index({ requestStatus: 1 });
 borrowRequestSchema.index({ borrowerID: 1 });
 borrowRequestSchema.index({ itemID: 1 });
 borrowRequestSchema.index({ parentRequestId: 1 });

@@ -3,12 +3,12 @@
     <!-- ========== TABLE VIEW ========== -->
     <template v-if="!showForm">
       <ModulePageHeader title="Inventory Items" :subtitle="itemsSummaryText">
-        <Button as="label" variant="outline" size="sm" class="cursor-pointer">
+        <Button v-if="canManageInventory" as="label" variant="outline" size="sm" class="cursor-pointer">
           Import Excel
           <input type="file" accept=".xlsx,.xls" @change="handleImport" class="hidden" />
         </Button>
         <Button variant="outline" size="sm" @click="exportItems">Export</Button>
-        <Button size="sm" @click="openNewItemForm">+ Add Item</Button>
+        <Button v-if="canManageInventory" size="sm" @click="openNewItemForm">+ Add Item</Button>
       </ModulePageHeader>
 
       <Card v-if="activeStatusFilter" class="items-status-banner">
@@ -148,22 +148,12 @@
                 </th>
                 <th>ID</th>
                 <th>Name</th>
-                <th class="cursor-pointer select-none" @click="toggleSort('type')">
-                  Type <span class="sort-icon">{{ getSortIcon('type') }}</span>
-                </th>
-                <th class="cursor-pointer select-none" @click="toggleSort('status')">
-                  Status <span class="sort-icon">{{ getSortIcon('status') }}</span>
-                </th>
-                <th class="cursor-pointer select-none" @click="toggleSort('location')">
-                  Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
-                </th>
-                <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
-                  Supplier <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
-                </th>
-                <th>Ownership</th>
-                <th class="cursor-pointer select-none" @click="toggleSort('warrantyEnd')">
-                  Warranty End <span class="sort-icon">{{ getSortIcon('warrantyEnd') }}</span>
-                </th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Location</th>
+                <th>Supplier</th>
+                <th v-if="!isTeacher">Ownership</th>
+                <th>Warranty End</th>
                 <th style="text-align:center">Actions</th>
               </tr>
             </thead>
@@ -171,14 +161,14 @@
             <tbody>
               <template v-if="showItemsSkeleton">
                 <tr>
-                  <td :colspan="isAdmin ? 10 : 9" class="table-spinner-cell">
+                  <td :colspan="tableColumnSpan" class="table-spinner-cell">
                     <Spinner size="lg" label="Loading items..." />
                   </td>
                 </tr>
               </template>
 
               <tr v-else-if="itemsErrorMessage" class="items-empty-row">
-                <td :colspan="isAdmin ? 10 : 9" class="items-empty-cell">{{ itemsErrorMessage }}</td>
+                <td :colspan="tableColumnSpan" class="items-empty-cell">{{ itemsErrorMessage }}</td>
               </tr>
 
               <template v-else-if="items.length > 0">
@@ -195,7 +185,7 @@
                   <td><Badge :variant="getItemStatusVariant(item.status)">{{ normalizeItemStatus(item.status) }}</Badge></td>
                   <td>{{ item.location }}</td>
                   <td>{{ item.supplier }}</td>
-                  <td><Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge></td>
+                  <td v-if="!isTeacher"><Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge></td>
                   <td>{{ formatDate(item.warrantyEnd) }}</td>
                   <td style="text-align:center">
                     <DropdownMenu align="end">
@@ -205,8 +195,22 @@
                         </button>
                       </template>
                       <template #default="{ close }">
-                        <DropdownMenuItem @click="handleEdit(item); close()">
+                        <DropdownMenuItem v-if="canManageInventory" @click="handleEdit(item); close()">
                           <Pencil :size="12" /> Edit
+                        </DropdownMenuItem>
+                        <template v-if="isTeacher">
+                          <DropdownMenuItem v-if="item.status === 'Available'" @click="handleTeacherStatusChange(item, 'Not Available'); close()">
+                            <Pencil :size="12" /> Set Not Available
+                          </DropdownMenuItem>
+                          <DropdownMenuItem v-else-if="item.status === 'Not Available'" @click="handleTeacherStatusChange(item, 'Available'); close()">
+                            <Pencil :size="12" /> Set Available
+                          </DropdownMenuItem>
+                          <DropdownMenuItem v-else disabled>
+                            <Pencil :size="12" /> No action allowed (return process required)
+                          </DropdownMenuItem>
+                        </template>
+                        <DropdownMenuItem v-if="!canManageInventory && !isTeacher" disabled>
+                          <Pencil :size="12" /> No permission
                         </DropdownMenuItem>
                         <template v-if="isAdmin">
                           <DropdownMenuItem separator />
@@ -221,7 +225,7 @@
               </template>
 
               <tr v-else class="items-empty-row">
-                <td :colspan="isAdmin ? 10 : 9" class="items-empty-cell">No items in inventory</td>
+                <td :colspan="tableColumnSpan" class="items-empty-cell">No items in inventory</td>
               </tr>
             </tbody>
           </table>
@@ -678,6 +682,7 @@ export default {
     const singleDeleteTarget = ref(null)
     const sortField = ref('')
     const sortDir = ref('asc')
+    // Note: sorting UI removed; sortField/sortDir kept for API default ordering
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
     const mutableCategories = ref(loadSavedList('inv_custom_categories', itemCategories))
     const teachers = ref([])
@@ -721,6 +726,16 @@ export default {
       return user?.role === 'admin'
     })
 
+    const isTeacher = computed(() => {
+      const user = authService.getCurrentUser()
+      return user?.role === 'user' && user?.subRole === 'teacher'
+    })
+
+    const canManageInventory = computed(() => {
+      const user = authService.getCurrentUser()
+      return user?.role === 'admin' || user?.role === 'operator'
+    })
+
     const allSelected = computed(() => {
       return items.value.length > 0 && items.value.every(item => selectedItemIds.value.includes(item.id))
     })
@@ -728,6 +743,13 @@ export default {
     const uniqueVendors = computed(() => {
       const vendors = items.value.map(i => i.vendor || i.supplier).filter(Boolean)
       return [...new Set(vendors)].sort()
+    })
+
+    const tableColumnSpan = computed(() => {
+      let columns = 8 // ID, Name, Type, Status, Location, Supplier, Warranty End, Actions
+      if (isAdmin.value) columns += 1
+      if (!isTeacher.value) columns += 1
+      return columns
     })
 
     const itemsSummaryText = computed(() => {
@@ -808,7 +830,17 @@ export default {
 
       try {
         const params = buildQueryParams()
-        const result = await inventoryService.getAllItems(params)
+        const currentUser = authService.getCurrentUser()
+        let result
+        if (isTeacher.value) {
+          const ownerId = currentUser?.userId || currentUser?.id
+          if (!ownerId) {
+            throw new Error('Teacher account missing owner identity')
+          }
+          result = await inventoryService.getItemsByOwner(ownerId, params)
+        } else {
+          result = await inventoryService.getAllItems(params)
+        }
 
         if (requestToken !== loadRequestToken) {
           return
@@ -834,6 +866,16 @@ export default {
         isItemsInitialLoading.value = false
         isItemsFetching.value = false
         isItemsLoaded.value = true
+      }
+    }
+
+    const handleTeacherStatusChange = async (item, nextStatus) => {
+      try {
+        await inventoryService.updateItemStatus(item.id, nextStatus)
+        await loadItems()
+      } catch (e) {
+        const message = e?.message || 'Failed to update item status'
+        alert(message)
       }
     }
 
@@ -867,7 +909,7 @@ export default {
       loadItems()
     })
 
-    watch([() => currentPage.value, () => sortField.value, () => sortDir.value], () => {
+    watch(() => currentPage.value, () => {
       loadItems()
     })
 
@@ -887,20 +929,7 @@ export default {
       }, 400)
     })
 
-    const toggleSort = (field) => {
-      if (sortField.value === field) {
-        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-      } else {
-        sortField.value = field
-        sortDir.value = 'asc'
-      }
-      currentPage.value = 1
-    }
 
-    const getSortIcon = (field) => {
-      if (sortField.value !== field) return '\u2195'
-      return sortDir.value === 'asc' ? '\u25B2' : '\u25BC'
-    }
 
     const uploadedImage = computed(() => {
       return invoiceFileData.value ? invoiceFileData.value.data : null
@@ -1588,16 +1617,13 @@ export default {
       showItemsSkeleton,
       itemSkeletonRows,
       itemsErrorMessage,
-      toggleSort,
-      getSortIcon,
       getItemStatusVariant,
-      sortField,
-      sortDir,
       uploadedImage,
       showDeleteBlock,
       showAdvancedFilters,
       searchFilters,
       uniqueVendors,
+      tableColumnSpan,
       clearFilters,
       clearAdvancedFilters,
       advancedFilterCount,
@@ -1630,10 +1656,13 @@ export default {
       singleDeleteTarget,
       showDeleteConfirm,
       isAdmin,
+      isTeacher,
+      canManageInventory,
       allSelected,
       toggleSelectAll,
       toggleItemSelection,
       handleDeleteItems,
+      handleTeacherStatusChange,
     }
   }
 }

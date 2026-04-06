@@ -7,6 +7,23 @@
     </ModulePageHeader>
 
     <Card class="request-table-card">
+      <div class="request-controls">
+        <div class="request-search">
+          <Input v-model="searchKeyword" type="text" placeholder="Search request ID, item, borrower..." />
+        </div>
+        <div class="request-sort-group">
+          <select v-model="sortBy" class="request-sort-select">
+            <option value="requestDate">Request Date</option>
+            <option value="approvalDate">Approved Date</option>
+            <option value="returnDate">Return Date</option>
+          </select>
+          <select v-model="sortDir" class="request-sort-select">
+            <option value="desc">Latest First</option>
+            <option value="asc">Oldest First</option>
+          </select>
+        </div>
+      </div>
+
       <div v-if="!hideInternalTabs" class="request-tabs">
         <button
           :class="['request-tab', { active: activeTab === 'pending' }]"
@@ -66,7 +83,6 @@
               <th>Item Name</th>
               <th>Borrower</th>
               <th>Request Date</th>
-              <th>Status</th>
               <th>Waiting</th>
               <th>Reason</th>
               <th class="text-center">Actions</th>
@@ -85,7 +101,6 @@
               <th>Item Name</th>
               <th>Borrower</th>
               <th>Approved Date</th>
-              <th>Status</th>
               <th>Waiting</th>
               <th>Return Date</th>
               <th class="text-center">Actions</th>
@@ -95,14 +110,14 @@
           <tbody>
             <template v-if="showRequestsSkeleton">
               <tr>
-                <td colspan="9" class="table-spinner-cell">
+                <td colspan="8" class="table-spinner-cell">
                   <Spinner size="lg" label="Loading requests..." />
                 </td>
               </tr>
             </template>
 
             <tr v-else-if="requestsErrorMessage" class="request-empty-row">
-              <td colspan="9" class="request-empty-cell">{{ requestsErrorMessage }}</td>
+              <td colspan="8" class="request-empty-cell">{{ requestsErrorMessage }}</td>
             </tr>
 
             <template v-else-if="activeTab === 'pending' && pendingGroups.length > 0">
@@ -126,7 +141,6 @@
                     <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
                   </td>
                   <td>{{ formatDate(group.parent.requestDate) }}</td>
-                  <td><Badge variant="warning">Pending</Badge></td>
                   <td class="request-waiting-text">{{ waitingTime(group.parent.requestDate) }}</td>
                   <td class="request-cell-reason">{{ group.parent.reason || '-' }}</td>
                   <td class="text-center request-action-cell">
@@ -137,11 +151,14 @@
                         </button>
                       </template>
                       <template #default="{ close }">
-                        <DropdownMenuItem success @click="openApproveModal(group.parent.id); close()">
+                        <DropdownMenuItem v-if="canActOnRequest(group.parent)" success @click="openApproveModal(group.parent.id); close()">
                           <CheckCircle2 :size="12" /> Approve{{ group.children.length > 0 ? ' All' : '' }}
                         </DropdownMenuItem>
-                        <DropdownMenuItem destructive @click="showRejectForm = group.parent.id; close()">
+                        <DropdownMenuItem v-if="canActOnRequest(group.parent)" destructive @click="showRejectForm = group.parent.id; close()">
                           <XCircle :size="12" /> Reject{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem v-if="!canActOnRequest(group.parent)" disabled>
+                          <XCircle :size="12" /> No permission for this owner
                         </DropdownMenuItem>
                         <DropdownMenuItem separator />
                         <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
@@ -158,7 +175,6 @@
                   <td class="request-child-cell">{{ child.itemName }}</td>
                   <td class="request-child-cell">{{ child.borrowerName || child.borrowerID }}</td>
                   <td class="request-child-cell">{{ formatDate(child.requestDate) }}</td>
-                  <td class="request-child-cell"><Badge variant="warning">Pending</Badge></td>
                   <td class="request-child-cell">{{ waitingTime(child.requestDate) }}</td>
                   <td class="request-child-cell">{{ child.reason || '-' }}</td>
                   <td class="request-child-cell text-center">Auto with parent</td>
@@ -187,10 +203,6 @@
                     <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
                   </td>
                   <td>{{ formatDate(group.parent.approvalDate) }}</td>
-                  <td>
-                    <Badge variant="info">Pending Check-Out</Badge>
-                    <span v-if="isCheckoutExpiringSoon(group.parent)" class="request-expiring-soon">expiring soon</span>
-                  </td>
                   <td class="request-waiting-text">{{ waitingTime(group.parent.approvalDate) }}</td>
                   <td>{{ formatDate(group.parent.returnDate) || '-' }}</td>
                   <td class="text-center request-action-cell">
@@ -201,11 +213,14 @@
                         </button>
                       </template>
                       <template #default="{ close }">
-                        <DropdownMenuItem success @click="handleCheckout(group.parent.id); close()">
+                        <DropdownMenuItem v-if="canActOnRequest(group.parent)" success @click="handleCheckout(group.parent.id); close()">
                           <Package :size="12" /> Borrowed Out{{ group.children.length > 0 ? ' All' : '' }}
                         </DropdownMenuItem>
-                        <DropdownMenuItem destructive @click="showDenyForm = group.parent.id; close()">
+                        <DropdownMenuItem v-if="canActOnRequest(group.parent)" destructive @click="showDenyForm = group.parent.id; close()">
                           <XCircle :size="12" /> Deny{{ group.children.length > 0 ? ' All' : '' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem v-if="!canActOnRequest(group.parent)" disabled>
+                          <XCircle :size="12" /> No permission for this owner
                         </DropdownMenuItem>
                         <DropdownMenuItem separator />
                         <DropdownMenuItem @click="openEmailForRequest(group.parent); close()">
@@ -222,7 +237,6 @@
                   <td class="request-child-cell">{{ child.itemName }}</td>
                   <td class="request-child-cell">{{ child.borrowerName || child.borrowerID }}</td>
                   <td class="request-child-cell">{{ formatDate(child.approvalDate) }}</td>
-                  <td class="request-child-cell"><Badge variant="info">Pending Check-Out</Badge></td>
                   <td class="request-child-cell">{{ waitingTime(child.approvalDate) }}</td>
                   <td class="request-child-cell">{{ formatDate(child.returnDate) || '-' }}</td>
                   <td class="request-child-cell text-center">Auto with parent</td>
@@ -231,7 +245,7 @@
             </template>
 
             <tr v-else class="request-empty-row">
-              <td colspan="9" class="request-empty-cell">
+              <td colspan="8" class="request-empty-cell">
                 {{ activeTab === 'pending' ? 'No pending requests' : 'No items pending check-out' }}
               </td>
             </tr>
@@ -395,7 +409,7 @@
 <script>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { Download, MoreVertical, Mail, CheckCircle2, XCircle, Package } from 'lucide-vue-next'
-import { inventoryService, borrowingService } from '../utils/services'
+import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import RemarkBox from '../components/RemarkBox.vue'
@@ -428,6 +442,7 @@ export default {
     Download, MoreVertical, Mail, CheckCircle2, XCircle, Package
   },
   setup(props) {
+    const currentUser = authService.getCurrentUser()
     const requests = ref([])
     const allApprovedRequests = ref([])
     const selectedRequest = ref(null)
@@ -443,6 +458,9 @@ export default {
     const locationOptions = ref(['Lab A', 'Lab B', 'Lab C', 'Office', 'Storage Room', 'Shelf 1', 'Shelf 2', 'Other'])
     const approveLocation = ref('Lab A')
     const approveRemark = ref('')
+    const searchKeyword = ref('')
+    const sortBy = ref('requestDate')
+    const sortDir = ref('desc')
 
     const selectedPendingIds = ref([])
     const selectedCheckoutIds = ref([])
@@ -469,6 +487,7 @@ export default {
     })
 
     let latestRequestsRequestId = 0
+    let searchDebounceTimer = null
 
     const overdueBorrowerIDs = computed(() => {
       const ids = new Set()
@@ -585,6 +604,20 @@ export default {
       return daysSinceApproval >= 25
     }
 
+    const canActOnRequest = (request) => {
+      if (!request) return false
+      if (currentUser?.role === 'admin') return true
+
+      const owner = request.itemOwner
+      if (currentUser?.role === 'operator') return owner === 'department'
+
+      if (currentUser?.role === 'user' && currentUser?.subRole === 'teacher') {
+        return owner === currentUser.userId
+      }
+
+      return false
+    }
+
     const addLocation = (val) => {
       if (!locationOptions.value.includes(val)) {
         locationOptions.value.splice(locationOptions.value.length - 1, 0, val)
@@ -593,7 +626,12 @@ export default {
 
     const openApproveModal = (requestId) => {
       selectedRequest.value = requestId
-      competingCount.value = countCompetingRequests(requestId)
+      const req = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (req && typeof req.competingCount === 'number') {
+        competingCount.value = req.competingCount
+      } else {
+        competingCount.value = countCompetingRequests(requestId)
+      }
     }
 
     const closeApproveModal = () => {
@@ -618,7 +656,14 @@ export default {
         }
 
         const status = activeTab.value === 'pending' ? 'Pending' : 'Pending Check-Out'
-        const data = await borrowingService.getPendingRequests({ page: currentPage.value, pageSize: pageSize.value, status })
+        const data = await borrowingService.getPendingRequests({
+          page: currentPage.value,
+          pageSize: pageSize.value,
+          status,
+          search: searchKeyword.value,
+          sortBy: sortBy.value,
+          sortDir: sortDir.value
+        })
         if (requestId !== latestRequestsRequestId) return
 
         requests.value = data.requests || []
@@ -658,6 +703,12 @@ export default {
     }
 
     const handleApprove = async (requestId) => {
+      const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (!canActOnRequest(targetRequest)) {
+        alert('You do not have permission to approve this item request.')
+        return
+      }
+
       if (!returnDate.value) {
         alert('Please set a return date')
         return
@@ -669,7 +720,8 @@ export default {
         if (req) {
           req.notes = approveRemark.value
           const item = await inventoryService.getItemById(req.itemID)
-          if (item && approveLocation.value) {
+          const isTeacher = currentUser?.role === 'user' && currentUser?.subRole === 'teacher'
+          if (!isTeacher && item && approveLocation.value) {
             await inventoryService.updateItem(item.id, { ...item, location: approveLocation.value })
           }
         }
@@ -683,6 +735,12 @@ export default {
     }
 
     const handleReject = async (requestId) => {
+      const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (!canActOnRequest(targetRequest)) {
+        alert('You do not have permission to reject this item request.')
+        return
+      }
+
       if (!rejectReason.value) {
         alert('Please provide a rejection reason')
         return
@@ -698,6 +756,12 @@ export default {
     }
 
     const handleCheckout = async (requestId) => {
+      const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (!canActOnRequest(targetRequest)) {
+        alert('You do not have permission to check out this item request.')
+        return
+      }
+
       try {
         await borrowingService.checkoutRequest(requestId)
       } catch (error) {
@@ -708,6 +772,12 @@ export default {
     }
 
     const handleDeny = async (requestId) => {
+      const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
+      if (!canActOnRequest(targetRequest)) {
+        alert('You do not have permission to deny this item request.')
+        return
+      }
+
       try {
         await borrowingService.denyCheckout(requestId, denyReason.value || '')
       } catch (error) {
@@ -729,11 +799,14 @@ export default {
       try {
         for (const requestId of selectedPendingIds.value) {
           try {
+            const reqData = requests.value.find(r => (r.id || r.requestId) === requestId)
+            if (!canActOnRequest(reqData)) continue
             const req = await borrowingService.approveRequest(requestId, returnDatetime)
             if (req) {
               req.notes = bulkApproveRemark.value
               const item = await inventoryService.getItemById(req.itemID)
-              if (item && bulkApproveLocation.value) {
+              const isTeacher = currentUser?.role === 'user' && currentUser?.subRole === 'teacher'
+              if (!isTeacher && item && bulkApproveLocation.value) {
                 await inventoryService.updateItem(item.id, { ...item, location: bulkApproveLocation.value })
               }
             }
@@ -761,6 +834,8 @@ export default {
       try {
         for (const requestId of selectedPendingIds.value) {
           try {
+            const reqData = requests.value.find(r => (r.id || r.requestId) === requestId)
+            if (!canActOnRequest(reqData)) continue
             await borrowingService.rejectRequest(requestId, bulkRejectReason.value)
           } catch (error) {
             console.error(`Failed to reject request ${requestId}:`, error)
@@ -780,6 +855,8 @@ export default {
       try {
         for (const requestId of selectedCheckoutIds.value) {
           try {
+            const reqData = requests.value.find(r => (r.id || r.requestId) === requestId)
+            if (!canActOnRequest(reqData)) continue
             await borrowingService.checkoutRequest(requestId)
           } catch (error) {
             console.error(`Failed to checkout request ${requestId}:`, error)
@@ -797,6 +874,8 @@ export default {
       try {
         for (const requestId of selectedCheckoutIds.value) {
           try {
+            const reqData = requests.value.find(r => (r.id || r.requestId) === requestId)
+            if (!canActOnRequest(reqData)) continue
             await borrowingService.denyCheckout(requestId, bulkDenyReason.value || '')
           } catch (error) {
             console.error(`Failed to deny checkout ${requestId}:`, error)
@@ -829,6 +908,27 @@ export default {
       await loadPendingRequests()
     })
 
+    watch([sortBy, sortDir], async () => {
+      clearCurrentSelection()
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+        return
+      }
+      await loadPendingRequests()
+    })
+
+    watch(searchKeyword, () => {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(async () => {
+        clearCurrentSelection()
+        if (currentPage.value !== 1) {
+          currentPage.value = 1
+          return
+        }
+        await loadPendingRequests()
+      }, 300)
+    })
+
     watch(currentPage, async () => {
       clearCurrentSelection()
       await loadPendingRequests()
@@ -858,6 +958,9 @@ export default {
       requestSummaryText,
       hideInternalTabs,
       requestPageTitle,
+      searchKeyword,
+      sortBy,
+      sortDir,
       currentTotal,
       selectedCount,
       isCurrentAllSelected,
@@ -900,6 +1003,7 @@ export default {
       handleBulkCheckout,
       handleBulkDeny,
       openEmailForRequest,
+      canActOnRequest,
       exportRequests,
       isCheckoutExpiringSoon,
       formatDate,
@@ -918,6 +1022,34 @@ export default {
 .request-table-card {
   padding: 0;
   overflow: hidden;
+}
+
+.request-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+}
+
+.request-search {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+}
+
+.request-sort-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.request-sort-select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.5rem;
 }
 
 .request-tabs {

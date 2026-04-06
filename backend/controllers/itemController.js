@@ -55,6 +55,17 @@ exports.getAllItems = catchAsync(async (req, res) => {
 
   const filter = {};
 
+  // Access scope:
+  // - admin/operator: all items
+  // - teacher: own items only
+  // - student: no access
+  if (req.user.role === 'user') {
+    if (req.user.subRole !== 'teacher') {
+      throw ApiError.forbidden('You do not have permission to view inventory items');
+    }
+    filter.owner = req.user.userId;
+  }
+
   if (status) filter.status = status;
   if (type) filter.type = type;
   if (category) filter.category = category;
@@ -121,7 +132,12 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
   const { search, category, location, owner, page = 1, pageSize = 10 } = req.query;
 
   // Find items that are pending check-out (reserved but not yet physically handed over)
-  const pendingCheckoutRequests = await BorrowRequest.find({ status: 'Pending Check-Out' }).select('itemID').lean();
+  const pendingCheckoutRequests = await BorrowRequest.find({
+    $or: [
+      { requestStatus: 'Pending Check-Out' },
+      { requestStatus: { $exists: false }, status: 'Pending Check-Out' }
+    ]
+  }).select('itemID').lean();
   const reservedItemIds = pendingCheckoutRequests.map(r => r.itemID);
 
   const filter = { status: 'Available', canBorrow: true };
@@ -132,7 +148,7 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
   }
 
   // Exclude child items (items with motherID that are not the mother themselves)
-  filter.$and = [{ $or: [{ motherID: null }, { motherID: '' }, { fixedComponents: { $exists: true, $not: { $size: 0 } } }] }];
+  filter.$and = [{ $or: [{ motherID: { $exists: false } }, { motherID: null }, { motherID: '' }, { fixedComponents: { $exists: true, $not: { $size: 0 } } }] }];
 
   if (category) filter.category = category;
   if (location) filter.location = location;
@@ -172,13 +188,25 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
  */
 exports.getLentOutItems = catchAsync(async (req, res) => {
   const {
-    search, category, location, type, vendor,
+    search, itemIdSearch, itemNameSearch, category, location, type, vendor,
     borrowerId, borrowerName, year, statusFilter,
     page = 1, pageSize = 10,
     sortBy = 'itemId', sortDir = 'asc'
   } = req.query;
 
   const filter = { status: 'In-use' };
+
+  // Access scope:
+  // - admin/operator: all lent-out items
+  // - teacher: lent-out items they own
+  // - student: no access
+  if (req.user.role === 'admin' || req.user.role === 'operator') {
+    // no owner filter
+  } else if (req.user.role === 'user' && req.user.subRole === 'teacher') {
+    filter.owner = req.user.userId;
+  } else {
+    throw ApiError.forbidden('You do not have permission to view lent-out inventory');
+  }
 
   if (category) filter.category = category;
   if (location) filter.location = location;
@@ -222,24 +250,49 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
     ];
   }
 
-  const sort = {};
-  sort[sortBy] = sortDir === 'desc' ? -1 : 1;
+  // Individual field search params (used by LentOut filter page)
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (itemIdSearch) {
+    filter.itemId = new RegExp(escapeRegex(itemIdSearch), 'i');
+  }
+  if (itemNameSearch) {
+    filter.name = new RegExp(escapeRegex(itemNameSearch), 'i');
+  }
 
-  const skip = (parseInt(page) - 1) * parseInt(pageSize);
+  const pageNum = parseInt(page);
+  const pageSizeNum = parseInt(pageSize);
+  const skip = (pageNum - 1) * pageSizeNum;
   const total = await Item.countDocuments(filter);
-  const rawItems = await Item.find(filter)
-    .sort(sort)
-    .skip(skip)
-    .limit(parseInt(pageSize));
 
-  const items = await populateBorrowerNames(rawItems);
+  // Cosmos DB may reject server-side order-by for excluded index paths.
+  // Sort in memory for this endpoint to support UI sort keys like returnDate safely.
+  const rawItems = await Item.find(filter).lean();
+
+  const direction = sortDir === 'desc' ? -1 : 1;
+  const normalizeSortValue = (value) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'number') return value;
+    return String(value).toLowerCase();
+  };
+
+  rawItems.sort((a, b) => {
+    const aValue = normalizeSortValue(a[sortBy]);
+    const bValue = normalizeSortValue(b[sortBy]);
+    if (aValue < bValue) return -1 * direction;
+    if (aValue > bValue) return 1 * direction;
+    return 0;
+  });
+
+  const pagedItems = rawItems.slice(skip, skip + pageSizeNum);
+
+  const items = await populateBorrowerNames(pagedItems);
 
   res.status(200).json({
     success: true,
     items,
     total,
-    page: parseInt(page),
-    pageSize: parseInt(pageSize)
+    page: pageNum,
+    pageSize: pageSizeNum
   });
 });
 
@@ -524,6 +577,10 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
   const { search, status, page = 1, pageSize = 100 } = req.query;
   const ownerId = req.params.ownerId;
 
+  if (req.user.role === 'user' && req.user.subRole === 'teacher' && ownerId !== req.user.userId) {
+    throw ApiError.forbidden('Teachers can only view items they own');
+  }
+
   const filter = { owner: ownerId };
 
   if (status) {
@@ -583,7 +640,8 @@ exports.getItemOwners = catchAsync(async (req, res) => {
 /**
  * PUT /api/items/:id/status
  * Allow teachers (item owners), admins, and operators to change item status.
- * Teachers can only change status of items they own, and only between Available/In-use.
+ * Teachers can only change status of items they own, and only between Available/Not Available.
+ * Admin/operator can only directly change status for department-owned items.
  */
 exports.updateItemStatus = catchAsync(async (req, res, next) => {
   const { status } = req.body;
@@ -597,12 +655,18 @@ exports.updateItemStatus = catchAsync(async (req, res, next) => {
     if (item.owner !== req.user.userId) {
       return next(ApiError.forbidden('You can only update status for items you own'));
     }
-    // Teachers can only switch between Available and In-use
-    const allowedStatuses = ['Available', 'In-use'];
-    if (!allowedStatuses.includes(status)) {
-      return next(ApiError.badRequest(`Teachers can only set status to: ${allowedStatuses.join(', ')}`));
+    const isAllowedTeacherTransition =
+      (item.status === 'Available' && status === 'Not Available') ||
+      (item.status === 'Not Available' && status === 'Available');
+
+    if (!isAllowedTeacherTransition) {
+      return next(ApiError.badRequest('Teachers can only switch between Available and Not Available. In-use items must go through return flow.'));
     }
-  } else if (req.user.role !== 'admin' && req.user.role !== 'operator') {
+  } else if (req.user.role === 'admin' || req.user.role === 'operator') {
+    if (item.owner !== 'department') {
+      return next(ApiError.forbidden('Admin and operator can only directly change status for department-owned items'));
+    }
+  } else {
     return next(ApiError.forbidden('You do not have permission to change item status'));
   }
 

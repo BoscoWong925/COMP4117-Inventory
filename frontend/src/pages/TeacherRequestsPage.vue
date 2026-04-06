@@ -1,10 +1,10 @@
 <template>
   <div class="page-container">
-    <ModulePageHeader title="My Item Requests" subtitle="Manage borrow requests for items you own">
+    <ModulePageHeader :title="pageTitle" subtitle="Manage borrow requests for items you own">
     </ModulePageHeader>
 
     <!-- Tabs -->
-    <div class="mb-4 flex gap-2">
+    <div v-if="!hideInternalTabs" class="mb-4 flex gap-2">
       <button
         @click="activeTab = 'pending'; currentPage = 1"
         :class="`pill ${activeTab === 'pending' ? 'pill-active' : ''}`"
@@ -434,13 +434,19 @@ import {
 import SendEmailModal from '../components/SendEmailModal.vue'
 
 export default {
+  props: {
+    pageParams: {
+      type: Object,
+      default: () => ({})
+    }
+  },
   components: {
     ModulePageHeader, TablePaginationBar, DropdownMenu, DropdownMenuItem,
     Checkbox, Badge, Card, Button, Input, Textarea,
     MoreVertical, CheckCircle2, XCircle, Package, Mail, Zap, ChevronDown,
     SendEmailModal
   },
-  setup() {
+  setup(props) {
     const activeTab = ref('pending')
     const pendingRequests = ref([])
     const historyRequests = ref([])
@@ -482,6 +488,14 @@ export default {
     // Split pending requests by status
     const pendingCount = ref(0)
     const checkoutCount = ref(0)
+    const hideInternalTabs = computed(() => !!props.pageParams?.hideTabs)
+    const pageTitle = computed(() => activeTab.value === 'checkout' ? 'Pending Check-Out Requests' : 'Pending Approval Requests')
+
+    const applyIncomingTab = (tabValue) => {
+      if (tabValue === 'pending' || tabValue === 'checkout' || tabValue === 'history') {
+        activeTab.value = tabValue
+      }
+    }
 
     const allPendingSelected = computed(() => {
       return pendingRequests.value.length > 0 && selectedPendingIds.value.length === pendingRequests.value.length
@@ -532,6 +546,10 @@ export default {
       } else {
         loadPending()
       }
+    })
+
+    watch(() => props.pageParams?.tab, (tabValue) => {
+      applyIncomingTab(tabValue)
     })
 
     const getStatusBadgeVariant = (status) => {
@@ -745,7 +763,10 @@ export default {
       }
     }
 
-    onMounted(() => { loadPending() })
+    onMounted(() => {
+      applyIncomingTab(props.pageParams?.tab)
+      loadPending()
+    })
 
     const openEmailForRequest = (req) => {
       emailTarget.value = req
@@ -756,6 +777,7 @@ export default {
       activeTab, pendingRequests, historyRequests, loadingPending, loadingHistory,
       historyStatus, currentPage, pageSize, pageSizeRef, totalHistory,
       pendingCount, checkoutCount,
+      hideInternalTabs, pageTitle,
       approveTarget, returnDate, approveRemark,
       rejectTarget, rejectReason,
       denyTarget, denyReason,

@@ -8,14 +8,14 @@ const upload = require('../middleware/upload');
 router.use(authenticate);
 
 // Static routes (defined before parameterized routes)
-router.get('/pending', authorize('admin', 'operator'), borrowRequestController.getPendingRequests);
+router.get('/pending', borrowRequestController.getPendingRequests);
 router.get('/my', borrowRequestController.getMyRequests);
 router.get('/teacher-pending', borrowRequestController.getTeacherPendingRequests);
 router.get('/teacher-history', borrowRequestController.getTeacherRequestHistory);
-router.post('/auto-expire', authorize('admin', 'operator'), borrowRequestController.autoExpirePendingCheckouts);
+router.post('/auto-expire', borrowRequestController.autoExpirePendingCheckouts);
 
 // Admin/operator: get all requests
-router.get('/', authorize('admin', 'operator'), borrowRequestController.getAllRequests);
+router.get('/', borrowRequestController.getAllRequests);
 
 // Any authenticated user can create request (teacher and student)
 router.post('/', upload.array('attachments', 10), borrowRequestController.createRequest);

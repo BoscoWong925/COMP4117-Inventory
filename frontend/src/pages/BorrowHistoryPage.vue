@@ -102,10 +102,10 @@
               <th>Item</th>
               <th>Borrower</th>
               <th>Status</th>
-              <th class="history-sort-head" @click="toggleSort('requestDate')">Request Date <span>{{ getSortIcon('requestDate') }}</span></th>
-              <th class="history-sort-head" @click="toggleSort('approvalDate')">Approval Date <span>{{ getSortIcon('approvalDate') }}</span></th>
-              <th class="history-sort-head" @click="toggleSort('returnDate')">Return Date <span>{{ getSortIcon('returnDate') }}</span></th>
-              <th class="history-sort-head" @click="toggleSort('returnedDate')">Returned <span>{{ getSortIcon('returnedDate') }}</span></th>
+              <th>Request Date</th>
+              <th>Approval Date</th>
+              <th>Return Date</th>
+              <th>Returned</th>
             </tr>
           </thead>
 
@@ -220,6 +220,7 @@ export default {
     })
     const sortField = ref('requestDate')
     const sortDir = ref('desc')
+    // Note: sorting UI removed; sortField/sortDir kept for API default ordering
     const currentPage = ref(1)
     const pageSize = ref(10)
     const selectedHistoryIds = ref([])
@@ -276,19 +277,7 @@ export default {
       return `${totalHistory.value} record(s)`
     })
 
-    const toggleSort = (field) => {
-      if (sortField.value === field) {
-        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-      } else {
-        sortField.value = field
-        sortDir.value = 'desc'
-      }
-    }
 
-    const getSortIcon = (field) => {
-      if (sortField.value !== field) return '⇅'
-      return sortDir.value === 'asc' ? '▲' : '▼'
-    }
 
     const getStatusVariant = (status) => {
       const normalized = (status || '').toLowerCase()
@@ -341,10 +330,11 @@ export default {
         sortBy: sortField.value,
         sortDir: sortDir.value,
       }
-      if (f.status) params.status = f.status
+      if (f.status) params.historyStatus = f.status
 
-      const searchParts = [f.requestId, f.itemName, f.borrower].filter(Boolean)
-      if (searchParts.length > 0) params.search = searchParts.join(' ')
+      if (f.requestId) params.requestIdSearch = f.requestId
+      if (f.itemName) params.itemNameSearch = f.itemName
+      if (f.borrower) params.borrowerSearch = f.borrower
 
       if (f.requestDate) {
         params.requestDateFrom = f.requestDate
@@ -378,6 +368,7 @@ export default {
 
         history.value = (result.requests || []).map(req => ({
           ...req,
+          status: req.historyStatus || req.status,
           itemName: req.itemName || 'Unknown Item',
           borrowerName: req.borrowerName || req.borrowerID
         }))
@@ -405,8 +396,6 @@ export default {
         () => filters.value.approvalDate,
         () => filters.value.returnDate,
         () => filters.value.returnedDate,
-        () => sortField.value,
-        () => sortDir.value,
         () => pageSize.value
       ],
       async () => {
@@ -441,6 +430,7 @@ export default {
         .then((result) => {
           const data = (result.requests || []).map(req => ({
             ...req,
+            status: req.historyStatus || req.status,
             itemName: req.itemName || 'Unknown Item',
             borrowerName: req.borrowerName || req.borrowerID
           }))
@@ -460,10 +450,6 @@ export default {
       filters,
       clearAllFilters,
       statusTabs,
-      sortField,
-      sortDir,
-      toggleSort,
-      getSortIcon,
       getStatusVariant,
       currentPage,
       pageSize,

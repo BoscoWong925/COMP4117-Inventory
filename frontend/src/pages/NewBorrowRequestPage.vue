@@ -9,6 +9,10 @@
       </span>
     </div>
 
+    <div v-if="submitError" class="mb-4 p-4 rounded text-sm font-medium" style="background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626);">
+      {{ submitError }}
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
         <div class="mb-4">
@@ -161,6 +165,7 @@ export default {
     const selectedItem = ref(null)
     const reason = ref('')
     const submitted = ref(false)
+    const submitError = ref('')
     const linkedComponents = ref([])
     const showComponentViewer = ref(false)
     const uploadedFiles = ref([])
@@ -260,8 +265,9 @@ export default {
       }
 
       try {
+        submitError.value = ''
         const currentUser = await authService.getCurrentUser()
-        const borrowerID = currentUser?.id || 'UNKNOWN'
+        const borrowerID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
 
         // Create main request
         const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
@@ -289,6 +295,7 @@ export default {
         }, 3000)
       } catch (e) {
         console.error('Failed to submit request:', e)
+        submitError.value = e?.response?.data?.message || e?.message || 'Failed to submit borrow request. Please try again.'
       }
     }
 
@@ -303,6 +310,7 @@ export default {
       selectedItem,
       reason,
       submitted,
+      submitError,
       linkedComponents,
       showComponentViewer,
       uploadedFiles,

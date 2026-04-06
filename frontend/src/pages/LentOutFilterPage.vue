@@ -109,21 +109,13 @@
               </th>
               <th>ID</th>
               <th>Name</th>
-              <th class="cursor-pointer select-none" @click="toggleSort('category')">
-                Category <span class="sort-icon">{{ getSortIcon('category') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('currentBorrower')">
-                Borrower ID <span class="sort-icon">{{ getSortIcon('currentBorrower') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('borrowerName')">
-                Borrower Name <span class="sort-icon">{{ getSortIcon('borrowerName') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('supplier')">
-                Vendor <span class="sort-icon">{{ getSortIcon('supplier') }}</span>
-              </th>
-              <th class="cursor-pointer select-none" @click="toggleSort('location')">
-                Location <span class="sort-icon">{{ getSortIcon('location') }}</span>
-              </th>
+              <th>Category</th>
+              <th>Borrower ID</th>
+              <th>Borrower Name</th>
+              <th>Vendor</th>
+              <th>Location</th>
+              <th>Return Date</th>
+              <th>Due / Status</th>
               <th class="text-center">Return</th>
             </tr>
           </thead>
@@ -131,18 +123,18 @@
           <tbody>
             <template v-if="showLentSkeleton">
               <tr>
-                <td colspan="9" class="table-spinner-cell">
+                <td colspan="11" class="table-spinner-cell">
                   <Spinner size="lg" label="Loading items..." />
                 </td>
               </tr>
             </template>
 
             <tr v-else-if="lentErrorMessage" class="checked-empty-row">
-              <td colspan="9" class="checked-empty-cell">{{ lentErrorMessage }}</td>
+              <td colspan="11" class="checked-empty-cell">{{ lentErrorMessage }}</td>
             </tr>
 
             <tr v-else-if="groupedItems.length === 0" class="checked-empty-row">
-              <td colspan="9" class="checked-empty-cell">No checked-out items match your filters</td>
+              <td colspan="11" class="checked-empty-cell">No checked-out items match your filters</td>
             </tr>
 
             <template v-else v-for="group in paginatedGroups" :key="group.parent.id">
@@ -165,6 +157,8 @@
                 <td>{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
                 <td>{{ group.parent.supplier }}</td>
                 <td>{{ group.parent.location }}</td>
+                <td>{{ formatDate(getReturnMeta(group.parent).returnDate) || '-' }}</td>
+                <td>{{ getReturnMeta(group.parent).dueLabel }}</td>
                 <td class="text-center">
                   <DropdownMenu align="end">
                     <template #trigger>
@@ -173,8 +167,11 @@
                       </button>
                     </template>
                     <template #default="{ close }">
-                      <DropdownMenuItem success @click="handleReturnItem(group.parent); close()">
+                      <DropdownMenuItem v-if="canReturnItem(group.parent)" success @click="handleReturnItem(group.parent); close()">
                         <RotateCcw :size="12" /> Return{{ group.children.length > 0 ? ' All' : '' }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-if="!canReturnItem(group.parent)" disabled>
+                        <RotateCcw :size="12" /> No permission for this owner
                       </DropdownMenuItem>
                       <DropdownMenuItem v-if="group.parent.currentBorrower" @click="openEmailForBorrower(group.parent); close()">
                         <Mail :size="12" /> Email Borrower
@@ -193,6 +190,8 @@
                 <td>{{ getBorrowerName(child.currentBorrower, child) }}</td>
                 <td>{{ child.supplier }}</td>
                 <td>{{ child.location }}</td>
+                <td>{{ formatDate(getReturnMeta(child).returnDate) || '-' }}</td>
+                <td>{{ getReturnMeta(child).dueLabel }}</td>
                 <td class="checked-child-return">Auto with parent</td>
               </tr>
             </template>
@@ -274,8 +273,8 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { inventoryService, borrowingService } from '../utils/services'
-import { exportToExcel, getUniqueVendors } from '../utils/helpers'
+import { inventoryService, borrowingService, authService } from '../utils/services'
+import { exportToExcel, getUniqueVendors, formatDate } from '../utils/helpers'
 import { MoreVertical, Zap, ChevronDown, Mail, RotateCcw } from 'lucide-vue-next'
 import SendEmailModal from '../components/SendEmailModal.vue'
 import {
@@ -318,6 +317,7 @@ export default {
     pageParams: { type: Object, default: () => ({}) }
   },
   setup(props) {
+    const currentUser = authService.getCurrentUser()
     const items = ref([])
     const allRequests = ref([])
     const vendorFilter = ref('')
@@ -336,8 +336,9 @@ export default {
     const newLocation = ref('')
     const otherLocation = ref('')
     const typeFilter = ref('')
-    const sortField = ref('lastUpdate')
-    const sortDir = ref('desc')
+    const sortField = ref('')
+    const sortDir = ref('asc')
+    // Note: sorting UI removed; sortField/sortDir kept for API default ordering
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
     const selectedReturnIds = ref([])
@@ -422,20 +423,7 @@ export default {
       }
     }
 
-    const toggleSort = (field) => {
-      if (sortField.value === field) {
-        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-      } else {
-        sortField.value = field
-        sortDir.value = 'asc'
-      }
-      currentPage.value = 1
-    }
 
-    const getSortIcon = (field) => {
-      if (sortField.value !== field) return '⇅'
-      return sortDir.value === 'asc' ? '▲' : '▼'
-    }
 
     // Load persisted custom locations
     const loadLocations = () => {
@@ -465,6 +453,46 @@ export default {
       return id
     }
 
+    const canReturnItem = (item) => {
+      if (!item) return false
+      if (currentUser?.role === 'admin') return true
+      if (currentUser?.role === 'operator') return item.owner === 'department'
+      if (currentUser?.role === 'user' && currentUser?.subRole === 'teacher') {
+        return item.owner === currentUser.userId
+      }
+      return false
+    }
+
+    const getLinkedApprovedRequest = (itemId) => {
+      return allRequests.value.find((request) => request.itemID === itemId && request.status === 'Approved')
+    }
+
+    const getReturnMeta = (item) => {
+      const request = getLinkedApprovedRequest(item.id)
+      const returnDate = request?.returnDate ? new Date(request.returnDate) : null
+      if (!returnDate || Number.isNaN(returnDate.getTime())) {
+        return { returnDate: null, dueLabel: 'No due date', dueSort: Number.POSITIVE_INFINITY }
+      }
+
+      const dueDay = new Date(returnDate)
+      dueDay.setHours(0, 0, 0, 0)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const diffDays = Math.floor((dueDay - today) / 86400000)
+
+      if (diffDays < 0) {
+        return { returnDate, dueLabel: `Overdue (${Math.abs(diffDays)}d)`, dueSort: diffDays }
+      }
+      if (diffDays === 0) {
+        return { returnDate, dueLabel: 'Due Today (0d left)', dueSort: 0 }
+      }
+      if (diffDays <= 7) {
+        return { returnDate, dueLabel: `Due Soon (${diffDays}d left)`, dueSort: diffDays }
+      }
+
+      return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays }
+    }
+
     const buildQueryParams = () => {
       const f = searchFilters.value
       const params = { page: currentPage.value, pageSize: pageSize.value }
@@ -476,13 +504,11 @@ export default {
       if (f.borrowerId) params.borrowerId = f.borrowerId
       if (f.borrowerName) params.borrowerName = f.borrowerName
       if (activeStatusFilter.value) params.statusFilter = activeStatusFilter.value
-      // Combine text searches (item id / name only)
-      const textParts = [f.id, f.name].filter(Boolean)
-      if (textParts.length > 0) params.search = textParts.join(' ')
-      if (sortField.value) {
-        params.sortBy = sortField.value
-        params.sortDir = sortDir.value
-      }
+      // Send item ID and name as separate search params
+      if (f.id) params.itemIdSearch = f.id
+      if (f.name) params.itemNameSearch = f.name
+      // Only send sortBy to backend for fields that exist on the Item model.
+      // returnDate, dueStatus, borrowerName are computed client-side from BorrowRequest data.
       return params
     }
 
@@ -499,7 +525,6 @@ export default {
       try {
         const params = buildQueryParams()
         const result = await inventoryService.getLentOutItems(params)
-        const reqResult = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
 
         if (requestToken !== loadRequestToken) {
           return
@@ -513,7 +538,18 @@ export default {
           if (item.warrantyStartDate) return item.warrantyStartDate.split('-')[0]
           return null
         }).filter(Boolean))].sort().reverse()
-        allRequests.value = Array.isArray(reqResult?.requests) ? reqResult.requests : []
+
+        // Load approved request links in background so item rows are not blocked by this heavier query.
+        allRequests.value = []
+        borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
+          .then((reqResult) => {
+            if (requestToken !== loadRequestToken) return
+            allRequests.value = Array.isArray(reqResult?.requests) ? reqResult.requests : []
+          })
+          .catch((linkError) => {
+            if (requestToken !== loadRequestToken) return
+            console.warn('Failed to load approved requests for return metadata:', linkError)
+          })
       } catch (e) {
         if (requestToken !== loadRequestToken) {
           return
@@ -566,7 +602,7 @@ export default {
       loadLentOutItems()
     })
 
-    watch([() => currentPage.value, () => sortField.value, () => sortDir.value], () => {
+    watch(() => currentPage.value, () => {
       loadLentOutItems()
     })
 
@@ -615,7 +651,8 @@ export default {
         const children = []
         if (req) {
           // Find child requests linked to this parent request
-          const childReqs = reqs.filter(r => r.parentRequestId === req.id && r.status === 'Approved')
+          const parentReqId = req.requestId || req.id
+          const childReqs = reqs.filter(r => r.parentRequestId === parentReqId && r.status === 'Approved')
           childReqs.forEach(cr => {
             const childItem = allItems.find(i => i.id === cr.itemID)
             if (childItem) children.push(childItem)
@@ -628,21 +665,7 @@ export default {
     })
 
     const sortedGroups = computed(() => {
-      const groups = [...groupedItems.value]
-      if (!sortField.value) return groups
-      groups.sort((a, b) => {
-        let valA, valB
-        if (sortField.value === 'borrowerName') {
-          valA = getBorrowerName(a.parent.currentBorrower)
-          valB = getBorrowerName(b.parent.currentBorrower)
-        } else {
-          valA = a.parent[sortField.value] || ''
-          valB = b.parent[sortField.value] || ''
-        }
-        if (sortDir.value === 'asc') return valA < valB ? -1 : valA > valB ? 1 : 0
-        return valA > valB ? -1 : valA < valB ? 1 : 0
-      })
-      return groups
+      return [...groupedItems.value]
     })
 
     const paginatedGroups = computed(() => {
@@ -650,6 +673,11 @@ export default {
     })
 
     const handleReturnItem = async (item) => {
+      if (!canReturnItem(item)) {
+        alert('You do not have permission to return this item.')
+        return
+      }
+
       if (window.confirm(`Are you sure you want to confirm the return of "${item.name}" (${item.id})?`)) {
         try {
           const reqs = allRequests.value
@@ -657,7 +685,7 @@ export default {
             r => r.itemID === item.id && r.status === 'Approved'
           )
           if (req) {
-            await borrowingService.returnItem(req.id)
+            await borrowingService.returnItem(req.id || req.requestId)
           }
         } catch (e) {
           console.error('Failed to return item:', e)
@@ -712,13 +740,19 @@ export default {
     const handleBulkReturn = async () => {
       showBulkReturnModal.value = false
       try {
+        let skipped = 0
         for (const itemId of selectedReturnIds.value) {
           try {
+            const itemData = items.value.find(i => i.id === itemId)
+            if (!canReturnItem(itemData)) {
+              skipped += 1
+              continue
+            }
             const req = allRequests.value.find(
               r => r.itemID === itemId && r.status === 'Approved'
             )
             if (req) {
-              await borrowingService.returnItem(req.id)
+              await borrowingService.returnItem(req.id || req.requestId)
             }
           } catch (e) {
             console.error(`Failed to return item ${itemId}:`, e)
@@ -728,6 +762,9 @@ export default {
         bulkReturnCondition.value = 'Good'
         bulkReturnNotes.value = ''
         await loadLentOutItems()
+        if (skipped > 0) {
+          alert(`${skipped} selected item(s) were skipped due to owner permission restrictions.`)
+        }
       } catch (e) {
         console.error('Failed to bulk return items:', e)
       }
@@ -736,9 +773,11 @@ export default {
     onMounted(() => {
       // Apply auto-filter from dashboard navigation
       if (props.pageParams?.filter) {
+        // Setting activeStatusFilter triggers its watcher which calls loadLentOutItems
         activeStatusFilter.value = props.pageParams.filter
+      } else {
+        loadLentOutItems()
       }
-      loadLentOutItems()
     })
 
     onUnmounted(() => {
@@ -761,11 +800,6 @@ export default {
       groupedItems,
       sortedGroups,
       paginatedGroups,
-      toggleSort,
-      getSortIcon,
-      typeFilter,
-      sortField,
-      sortDir,
       showFilterPanel,
       searchFilters,
       uniqueCategories,
@@ -773,6 +807,7 @@ export default {
       clearAllFilters,
       activeStatusFilter,
       getBorrowerName,
+      getReturnMeta,
       handleReturnItem,
       saveLocation,
       showLocationCard,
@@ -792,6 +827,8 @@ export default {
       showEmailModal,
       emailTarget,
       openEmailForBorrower,
+      canReturnItem,
+      formatDate,
     }
   }
 }

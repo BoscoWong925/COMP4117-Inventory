@@ -26,7 +26,7 @@
             >
               <span class="nav-tab-icon" v-html="group.icon"></span>
               <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ group.label }}</span>
-              <NotificationBadge v-if="!sidebarCollapsed && group.children?.some(c => c.page === 'approve-requests' || c.page === 'teacher-requests')" :count="pendingCount" />
+              <NotificationBadge v-if="!sidebarCollapsed && getBadgeCountForGroup(group) > 0" :count="getBadgeCountForGroup(group)" />
             </button>
 
             <div v-if="!sidebarCollapsed && group.children?.length > 1 && expandedGroup === group.key" class="sidebar-subnav">
@@ -38,7 +38,7 @@
               >
                 <span class="nav-tab-icon" v-html="item.icon"></span>
                 <span class="sidebar-subnav-label">{{ item.label }}</span>
-                <NotificationBadge v-if="item.page === 'approve-requests' || item.page === 'teacher-requests'" :count="pendingCount" />
+                <NotificationBadge v-if="getBadgeCountForItem(item) > 0" :count="getBadgeCountForItem(item)" />
               </button>
             </div>
           </div>
@@ -224,6 +224,8 @@ export default {
     const currentPage = ref(sessionStorage.getItem('inventory_last_page') || 'home')
     const pageParams = ref({})
     const pendingCount = ref(0)
+    const pendingApprovalCount = ref(0)
+    const pendingCheckoutCount = ref(0)
     const darkMode = ref(true)
     const showSettings = ref(false)
     const themePreference = ref(localStorage.getItem('inventory_theme') || 'system')
@@ -283,16 +285,20 @@ export default {
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
-          { key: 'requests', label: 'Requests', icon: NAV_ICONS.teacherRequests, children: [
-            { page: 'teacher-requests', label: 'Handle Borrow Requests', icon: NAV_ICONS.teacherRequests },
-            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
+          { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
+            { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
+            { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
           ]},
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
-            { page: 'my-items', label: 'Items', icon: NAV_ICONS.myItems },
+            { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
           ]},
-          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'teacher-checkout' },
+          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'lent-out-filter' },
           { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
-            { page: 'my-borrowing-record', label: 'Borrow Records', icon: NAV_ICONS.myRecords },
+            { page: 'borrow-history', label: 'Borrow History', icon: NAV_ICONS.history },
+          ]},
+          { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
+            { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
+            { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
           ]},
         ]
       } else if (user.value?.role === 'user') {
@@ -300,11 +306,11 @@ export default {
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
           { key: 'requests', label: 'Requests', icon: NAV_ICONS.newRequest, children: [
             { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
+            { page: 'search-available', label: 'Search Available', icon: NAV_ICONS.items },
           ]},
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
-            { page: 'my-items', label: 'Items', icon: NAV_ICONS.myItems },
+            { page: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems },
           ]},
-          { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'my-borrowing-record' },
           { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
             { page: 'my-borrowing-record', label: 'Borrow Records', icon: NAV_ICONS.myRecords },
           ]},
@@ -384,6 +390,30 @@ export default {
       sidebarCollapsed.value = !sidebarCollapsed.value
     }
 
+    const getBadgeCountForItem = (item) => {
+      if (item.params?.tab === 'pending') return pendingApprovalCount.value
+      if (item.params?.tab === 'checkout') return pendingCheckoutCount.value
+      if (item.page === 'teacher-requests') return pendingCount.value
+      return 0
+    }
+
+    const getBadgeCountForGroup = (group) => {
+      if (!group.children?.length) return 0
+
+      const hasPendingTab = group.children.some((item) => item.params?.tab === 'pending')
+      const hasCheckoutTab = group.children.some((item) => item.params?.tab === 'checkout')
+
+      if (hasPendingTab || hasCheckoutTab) {
+        return pendingApprovalCount.value + pendingCheckoutCount.value
+      }
+
+      if (group.children.some((item) => item.page === 'teacher-requests')) {
+        return pendingCount.value
+      }
+
+      return 0
+    }
+
     const handleOpenSettings = () => {
       showUserMenu.value = true
       showSettings.value = true
@@ -393,12 +423,22 @@ export default {
       try {
         if (user.value?.subRole === 'teacher') {
           const data = await borrowingService.getTeacherPendingRequests({ pageSize: 1 })
-          pendingCount.value = (data.pendingCount || 0) + (data.checkoutCount || 0)
+          pendingApprovalCount.value = data.pendingCount || 0
+          pendingCheckoutCount.value = data.checkoutCount || 0
+          pendingCount.value = pendingApprovalCount.value + pendingCheckoutCount.value
         } else if (user.value?.role !== 'user') {
-          const count = await borrowingService.getTopLevelPendingCount()
-          pendingCount.value = count
+          const data = await borrowingService.getPendingRequests({ pageSize: 1 })
+          pendingApprovalCount.value = data.pendingCount || 0
+          pendingCheckoutCount.value = data.checkoutCount || 0
+          pendingCount.value = pendingApprovalCount.value + pendingCheckoutCount.value
+        } else {
+          pendingApprovalCount.value = 0
+          pendingCheckoutCount.value = 0
+          pendingCount.value = 0
         }
       } catch (e) {
+        pendingApprovalCount.value = 0
+        pendingCheckoutCount.value = 0
         pendingCount.value = 0
       }
     }
@@ -612,6 +652,8 @@ export default {
       activeGroup,
       sidebarCollapsed,
       expandedGroup,
+      getBadgeCountForGroup,
+      getBadgeCountForItem,
       headerDateTimeLabel,
       handleGroupClick,
       isSubnavItemActive,

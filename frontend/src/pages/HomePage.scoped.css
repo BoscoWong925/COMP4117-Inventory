@@ -1191,3 +1191,293 @@
   font-size: 0.72rem;
   color: var(--muted-foreground);
 }
+
+/* ===== Student Dashboard Styles ===== */
+
+.ops-card-value--danger { color: var(--danger); }
+.ops-card-value--warning { color: var(--warning-dark); }
+
+.student-card-pulse {
+  animation: student-pulse 2s ease-in-out infinite;
+}
+@keyframes student-pulse {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  50% { box-shadow: 0 0 0 3px var(--danger-light), var(--shadow-card); }
+}
+
+.student-main-card {
+  padding: 0;
+  overflow: hidden;
+}
+.student-tabs-header {
+  padding: 1rem 1.25rem 0;
+  margin-bottom: 0.75rem;
+}
+
+.student-table-wrap {
+  overflow-x: auto;
+}
+.student-table-wrap .ops-table {
+  margin: 0;
+}
+
+.student-item-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.student-item-id {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, monospace);
+}
+
+.student-days-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-md);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.student-days--overdue {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+.student-days--today {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+.student-days--soon {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.student-days--ok {
+  background: var(--success-light);
+  color: var(--success);
+}
+.student-days--unknown {
+  background: var(--surface-100);
+  color: var(--muted-foreground);
+}
+
+.student-overdue-row {
+  background: color-mix(in srgb, var(--danger) 6%, transparent) !important;
+}
+.student-due-soon-row {
+  background: color-mix(in srgb, var(--warning) 6%, transparent) !important;
+}
+
+.student-stage-badge {
+  display: inline-flex;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-md);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.student-stage--pending {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+.student-stage--checkout {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.student-stage--approved {
+  background: var(--success-light);
+  color: var(--success);
+}
+.student-stage--rejected {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.student-decision {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.student-decision--approved { color: var(--success); }
+.student-decision--rejected { color: var(--danger); cursor: help; }
+.student-decision--waiting { color: var(--muted-foreground); }
+
+.student-empty {
+  padding: 2rem 1.25rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.student-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.student-pagination button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  transition: background 0.12s;
+}
+.student-pagination button:hover:not(:disabled) {
+  background: var(--surface-100);
+}
+.student-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ops-tab-count--warning {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+
+/* Sidebar */
+.student-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.student-sidebar-card {
+  padding: 1rem 1.25rem;
+}
+.student-sidebar-card .section-header {
+  margin-bottom: 0.75rem;
+}
+
+/* Return Schedule */
+.student-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.student-schedule-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.student-schedule-label {
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.student-schedule-label--danger { color: var(--danger); border-bottom-color: var(--danger-light); }
+.student-schedule-label--warning { color: var(--warning-dark); border-bottom-color: var(--warning-light); }
+
+.student-schedule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+}
+.student-schedule-item--overdue {
+  background: color-mix(in srgb, var(--danger) 4%, transparent);
+  border-radius: var(--radius-md);
+  padding: 0.375rem 0.5rem;
+}
+
+.student-schedule-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.3rem;
+}
+.student-schedule-dot--danger { background: var(--danger); }
+.student-schedule-dot--warning { background: var(--warning-dark); }
+.student-schedule-dot--info { background: #3b82f6; }
+.student-schedule-dot--muted { background: var(--muted-foreground); }
+
+.student-schedule-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.student-schedule-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.student-schedule-date {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+/* Notifications */
+.student-notifications {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.student-notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.student-notification-item:last-child { border-bottom: none; }
+
+.student-notif-icon {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+.student-notif-icon--approved { color: var(--success); }
+.student-notif-icon--rejected { color: var(--danger); }
+
+.student-notif-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.student-notif-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.student-notif-status {
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+.student-notif-status--approved { color: var(--success); }
+.student-notif-status--rejected { color: var(--danger); }
+
+.student-notif-reason {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.student-notif-date {
+  font-size: 0.625rem;
+  color: var(--muted-foreground);
+}

@@ -129,7 +129,14 @@ export default {
         const params = { pageSize: 9999 }
         if (searchText.value) params.search = searchText.value
         const { items: lentOut } = await inventoryService.getLentOutItems(params)
-        const { requests: allReqs } = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
+        let allReqs = []
+        try {
+          const result = await borrowingService.getAllRequests({ status: 'Approved', pageSize: 9999 })
+          allReqs = result.requests || []
+        } catch (linkError) {
+          // Keep the page usable when request history fetch has transient errors.
+          console.warn('Failed to load approved requests for hand-over view:', linkError)
+        }
         const withRequests = lentOut.map(item => {
           const request = allReqs.find(r => r.itemID === item.id && r.status === 'Approved')
           return { item, request }
@@ -190,7 +197,8 @@ export default {
     const confirmReturn = async () => {
       if (selectedGroup.value && selectedGroup.value.parent.request) {
         try {
-          await borrowingService.returnItem(selectedGroup.value.parent.request.id)
+          const requestId = selectedGroup.value.parent.request.id || selectedGroup.value.parent.request.requestId
+          await borrowingService.returnItem(requestId)
         } catch (e) {
           console.error('Failed to return item:', e)
         }

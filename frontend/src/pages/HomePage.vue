@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="home-page">
     <!-- ==================== ADMIN / OPERATOR VIEW ==================== -->
-    <template v-if="user?.role !== 'user'">
+    <template v-if="user?.role === 'admin' || user?.role === 'operator' || (user?.role === 'user' && user?.subRole === 'teacher')">
       <!-- Header -->
       <div class="ops-header animate-in">
         <div class="ops-header-info">
@@ -154,11 +154,13 @@
                       <DropdownMenuItem separator />
                       <DropdownMenuItem label>Status</DropdownMenuItem>
                       <DropdownMenuItem checkable :checked="filterStatus === ''" @click="filterStatus = ''; close()">All Statuses</DropdownMenuItem>
-                      <DropdownMenuItem checkable :checked="filterStatus === 'Overdue'" @click="filterStatus = 'Overdue'; close()">Overdue</DropdownMenuItem>
-                      <DropdownMenuItem checkable :checked="filterStatus === 'Due Soon'" @click="filterStatus = 'Due Soon'; close()">Due Soon</DropdownMenuItem>
-                      <DropdownMenuItem checkable :checked="filterStatus === 'Pending'" @click="filterStatus = 'Pending'; close()">Pending</DropdownMenuItem>
-                      <DropdownMenuItem checkable :checked="filterStatus === 'Checkout'" @click="filterStatus = 'Checkout'; close()">Checkout</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Pending Approval'" @click="filterStatus = 'Pending Approval'; close()">Pending Approval</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Pending Check-Out'" @click="filterStatus = 'Pending Check-Out'; close()">Pending Check-Out</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'In-use'" @click="filterStatus = 'In-use'; close()">In-use</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Available'" @click="filterStatus = 'Available'; close()">Available</DropdownMenuItem>
                       <DropdownMenuItem checkable :checked="filterStatus === 'Missing'" @click="filterStatus = 'Missing'; close()">Missing</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Not Available'" @click="filterStatus = 'Not Available'; close()">Not Available</DropdownMenuItem>
+                      <DropdownMenuItem checkable :checked="filterStatus === 'Transferred'" @click="filterStatus = 'Transferred'; close()">Transferred</DropdownMenuItem>
                       <template v-if="hasActiveFilters">
                         <DropdownMenuItem separator />
                         <DropdownMenuItem destructive @click="filterPriority = ''; filterStatus = ''; close()">
@@ -442,18 +444,8 @@
               <span v-else class="ops-inv-total">{{ stats.totalItems ?? 0 }} items</span>
             </div>
 
-            <div v-if="isStatsInitialLoading" class="ops-inv-rate">
-              <span class="ops-skeleton-line ops-skeleton-line--inv-rate"></span>
-              <span class="ops-skeleton-line ops-skeleton-line--inv-rate-label"></span>
-            </div>
-            <div v-else-if="dashboardLoadState.stats.error && !dashboardLoadState.stats.isLoaded" class="ops-inv-rate">
-              <span class="ops-inv-rate-val">—</span>
-              <span class="ops-inv-rate-label">Unavailable</span>
-            </div>
-            <div v-else class="ops-inv-rate">
-              <span class="ops-inv-rate-val">{{ availabilityRate }}%</span>
-              <span class="ops-inv-rate-label">Available</span>
-              <span v-if="isStatsBackgroundFetching" class="ops-fetching-chip">Updating...</span>
+            <div v-if="isStatsBackgroundFetching" class="ops-inv-rate">
+              <span class="ops-fetching-chip">Updating...</span>
             </div>
 
             <div v-if="isStatsInitialLoading" class="status-bars">
@@ -636,7 +628,7 @@
     </template>
 
     <!-- ==================== TEACHER VIEW ==================== -->
-    <template v-else-if="user?.subRole === 'teacher'">
+    <template v-else-if="user?.role === 'user' && user?.subRole === 'teacher'">
       <div class="role-dashboard role-dashboard--teacher">
         <div class="role-header animate-in">
           <div>
@@ -786,8 +778,8 @@
       <div class="role-dashboard role-dashboard--student">
         <div class="role-header animate-in">
           <div>
-            <h2 class="role-title">Inventory Dashboard</h2>
-            <p class="role-subtitle">{{ todayLabel }} · Review items, records, and shortcuts.</p>
+            <h2 class="role-title">My Inventory Dashboard</h2>
+            <p class="role-subtitle">{{ todayLabel }} · Track your items, requests, and return schedules.</p>
           </div>
           <div class="role-header-actions">
             <Button size="sm" @click="$emit('navigate', 'new-borrow-request')">Request Borrow</Button>
@@ -795,72 +787,297 @@
           </div>
         </div>
 
-        <div class="role-summary-grid animate-in delay-1">
-          <button class="role-summary-card" @click="$emit('navigate', 'my-items')">
-            <span class="role-summary-label">Active Items</span>
-            <span class="role-summary-value role-summary-value--success">{{ myActiveBorrows.length }}</span>
-            <span class="role-summary-meta">Currently using</span>
-          </button>
-          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
-            <span class="role-summary-label">Pending Requests</span>
-            <span class="role-summary-value role-summary-value--warning">{{ myPendingBorrows.length }}</span>
-            <span class="role-summary-meta">Awaiting approval</span>
-          </button>
-          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
-            <span class="role-summary-label">Overdue Returns</span>
-            <span class="role-summary-value role-summary-value--danger">{{ myOverdueBorrows.length }}</span>
-            <span class="role-summary-meta">Require immediate return</span>
-          </button>
-          <button class="role-summary-card" @click="$emit('navigate', 'my-borrowing-record')">
-            <span class="role-summary-label">Borrow Records</span>
-            <span class="role-summary-value">{{ myBorrows.length }}</span>
-            <span class="role-summary-meta">Total request history</span>
-          </button>
+        <!-- Summary Cards -->
+        <div class="ops-cards animate-in delay-1">
+          <Card class="ops-summary-card" @click="$emit('navigate', 'my-items')">
+            <div class="ops-card-header">
+              <div class="ops-card-icon ops-card-icon--success"><Package :size="18" /></div>
+            </div>
+            <span class="ops-card-value">{{ myActiveBorrows.length }}</span>
+            <span class="ops-card-label">Active Borrows</span>
+            <div class="ops-card-metrics">
+              <span>Checked out <strong>{{ myCheckedOutBorrows.length }}</strong></span>
+              <span>Pending pickup <strong>{{ myPendingCheckoutBorrows.length }}</strong></span>
+            </div>
+          </Card>
+
+          <Card class="ops-summary-card" @click="studentActiveTab = 'pending'">
+            <div class="ops-card-header">
+              <div class="ops-card-icon ops-card-icon--warning"><ClipboardList :size="18" /></div>
+            </div>
+            <span class="ops-card-value">{{ myPendingBorrows.length }}</span>
+            <span class="ops-card-label">Pending Requests</span>
+            <div class="ops-card-metrics">
+              <span>Awaiting approval <strong>{{ myPendingApprovalBorrows.length }}</strong></span>
+              <span>Awaiting pickup <strong>{{ myPendingCheckoutBorrows.length }}</strong></span>
+            </div>
+          </Card>
+
+          <Card class="ops-summary-card" :class="{ 'student-card-pulse': myOverdueBorrows.length > 0 }" @click="studentActiveTab = 'borrowed'">
+            <div class="ops-card-header">
+              <div class="ops-card-icon ops-card-icon--danger"><AlertTriangle :size="18" /></div>
+            </div>
+            <span class="ops-card-value" :class="{ 'ops-card-value--danger': myOverdueBorrows.length > 0 }">{{ myOverdueBorrows.length }}</span>
+            <span class="ops-card-label">Overdue Returns</span>
+            <div class="ops-card-metrics">
+              <span :class="{ 'metric-danger': myOverdueOver7d.length > 0 }">Over 7 days <strong>{{ myOverdueOver7d.length }}</strong></span>
+              <span :class="{ 'metric-danger': myOverdue1to7d.length > 0 }">1–7 days <strong>{{ myOverdue1to7d.length }}</strong></span>
+            </div>
+          </Card>
+
+          <Card class="ops-summary-card" @click="studentActiveTab = 'borrowed'">
+            <div class="ops-card-header">
+              <div class="ops-card-icon ops-card-icon--warning"><Clock :size="18" /></div>
+            </div>
+            <span class="ops-card-value" :class="{ 'ops-card-value--warning': myDueSoonBorrows.length > 0 }">{{ myDueSoonBorrows.length }}</span>
+            <span class="ops-card-label">Due Within 7 Days</span>
+            <div class="ops-card-metrics">
+              <span>Due today <strong>{{ myDueTodayBorrowsList.length }}</strong></span>
+              <span>Due in 1–3d <strong>{{ myDue1to3d.length }}</strong></span>
+              <span>Due in 4–7d <strong>{{ myDue4to7d.length }}</strong></span>
+            </div>
+          </Card>
         </div>
 
-        <div class="role-main-grid animate-in delay-2">
-          <div class="section-card role-section-card">
-            <div class="section-header">
-              <h3 class="section-title">Recent Borrow Records</h3>
-              <Button variant="link" size="sm" @click="$emit('navigate', 'my-borrowing-record')">View all →</Button>
+        <!-- Main 2-column layout -->
+        <div class="ops-main animate-in delay-2">
+          <!-- LEFT: Items & Requests Table -->
+          <Card class="student-main-card">
+            <div class="student-tabs-header">
+              <h3 class="ops-section-title">My Items & Requests</h3>
             </div>
-            <div v-if="myRecentBorrows.length === 0" class="empty-state-sm">No borrowing records yet.</div>
-            <div v-else class="record-list">
-              <div v-for="borrow in myRecentBorrows.slice(0, 6)" :key="borrow.id" class="record-item">
-                <div class="record-main">
-                  <p class="record-name">{{ borrow.itemName }}</p>
-                  <p class="record-id">#{{ borrow.id }}</p>
-                </div>
-                <div class="record-right">
-                  <StatusBadge :status="borrow.status" type="request" />
-                  <span class="record-date">{{ formatDate(borrow.returnDate) || 'N/A' }}</span>
-                </div>
+            <div class="ops-attention-tabs-row">
+              <div class="ops-attention-tabs">
+                <button class="ops-tab" :class="{ active: studentActiveTab === 'borrowed' }" @click="studentActiveTab = 'borrowed'">
+                  Currently Borrowed <span class="ops-tab-count">{{ myCheckedOutBorrows.length }}</span>
+                </button>
+                <button class="ops-tab" :class="{ active: studentActiveTab === 'pending' }" @click="studentActiveTab = 'pending'">
+                  Pending Requests <span class="ops-tab-count" :class="{ 'ops-tab-count--warning': myPendingBorrows.length > 0 }">{{ myPendingBorrows.length }}</span>
+                </button>
+                <button class="ops-tab" :class="{ active: studentActiveTab === 'all' }" @click="studentActiveTab = 'all'">
+                  All Records <span class="ops-tab-count">{{ myBorrows.length }}</span>
+                </button>
               </div>
             </div>
-          </div>
 
-          <div class="section-card role-section-card">
-            <div class="section-header">
-              <h3 class="section-title">Shortcuts</h3>
+            <!-- Currently Borrowed Tab -->
+            <div v-if="studentActiveTab === 'borrowed'" class="student-table-wrap">
+              <table v-if="myCheckedOutBorrows.length > 0" class="ops-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Item ID</th>
+                    <th>Return Date</th>
+                    <th>Days Left</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="borrow in paginatedBorrowed" :key="borrow.id"
+                      :class="getBorrowRowClass(borrow)">
+                    <td class="student-item-name">{{ borrow.itemName }}</td>
+                    <td class="student-item-id">{{ borrow.itemID }}</td>
+                    <td>{{ formatDate(borrow.returnDate) || '—' }}</td>
+                    <td>
+                      <span class="student-days-badge" :class="getDaysLeftClass(borrow)">
+                        {{ getDaysLeftLabel(borrow) }}
+                      </span>
+                    </td>
+                    <td><StatusBadge :status="borrow.status" type="request" /></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else class="student-empty">No items currently borrowed.</div>
+              <div v-if="borrowedTotalPages > 1" class="student-pagination">
+                <button :disabled="borrowedPage <= 1" @click="borrowedPage--">&laquo;</button>
+                <span>{{ borrowedPage }} / {{ borrowedTotalPages }}</span>
+                <button :disabled="borrowedPage >= borrowedTotalPages" @click="borrowedPage++">&raquo;</button>
+              </div>
             </div>
-            <div class="role-shortcuts-grid">
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-items')">
-                <span class="role-shortcut-title">Items</span>
-                <span class="role-shortcut-meta">View currently borrowed items</span>
-              </button>
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'my-borrowing-record')">
-                <span class="role-shortcut-title">Borrow Records</span>
-                <span class="role-shortcut-meta">View all request history</span>
-              </button>
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
-                <span class="role-shortcut-title">Request Borrow</span>
-                <span class="role-shortcut-meta">Submit a new item request</span>
-              </button>
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
-                <span class="role-shortcut-title">Search Available</span>
-                <span class="role-shortcut-meta">Browse available inventory</span>
-              </button>
+
+            <!-- Pending Requests Tab -->
+            <div v-if="studentActiveTab === 'pending'" class="student-table-wrap">
+              <table v-if="myAllPendingRequests.length > 0" class="ops-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Request ID</th>
+                    <th>Stage</th>
+                    <th>Requested</th>
+                    <th>Decision</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="borrow in paginatedPending" :key="borrow.id">
+                    <td class="student-item-name">{{ borrow.itemName }}</td>
+                    <td class="student-item-id">#{{ borrow.requestId || borrow.id }}</td>
+                    <td>
+                      <span class="student-stage-badge" :class="getStageClass(borrow)">
+                        {{ getStageName(borrow) }}
+                      </span>
+                    </td>
+                    <td>{{ formatDate(borrow.requestDate || borrow.createdAt) }}</td>
+                    <td>
+                      <span v-if="normalizedStatus(borrow.status) === 'approved'" class="student-decision student-decision--approved">
+                        <CheckCircle2 :size="14" /> Ready for pickup
+                      </span>
+                      <span v-else-if="normalizedStatus(borrow.status) === 'rejected'" class="student-decision student-decision--rejected" :title="borrow.rejectionReason || borrow.notes || ''">
+                        <XCircle :size="14" /> Rejected
+                      </span>
+                      <span v-else class="student-decision student-decision--waiting">
+                        <Clock :size="14" /> Waiting
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else class="student-empty">No pending requests.</div>
+              <div v-if="pendingTotalPages > 1" class="student-pagination">
+                <button :disabled="pendingPage <= 1" @click="pendingPage--">&laquo;</button>
+                <span>{{ pendingPage }} / {{ pendingTotalPages }}</span>
+                <button :disabled="pendingPage >= pendingTotalPages" @click="pendingPage++">&raquo;</button>
+              </div>
             </div>
+
+            <!-- All Records Tab -->
+            <div v-if="studentActiveTab === 'all'" class="student-table-wrap">
+              <table v-if="myRecentBorrows.length > 0" class="ops-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Request ID</th>
+                    <th>Status</th>
+                    <th>Request Date</th>
+                    <th>Return Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="borrow in paginatedAll" :key="borrow.id">
+                    <td class="student-item-name">{{ borrow.itemName }}</td>
+                    <td class="student-item-id">#{{ borrow.requestId || borrow.id }}</td>
+                    <td><StatusBadge :status="borrow.status" type="request" /></td>
+                    <td>{{ formatDate(borrow.requestDate || borrow.createdAt) }}</td>
+                    <td>{{ formatDate(borrow.returnDate) || '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else class="student-empty">No borrowing records yet.</div>
+              <div v-if="allTotalPages > 1" class="student-pagination">
+                <button :disabled="allPage <= 1" @click="allPage--">&laquo;</button>
+                <span>{{ allPage }} / {{ allTotalPages }}</span>
+                <button :disabled="allPage >= allTotalPages" @click="allPage++">&raquo;</button>
+              </div>
+            </div>
+          </Card>
+
+          <!-- RIGHT: Sidebar -->
+          <div class="student-sidebar">
+            <!-- Return Schedule -->
+            <Card class="student-sidebar-card">
+              <div class="section-header">
+                <h3 class="ops-section-title"><Calendar :size="16" /> Return Schedule</h3>
+              </div>
+              <div v-if="myCheckedOutBorrows.length === 0" class="student-empty">No upcoming returns</div>
+              <div v-else class="student-schedule">
+                <div v-if="returnSchedule.overdue.length > 0" class="student-schedule-group">
+                  <div class="student-schedule-label student-schedule-label--danger">OVERDUE</div>
+                  <div v-for="item in returnSchedule.overdue" :key="item.id" class="student-schedule-item student-schedule-item--overdue">
+                    <span class="student-schedule-dot student-schedule-dot--danger"></span>
+                    <div class="student-schedule-info">
+                      <span class="student-schedule-name">{{ item.itemName }}</span>
+                      <span class="student-schedule-date">{{ formatDate(item.returnDate) }} · {{ Math.abs(daysUntilReturn(item.returnDate)) }}d overdue</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="returnSchedule.today.length > 0" class="student-schedule-group">
+                  <div class="student-schedule-label student-schedule-label--warning">DUE TODAY</div>
+                  <div v-for="item in returnSchedule.today" :key="item.id" class="student-schedule-item">
+                    <span class="student-schedule-dot student-schedule-dot--warning"></span>
+                    <div class="student-schedule-info">
+                      <span class="student-schedule-name">{{ item.itemName }}</span>
+                      <span class="student-schedule-date">{{ formatDate(item.returnDate) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="returnSchedule.tomorrow.length > 0" class="student-schedule-group">
+                  <div class="student-schedule-label">TOMORROW</div>
+                  <div v-for="item in returnSchedule.tomorrow" :key="item.id" class="student-schedule-item">
+                    <span class="student-schedule-dot student-schedule-dot--info"></span>
+                    <div class="student-schedule-info">
+                      <span class="student-schedule-name">{{ item.itemName }}</span>
+                      <span class="student-schedule-date">{{ formatDate(item.returnDate) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="returnSchedule.thisWeek.length > 0" class="student-schedule-group">
+                  <div class="student-schedule-label">THIS WEEK</div>
+                  <div v-for="item in returnSchedule.thisWeek" :key="item.id" class="student-schedule-item">
+                    <span class="student-schedule-dot student-schedule-dot--muted"></span>
+                    <div class="student-schedule-info">
+                      <span class="student-schedule-name">{{ item.itemName }}</span>
+                      <span class="student-schedule-date">{{ formatDate(item.returnDate) }} · {{ Math.abs(daysUntilReturn(item.returnDate)) }}d left</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="returnSchedule.later.length > 0" class="student-schedule-group">
+                  <div class="student-schedule-label">LATER</div>
+                  <div v-for="item in returnSchedule.later" :key="item.id" class="student-schedule-item">
+                    <span class="student-schedule-dot student-schedule-dot--muted"></span>
+                    <div class="student-schedule-info">
+                      <span class="student-schedule-name">{{ item.itemName }}</span>
+                      <span class="student-schedule-date">{{ formatDate(item.returnDate) }} · {{ Math.abs(daysUntilReturn(item.returnDate)) }}d left</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <!-- Request Status / Notifications -->
+            <Card class="student-sidebar-card">
+              <div class="section-header">
+                <h3 class="ops-section-title"><Bell :size="16" /> Request Updates</h3>
+              </div>
+              <div v-if="studentNotifications.length === 0" class="student-empty">No recent updates</div>
+              <div v-else class="student-notifications">
+                <div v-for="notif in studentNotifications" :key="notif.id" class="student-notification-item">
+                  <span v-if="notif.isApproved" class="student-notif-icon student-notif-icon--approved"><CheckCircle2 :size="16" /></span>
+                  <span v-else class="student-notif-icon student-notif-icon--rejected"><XCircle :size="16" /></span>
+                  <div class="student-notif-info">
+                    <span class="student-notif-name">{{ notif.itemName }}</span>
+                    <span class="student-notif-status" :class="notif.isApproved ? 'student-notif-status--approved' : 'student-notif-status--rejected'">
+                      {{ notif.isApproved ? 'Approved' : 'Rejected' }}
+                    </span>
+                    <span v-if="!notif.isApproved && notif.reason" class="student-notif-reason">{{ notif.reason }}</span>
+                    <span class="student-notif-date">{{ formatDate(notif.date) }}</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <!-- Quick Actions -->
+            <Card class="student-sidebar-card">
+              <div class="section-header">
+                <h3 class="ops-section-title"><Zap :size="16" /> Quick Actions</h3>
+              </div>
+              <div class="role-shortcuts-grid">
+                <button class="role-shortcut-btn" @click="$emit('navigate', 'my-items')">
+                  <span class="role-shortcut-title">My Items</span>
+                  <span class="role-shortcut-meta">View borrowed items</span>
+                </button>
+                <button class="role-shortcut-btn" @click="$emit('navigate', 'my-borrowing-record')">
+                  <span class="role-shortcut-title">Borrow Records</span>
+                  <span class="role-shortcut-meta">View all request history</span>
+                </button>
+                <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
+                  <span class="role-shortcut-title">Request Borrow</span>
+                  <span class="role-shortcut-meta">Submit a new request</span>
+                </button>
+                <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
+                  <span class="role-shortcut-title">Search Available</span>
+                  <span class="role-shortcut-meta">Browse inventory</span>
+                </button>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -878,7 +1095,7 @@ import {
   AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
   ArrowUpDown, FileText, Edit, Trash2, ShieldCheck, LogOut,
   MoreVertical, Eye, Bell, XCircle, Ban, Filter, SlidersHorizontal,
-  ChevronDown, Download
+  ChevronDown, Download, Clock, Calendar, Timer, ChevronRight
 } from 'lucide-vue-next'
 import StatusBadge from '../components/StatusBadge.vue'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
@@ -899,7 +1116,7 @@ export default {
     AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
     ArrowUpDown, FileText, Edit, Trash2, ShieldCheck, LogOut,
     MoreVertical, Eye, Bell, XCircle, Ban, Filter, SlidersHorizontal,
-    ChevronDown, Download
+    ChevronDown, Download, Clock, Calendar, Timer, ChevronRight
   },
   emits: ['navigate'],
   setup(props, { emit }) {
@@ -1157,15 +1374,15 @@ export default {
 
     const isPendingApprovalRow = (row) =>
       getAttentionRowGroup(row) === 'requests' &&
-      (row.actionType === 'approve' || row.rawStatus === 'Pending' || row.status === 'Pending')
+      (row.actionType === 'approve' || row.rawStatus === 'Pending' || row.status === 'Pending Approval')
 
     const isPendingCheckoutRow = (row) =>
       getAttentionRowGroup(row) === 'requests' &&
-      (row.actionType === 'checkout' || row.rawStatus === 'Pending Check-Out' || row.status === 'Checkout')
+      (row.actionType === 'checkout' || row.rawStatus === 'Pending Check-Out' || row.status === 'Pending Check-Out')
 
     const isReturnFollowUpRow = (row) =>
       getAttentionRowGroup(row) === 'returns' &&
-      (row.status === 'Overdue' || row.status === 'Due Soon')
+      (String(row.dateLabel || '').includes('Overdue') || String(row.dateLabel || '').includes('Due Soon') || String(row.dateLabel || '').includes('Due Today'))
 
     const isInventoryRow = (row) => getAttentionRowGroup(row) === 'inventory'
     const canMarkUnavailableRow = (row) => isInventoryRow(row) && row.rawStatus !== 'Not Available' && row.rawStatus !== 'Transferred'
@@ -1401,6 +1618,180 @@ export default {
         return bTime - aTime
       })
     })
+
+    // === Student dashboard state & computed ===
+    const studentActiveTab = ref('borrowed')
+    const borrowedPage = ref(1)
+    const pendingPage = ref(1)
+    const allPage = ref(1)
+    const STUDENT_PAGE_SIZE = 5
+
+    const daysUntilReturn = (returnDate) => {
+      if (!returnDate) return null
+      const target = new Date(returnDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      target.setHours(0, 0, 0, 0)
+      return Math.floor((target - today) / 86400000)
+    }
+
+    const myCheckedOutBorrows = computed(() =>
+      myActiveBorrows.value.filter(b => normalizedStatus(b.status) === 'approved')
+    )
+    const myPendingCheckoutBorrows = computed(() =>
+      myActiveBorrows.value.filter(b => normalizedStatus(b.status) === 'pending check-out')
+    )
+    const myPendingApprovalBorrows = computed(() =>
+      myBorrows.value.filter(b => normalizedStatus(b.status) === 'pending')
+    )
+    const myDueSoonBorrows = computed(() =>
+      myCheckedOutBorrows.value.filter(b => {
+        const d = daysUntilReturn(b.returnDate)
+        return d !== null && d >= 0 && d <= 7
+      })
+    )
+    const myDueTodayBorrowsList = computed(() =>
+      myCheckedOutBorrows.value.filter(b => daysUntilReturn(b.returnDate) === 0)
+    )
+    const myDue1to3d = computed(() =>
+      myCheckedOutBorrows.value.filter(b => {
+        const d = daysUntilReturn(b.returnDate)
+        return d !== null && d >= 1 && d <= 3
+      })
+    )
+    const myDue4to7d = computed(() =>
+      myCheckedOutBorrows.value.filter(b => {
+        const d = daysUntilReturn(b.returnDate)
+        return d !== null && d >= 4 && d <= 7
+      })
+    )
+    const myOverdueOver7d = computed(() =>
+      myOverdueBorrows.value.filter(b => {
+        const d = daysUntilReturn(b.returnDate)
+        return d !== null && d < -7
+      })
+    )
+    const myOverdue1to7d = computed(() =>
+      myOverdueBorrows.value.filter(b => {
+        const d = daysUntilReturn(b.returnDate)
+        return d !== null && d >= -7 && d < 0
+      })
+    )
+
+    const myAllPendingRequests = computed(() =>
+      myBorrows.value.filter(b => {
+        const s = normalizedStatus(b.status)
+        return s === 'pending' || s === 'pending check-out' || s === 'approved' || s === 'rejected'
+      }).sort((a, b) => {
+        const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
+        const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
+        return bTime - aTime
+      })
+    )
+
+    const sortedBorrowed = computed(() =>
+      [...myCheckedOutBorrows.value].sort((a, b) => {
+        const aD = daysUntilReturn(a.returnDate)
+        const bD = daysUntilReturn(b.returnDate)
+        if (aD === null) return 1
+        if (bD === null) return -1
+        return aD - bD
+      })
+    )
+
+    const borrowedTotalPages = computed(() => Math.max(1, Math.ceil(sortedBorrowed.value.length / STUDENT_PAGE_SIZE)))
+    const pendingTotalPages = computed(() => Math.max(1, Math.ceil(myAllPendingRequests.value.length / STUDENT_PAGE_SIZE)))
+    const allTotalPages = computed(() => Math.max(1, Math.ceil(myRecentBorrows.value.length / STUDENT_PAGE_SIZE)))
+
+    const paginatedBorrowed = computed(() => {
+      const start = (borrowedPage.value - 1) * STUDENT_PAGE_SIZE
+      return sortedBorrowed.value.slice(start, start + STUDENT_PAGE_SIZE)
+    })
+    const paginatedPending = computed(() => {
+      const start = (pendingPage.value - 1) * STUDENT_PAGE_SIZE
+      return myAllPendingRequests.value.slice(start, start + STUDENT_PAGE_SIZE)
+    })
+    const paginatedAll = computed(() => {
+      const start = (allPage.value - 1) * STUDENT_PAGE_SIZE
+      return myRecentBorrows.value.slice(start, start + STUDENT_PAGE_SIZE)
+    })
+
+    const returnSchedule = computed(() => {
+      const groups = { overdue: [], today: [], tomorrow: [], thisWeek: [], later: [] }
+      for (const b of myCheckedOutBorrows.value) {
+        const d = daysUntilReturn(b.returnDate)
+        if (d === null) { groups.later.push(b); continue }
+        if (d < 0) groups.overdue.push(b)
+        else if (d === 0) groups.today.push(b)
+        else if (d === 1) groups.tomorrow.push(b)
+        else if (d <= 7) groups.thisWeek.push(b)
+        else groups.later.push(b)
+      }
+      groups.overdue.sort((a, b) => daysUntilReturn(a.returnDate) - daysUntilReturn(b.returnDate))
+      groups.thisWeek.sort((a, b) => daysUntilReturn(a.returnDate) - daysUntilReturn(b.returnDate))
+      groups.later.sort((a, b) => daysUntilReturn(a.returnDate) - daysUntilReturn(b.returnDate))
+      return groups
+    })
+
+    const studentNotifications = computed(() => {
+      return myBorrows.value
+        .filter(b => {
+          const s = normalizedStatus(b.status)
+          return s === 'approved' || s === 'rejected' || s === 'pending check-out'
+        })
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+        .slice(0, 5)
+        .map(b => ({
+          id: b.id,
+          itemName: b.itemName,
+          isApproved: normalizedStatus(b.status) !== 'rejected',
+          reason: b.rejectionReason || b.notes || '',
+          date: b.updatedAt || b.createdAt
+        }))
+    })
+
+    const getBorrowRowClass = (borrow) => {
+      const d = daysUntilReturn(borrow.returnDate)
+      if (d === null) return ''
+      if (d < 0) return 'student-overdue-row'
+      if (d <= 3) return 'student-due-soon-row'
+      return ''
+    }
+
+    const getDaysLeftClass = (borrow) => {
+      const d = daysUntilReturn(borrow.returnDate)
+      if (d === null) return 'student-days--unknown'
+      if (d < 0) return 'student-days--overdue'
+      if (d === 0) return 'student-days--today'
+      if (d <= 3) return 'student-days--soon'
+      return 'student-days--ok'
+    }
+
+    const getDaysLeftLabel = (borrow) => {
+      const d = daysUntilReturn(borrow.returnDate)
+      if (d === null) return '—'
+      if (d < 0) return `OVERDUE (${Math.abs(d)}d)`
+      if (d === 0) return 'Due today'
+      return `${d}d left`
+    }
+
+    const getStageClass = (borrow) => {
+      const s = normalizedStatus(borrow.status)
+      if (s === 'pending') return 'student-stage--pending'
+      if (s === 'pending check-out') return 'student-stage--checkout'
+      if (s === 'approved') return 'student-stage--approved'
+      if (s === 'rejected') return 'student-stage--rejected'
+      return ''
+    }
+
+    const getStageName = (borrow) => {
+      const s = normalizedStatus(borrow.status)
+      if (s === 'pending') return 'Pending Approval'
+      if (s === 'pending check-out') return 'Pending Check-Out'
+      if (s === 'approved') return 'Approved'
+      if (s === 'rejected') return 'Rejected'
+      return borrow.status
+    }
 
     // === Handlers ===
     const addLocation = (val) => {
@@ -1712,7 +2103,7 @@ export default {
 
     // === Data Loading ===
     const loadStats = async () => {
-      if (user.value?.role === 'user') return
+      if (user.value?.role === 'user' && user.value?.subRole !== 'teacher') return
 
       const state = dashboardLoadState.stats
       const requestId = ++latestStatsRequestId
@@ -1754,7 +2145,7 @@ export default {
     }
 
     const loadRecentLogs = async () => {
-      if (user.value?.role === 'user') return
+      if (user.value?.role === 'user' && user.value?.subRole !== 'teacher') return
 
       const state = dashboardLoadState.logs
       const requestId = ++latestLogsRequestId
@@ -1780,7 +2171,7 @@ export default {
     }
 
     const loadAttentionQueue = async () => {
-      if (user.value?.role === 'user') return
+      if (user.value?.role === 'user' && user.value?.subRole !== 'teacher') return
 
       const state = dashboardLoadState.queue
       const requestId = ++latestAttentionQueueRequestId
@@ -1841,7 +2232,12 @@ export default {
     }
 
     const loadDashboardData = async () => {
-      if (user.value?.role !== 'user') {
+      const isOpsDashboardRole =
+        user.value?.role === 'admin' ||
+        user.value?.role === 'operator' ||
+        (user.value?.role === 'user' && user.value?.subRole === 'teacher')
+
+      if (isOpsDashboardRole) {
         await Promise.all([
           loadStats(),
           loadRecentLogs(),
@@ -1852,12 +2248,13 @@ export default {
       try {
         const currentUser = authService.getCurrentUser()
         if (currentUser) {
-          const userRequests = await borrowingService.getRequestsForUser(currentUser.id).then(r => r.requests || [])
+          const userId = currentUser.userId || currentUser.id
+          const userRequests = await borrowingService.getRequestsForUser(userId).then(r => r.requests || [])
           myBorrows.value = userRequests
 
           if (currentUser.subRole === 'teacher') {
             try {
-              const { items: ownedItems } = await inventoryService.getItemsByOwner(currentUser.userId || currentUser.id)
+              const { items: ownedItems } = await inventoryService.getItemsByOwner(userId)
               teacherOwnedItems.value = ownedItems
             } catch (te) { console.error('Failed to load teacher owned items:', te) }
             try {
@@ -1874,7 +2271,7 @@ export default {
     watch(
       [attentionActiveTab, filterPriority, filterStatus, attentionPageSize, attentionSortBy, attentionSortOrder],
       async () => {
-        if (user.value?.role === 'user') return
+        if (user.value?.role === 'user' && user.value?.subRole !== 'teacher') return
         cancelBulkAction()
         selectedRows.clear()
         if (attentionPage.value !== 1) {
@@ -1886,7 +2283,7 @@ export default {
     )
 
     watch(attentionPage, async () => {
-      if (user.value?.role === 'user') return
+      if (user.value?.role === 'user' && user.value?.subRole !== 'teacher') return
       if (skipNextAttentionPageWatch) {
         skipNextAttentionPageWatch = false
         return
@@ -1939,6 +2336,15 @@ export default {
       teacherPendingOnly, teacherPendingCheckoutOnly,
       teacherOwnedAvailableCount, teacherOwnedInUseItems,
       myActiveBorrows, myPendingBorrows, myOverdueBorrows, myRecentBorrows,
+      studentActiveTab, borrowedPage, pendingPage, allPage,
+      myCheckedOutBorrows, myPendingCheckoutBorrows, myPendingApprovalBorrows,
+      myDueSoonBorrows, myDueTodayBorrowsList, myDue1to3d, myDue4to7d,
+      myOverdueOver7d, myOverdue1to7d, myAllPendingRequests,
+      sortedBorrowed, borrowedTotalPages, pendingTotalPages, allTotalPages,
+      paginatedBorrowed, paginatedPending, paginatedAll,
+      returnSchedule, studentNotifications, daysUntilReturn,
+      getBorrowRowClass, getDaysLeftClass, getDaysLeftLabel,
+      getStageClass, getStageName,
     }
   }
 }

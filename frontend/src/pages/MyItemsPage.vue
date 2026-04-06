@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <ModulePageHeader title="My Items" :subtitle="isTeacher ? 'Items you own and borrow' : 'Items you are currently borrowing'">
+    <ModulePageHeader title="My Items" :subtitle="isTeacher ? 'Items you own and borrow' : 'Items currently checked out to you'">
     </ModulePageHeader>
 
     <!-- Search -->
@@ -16,6 +16,25 @@
     <div v-if="statusFilter" class="mb-3 p-3 rounded-lg flex items-center justify-between text-sm" style="background: var(--surface-2); border: 1px solid var(--border);">
       <span>Showing: <strong>{{ statusFilter }}</strong> items only</span>
       <button @click="statusFilter = ''" class="text-accent hover:underline font-medium">Clear Filter &times;</button>
+    </div>
+
+    <div v-if="!isTeacher" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <Card class="p-4 text-center">
+        <p class="text-2xl font-bold text-accent">{{ borrowedCount }}</p>
+        <p class="text-xs text-muted">Active Borrowed</p>
+      </Card>
+      <Card class="p-4 text-center">
+        <p class="text-2xl font-bold" style="color:var(--warning)">{{ dueSoonCount }}</p>
+        <p class="text-xs text-muted">Due Within 7 Days</p>
+      </Card>
+      <Card class="p-4 text-center">
+        <p class="text-2xl font-bold" style="color:var(--danger)">{{ overdueCount }}</p>
+        <p class="text-xs text-muted">Overdue</p>
+      </Card>
+      <Card class="p-4 text-center">
+        <p class="text-2xl font-bold" style="color:var(--info)">{{ filteredBorrowedItems.length }}</p>
+        <p class="text-xs text-muted">Visible In List</p>
+      </Card>
     </div>
 
     <!-- Tabs for teacher -->
@@ -73,8 +92,8 @@
                   </button>
                 </template>
                 <template #default="{ close }">
-                  <DropdownMenuItem @click="showBulkSetInuseModal = true; close()">
-                    <AlertCircle :size="12" /> Set In-use ({{ selectedOwnedItemIds.length }})
+                  <DropdownMenuItem @click="showBulkSetNotAvailableModal = true; close()">
+                    <AlertCircle :size="12" /> Set Not Available ({{ selectedOwnedItemIds.length }})
                   </DropdownMenuItem>
                   <DropdownMenuItem success @click="showBulkSetAvailableModal = true; close()">
                     <CircleCheck :size="12" /> Set Available ({{ selectedOwnedItemIds.length }})
@@ -130,11 +149,11 @@
                     </template>
                     <template #default="{ close }">
                       <template v-if="item.status === 'Available'">
-                        <DropdownMenuItem @click="changeStatus(item, 'In-use'); close()">
-                          <AlertCircle :size="12" /> Set In-use
+                        <DropdownMenuItem @click="changeStatus(item, 'Not Available'); close()">
+                          <AlertCircle :size="12" /> Set Not Available
                         </DropdownMenuItem>
                       </template>
-                      <template v-else-if="item.status === 'In-use'">
+                      <template v-else-if="item.status === 'Not Available'">
                         <DropdownMenuItem success @click="changeStatus(item, 'Available'); close()">
                           <CircleCheck :size="12" /> Set Available
                         </DropdownMenuItem>
@@ -205,16 +224,26 @@
                 <th>Request ID</th>
                 <th>Status</th>
                 <th>Return Date</th>
+                <th>Days Remaining</th>
+                <th>Due Status</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="req in paginatedBorrowedItems" :key="req.id">
+              <tr v-for="req in paginatedBorrowedItems" :key="req.id" :class="getRowUrgencyClass(req)">
                 <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
                 <td class="text-sm">{{ req.id }}</td>
                 <td class="text-sm">
                   <Badge variant="info">Borrowed</Badge>
                 </td>
                 <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
+                <td class="text-sm">
+                  <span class="days-remaining-badge" :class="getDaysRemainingClass(req)">
+                    {{ getDaysRemainingLabel(req) }}
+                  </span>
+                </td>
+                <td class="text-sm">
+                  <Badge :variant="getDueStatusVariant(req)">{{ getDueStatusLabel(req) }}</Badge>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -257,14 +286,14 @@
       </div>
     </div>
 
-    <!-- Bulk Set In-use Modal -->
-    <div v-if="showBulkSetInuseModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+    <!-- Bulk Set Not Available Modal -->
+    <div v-if="showBulkSetNotAvailableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
-        <h3 class="modal-title">Set In-use ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-4">Mark all selected items as In-use?</p>
+        <h3 class="modal-title">Set Not Available ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
+        <p class="text-sm text-secondary mb-4">Mark all eligible selected items as Not Available?</p>
         <div class="flex gap-2">
-          <Button variant="outline" class="flex-1" @click="handleBulkSetInuse">Set In-use</Button>
-          <Button variant="ghost" class="flex-1" @click="showBulkSetInuseModal = false">Cancel</Button>
+          <Button variant="outline" class="flex-1" @click="handleBulkSetNotAvailable">Set Not Available</Button>
+          <Button variant="ghost" class="flex-1" @click="showBulkSetNotAvailableModal = false">Cancel</Button>
         </div>
       </div>
     </div>
@@ -273,7 +302,7 @@
     <div v-if="showBulkSetAvailableModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full">
         <h3 class="modal-title">Set Available ({{ selectedOwnedItemIds.length }} item{{ selectedOwnedItemIds.length !== 1 ? 's' : '' }})</h3>
-        <p class="text-sm text-secondary mb-4">Mark all selected items as Available?</p>
+        <p class="text-sm text-secondary mb-4">Mark only selected Not Available items as Available?</p>
         <div class="flex gap-2">
           <Button variant="outline" class="flex-1" @click="handleBulkSetAvailable">Set Available</Button>
           <Button variant="ghost" class="flex-1" @click="showBulkSetAvailableModal = false">Cancel</Button>
@@ -286,7 +315,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
-import { formatDate } from '../utils/helpers'
+import { formatDate, isOverdue } from '../utils/helpers'
 import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
@@ -321,7 +350,7 @@ export default {
     const pageSize = 15
     const pageSizeRef = ref(pageSize)
     const selectedOwnedItemIds = ref([])
-    const showBulkSetInuseModal = ref(false)
+    const showBulkSetNotAvailableModal = ref(false)
     const showBulkSetAvailableModal = ref(false)
     let searchTimer = null
 
@@ -339,6 +368,27 @@ export default {
 
     const filteredBorrowedItems = computed(() => {
       return borrowedItems.value
+    })
+
+    const dueSoonCount = computed(() => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      return filteredBorrowedItems.value.filter((req) => {
+        if (!req.returnDate) return false
+        if (isOverdue(req.returnDate)) return false
+
+        const dueDate = new Date(req.returnDate)
+        if (Number.isNaN(dueDate.getTime())) return false
+        dueDate.setHours(0, 0, 0, 0)
+
+        const diffDays = Math.floor((dueDate - today) / 86400000)
+        return diffDays >= 0 && diffDays <= 7
+      }).length
+    })
+
+    const overdueCount = computed(() => {
+      return filteredBorrowedItems.value.filter((req) => req.returnDate && isOverdue(req.returnDate)).length
     })
 
     const paginatedOwnedItems = computed(() => {
@@ -376,7 +426,8 @@ export default {
           const params = { page: currentPage.value, pageSize, status: 'Approved' }
           if (searchText.value) params.search = searchText.value
 
-          const response = await borrowingService.getRequestsForUser(currentUser.id, params)
+          const userId = currentUser.userId || currentUser.id
+          const response = await borrowingService.getRequestsForUser(userId, params)
           borrowedItems.value = response.requests || []
           borrowedCount.value = response.total || 0
         }
@@ -399,6 +450,16 @@ export default {
     }
 
     const changeStatus = async (item, newStatus) => {
+      const currentStatus = item.status
+      const isValidTransition =
+        (currentStatus === 'Available' && newStatus === 'Not Available') ||
+        (currentStatus === 'Not Available' && newStatus === 'Available')
+
+      if (!isValidTransition) {
+        alert('Status change not allowed. In-use items must go through return procedures.')
+        return
+      }
+
       try {
         await inventoryService.updateItemStatus(item.id, newStatus)
         item.status = newStatus
@@ -430,21 +491,74 @@ export default {
       return map[status] || 'secondary'
     }
 
-    const handleBulkSetInuse = async () => {
-      showBulkSetInuseModal.value = false
+    const daysUntilReturn = (returnDate) => {
+      if (!returnDate) return null
+      const target = new Date(returnDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      target.setHours(0, 0, 0, 0)
+      return Math.floor((target - today) / 86400000)
+    }
+
+    const getRowUrgencyClass = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null) return ''
+      if (d < 0) return 'row-overdue'
+      if (d <= 3) return 'row-due-soon'
+      return ''
+    }
+
+    const getDaysRemainingClass = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null) return 'days-unknown'
+      if (d < 0) return 'days-overdue'
+      if (d === 0) return 'days-today'
+      if (d <= 3) return 'days-soon'
+      return 'days-ok'
+    }
+
+    const getDaysRemainingLabel = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null) return '—'
+      if (d < 0) return `${Math.abs(d)}d overdue`
+      if (d === 0) return 'Due today'
+      return `${d}d left`
+    }
+
+    const getDueStatusVariant = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null) return 'secondary'
+      if (d < 0) return 'destructive'
+      if (d <= 3) return 'warning'
+      return 'success'
+    }
+
+    const getDueStatusLabel = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null) return 'Unknown'
+      if (d < 0) return 'Overdue'
+      if (d === 0) return 'Due Today'
+      if (d <= 7) return 'Due Soon'
+      return 'On Time'
+    }
+
+    const handleBulkSetNotAvailable = async () => {
+      showBulkSetNotAvailableModal.value = false
       try {
         for (const itemId of selectedOwnedItemIds.value) {
           try {
-            await inventoryService.updateItemStatus(itemId, 'In-use')
+            const item = allOwnedItems.value.find((ownedItem) => ownedItem.id === itemId)
+            if (!item || item.status !== 'Available') continue
+            await inventoryService.updateItemStatus(itemId, 'Not Available')
           } catch (e) {
-            console.error(`Failed to set ${itemId} to In-use:`, e)
+            console.error(`Failed to set ${itemId} to Not Available:`, e)
           }
         }
         selectedOwnedItemIds.value = []
         await loadData()
       } catch (e) {
-        console.error('Failed to bulk set items to In-use:', e)
-        alert('Error setting items to In-use')
+        console.error('Failed to bulk set items to Not Available:', e)
+        alert('Error setting items to Not Available')
       }
     }
 
@@ -453,6 +567,8 @@ export default {
       try {
         for (const itemId of selectedOwnedItemIds.value) {
           try {
+            const item = allOwnedItems.value.find((ownedItem) => ownedItem.id === itemId)
+            if (!item || item.status !== 'Not Available') continue
             await inventoryService.updateItemStatus(itemId, 'Available')
           } catch (e) {
             console.error(`Failed to set ${itemId} to Available:`, e)
@@ -481,11 +597,14 @@ export default {
       currentPage, pageSize, pageSizeRef, activeTab, isTeacher,
       ownedCount, borrowedCount,
       filteredOwnedItems, filteredBorrowedItems,
+      dueSoonCount, overdueCount,
       paginatedOwnedItems, paginatedBorrowedItems,
-      selectedOwnedItemIds, showBulkSetInuseModal, showBulkSetAvailableModal, allOwnedSelected,
+      selectedOwnedItemIds, showBulkSetNotAvailableModal, showBulkSetAvailableModal, allOwnedSelected,
       showDetail, changeStatus, toggleSelectAllOwned, toggleOwnedSelection,
-      handleBulkSetInuse, handleBulkSetAvailable,
-      getStatusBadgeVariant, formatDate
+      handleBulkSetNotAvailable, handleBulkSetAvailable,
+      getStatusBadgeVariant, formatDate,
+      getRowUrgencyClass, getDaysRemainingClass, getDaysRemainingLabel,
+      getDueStatusVariant, getDueStatusLabel
     }
   }
 }
@@ -529,4 +648,18 @@ export default {
 .bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
 .bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
 .bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
+
+.row-overdue { background: color-mix(in srgb, var(--danger) 6%, transparent) !important; }
+.row-due-soon { background: color-mix(in srgb, var(--warning) 6%, transparent) !important; }
+
+.days-remaining-badge {
+  display: inline-flex; align-items: center;
+  padding: 0.2rem 0.5rem; border-radius: var(--radius-md);
+  font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+}
+.days-overdue { background: var(--danger-light); color: var(--danger); }
+.days-today { background: var(--warning-light); color: var(--warning-dark); }
+.days-soon { background: #fff7ed; color: #c2410c; }
+.days-ok { background: var(--success-light); color: var(--success); }
+.days-unknown { background: var(--surface-100); color: var(--muted-foreground); }
 </style>

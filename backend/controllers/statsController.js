@@ -82,15 +82,48 @@ const withPriorityMeta = (priorityLabel) => ({
   priorityVariant: PRIORITY_VARIANT[priorityLabel] || PRIORITY_VARIANT.Low
 });
 
-const buildRequestAndReturnRows = async () => {
+const resolveStatsScope = async (user) => {
+  if (!user) {
+    return { itemFilter: {}, itemIdScope: null };
+  }
+
+  if (user.role === 'admin' || user.role === 'operator') {
+    return { itemFilter: {}, itemIdScope: null };
+  }
+
+  if (user.role === 'user' && user.subRole === 'teacher') {
+    const itemIdScope = await Item.distinct('itemId', { owner: user.userId });
+    return {
+      itemFilter: { owner: user.userId },
+      itemIdScope
+    };
+  }
+
+  return { itemFilter: null, itemIdScope: [] };
+};
+
+const buildRequestAndReturnRows = async ({ itemIdScope = null } = {}) => {
+  const hasItemScope = Array.isArray(itemIdScope);
+  if (hasItemScope && itemIdScope.length === 0) {
+    return {
+      returnRows: [],
+      requestRows: [],
+      returnCounts: { overdue: 0, dueSoon: 0, dueToday: 0 },
+      requestCounts: { pending: 0, pendingCheckout: 0, longWait: 0 }
+    };
+  }
+
+  const itemClause = hasItemScope ? { itemID: { $in: itemIdScope } } : {};
   const [requestDocs, approvedReturnDocs] = await Promise.all([
     BorrowRequest.find({
+      ...itemClause,
       parentRequestId: null,
       status: { $in: ['Pending', 'Pending Check-Out'] }
     })
       .select('requestId itemID borrowerID status requestDate')
       .lean(),
     BorrowRequest.find({
+      ...itemClause,
       parentRequestId: null,
       status: 'Approved',
       returnDate: { $ne: null }
@@ -104,14 +137,14 @@ const buildRequestAndReturnRows = async () => {
 
   const [items, borrowers] = await Promise.all([
     itemIds.length > 0
-      ? Item.find({ itemId: { $in: itemIds } }).select('itemId name').lean()
+      ? Item.find({ itemId: { $in: itemIds } }).select('itemId name type status').lean()
       : [],
     borrowerIds.length > 0
       ? User.find({ userId: { $in: borrowerIds } }).select('userId name').lean()
       : []
   ]);
 
-  const itemMap = new Map(items.map((item) => [item.itemId, item.name || item.itemId]));
+  const itemMap = new Map(items.map((item) => [item.itemId, item]));
   const borrowerMap = new Map(borrowers.map((borrower) => [borrower.userId, borrower.name || borrower.userId]));
 
   const overdueBorrowerIds = new Set();
@@ -127,20 +160,21 @@ const buildRequestAndReturnRows = async () => {
       overdueBorrowerIds.add(req.borrowerID);
       returnCounts.overdue += 1;
 
+      const itemMeta = itemMap.get(req.itemID) || {};
       returnRows.push({
         id: req.requestId,
         queueTab: 'returns',
-        type: 'Overdue Return',
-        typeShort: 'Overdue',
+        type: itemMeta.type || '—',
+        typeShort: itemMeta.type || '—',
         typeVariant: 'outline',
-        name: itemMap.get(req.itemID) || req.itemID,
+        name: itemMeta.name || req.itemID,
         user: borrowerMap.get(req.borrowerID) || req.borrowerID,
         hasOverdue: false,
-        status: 'Overdue',
-        rawStatus: 'Approved',
-        statusVariant: 'destructive',
+        status: itemMeta.status || 'In-use',
+        rawStatus: itemMeta.status || 'In-use',
+        statusVariant: 'info',
         date: req.returnDate,
-        dateLabel: `${days}d overdue`,
+        dateLabel: `Overdue (${days}d)`,
         daysFromDate: days,
         actionType: 'view-lent',
         sortDate: parseDate(req.returnDate),
@@ -155,20 +189,21 @@ const buildRequestAndReturnRows = async () => {
       returnCounts.dueSoon += 1;
       if (days === 0) returnCounts.dueToday += 1;
 
+      const itemMeta = itemMap.get(req.itemID) || {};
       returnRows.push({
         id: req.requestId,
         queueTab: 'returns',
-        type: 'Due Soon',
-        typeShort: 'Due Soon',
+        type: itemMeta.type || '—',
+        typeShort: itemMeta.type || '—',
         typeVariant: 'outline',
-        name: itemMap.get(req.itemID) || req.itemID,
+        name: itemMeta.name || req.itemID,
         user: borrowerMap.get(req.borrowerID) || req.borrowerID,
         hasOverdue: false,
-        status: 'Due Soon',
-        rawStatus: 'Approved',
-        statusVariant: 'warning',
+        status: itemMeta.status || 'In-use',
+        rawStatus: itemMeta.status || 'In-use',
+        statusVariant: 'info',
         date: req.returnDate,
-        dateLabel: `${daysLeft}d left`,
+        dateLabel: daysLeft === 0 ? 'Due Today (0d left)' : `Due Soon (${daysLeft}d left)`,
         daysFromDate: days,
         actionType: 'view-lent',
         sortDate: parseDate(req.returnDate),
@@ -188,16 +223,17 @@ const buildRequestAndReturnRows = async () => {
     else requestCounts.pending += 1;
     if (waited > 3) requestCounts.longWait += 1;
 
+    const itemMeta = itemMap.get(req.itemID) || {};
     requestRows.push({
       id: req.requestId,
       queueTab: 'requests',
-      type: isPendingCheckout ? 'Pending Checkout' : 'Pending Request',
-      typeShort: isPendingCheckout ? 'Checkout' : 'Request',
+      type: itemMeta.type || '—',
+      typeShort: itemMeta.type || '—',
       typeVariant: 'outline',
-      name: itemMap.get(req.itemID) || req.itemID,
+      name: itemMeta.name || req.itemID,
       user: borrowerMap.get(req.borrowerID) || req.borrowerID,
       hasOverdue: overdueBorrowerIds.has(req.borrowerID),
-      status: isPendingCheckout ? 'Checkout' : 'Pending',
+      status: isPendingCheckout ? 'Pending Check-Out' : 'Pending Approval',
       rawStatus: req.status,
       statusVariant: isPendingCheckout ? 'info' : 'warning',
       date: req.requestDate,
@@ -217,14 +253,28 @@ const buildRequestAndReturnRows = async () => {
   };
 };
 
-const buildInventoryRows = async () => {
+const buildInventoryRows = async ({ itemFilter = {} } = {}) => {
+  if (itemFilter === null) {
+    return {
+      inventoryRows: [],
+      inventoryCounts: {
+        missing: 0,
+        notAvailable: 0,
+        transferred: 0,
+        warrantyExpired: 0,
+        warrantyExpiringSoon: 0
+      }
+    };
+  }
+
   const inventoryDocs = await Item.find({
+    ...itemFilter,
     $or: [
       { status: { $in: ['Missing', 'Not Available', 'Transferred'] } },
       { warrantyEnd: { $exists: true, $ne: '' } }
     ]
   })
-    .select('itemId name status currentBorrower supplier warrantyEnd lastUpdate updatedAt')
+    .select('itemId name type status currentBorrower supplier warrantyEnd lastUpdate updatedAt')
     .lean();
 
   const borrowerIds = [...new Set(inventoryDocs.map((item) => item.currentBorrower).filter(Boolean))];
@@ -252,8 +302,8 @@ const buildInventoryRows = async () => {
       inventoryRows.push({
         id: item.itemId,
         queueTab: 'inventory',
-        type: 'Missing Item',
-        typeShort: 'Missing',
+        type: item.type || '—',
+        typeShort: item.type || '—',
         typeVariant: 'outline',
         name: item.name || item.itemId,
         user: borrowerLabel,
@@ -274,8 +324,8 @@ const buildInventoryRows = async () => {
       inventoryRows.push({
         id: item.itemId,
         queueTab: 'inventory',
-        type: 'Unavailable Item',
-        typeShort: 'Unavailable',
+        type: item.type || '—',
+        typeShort: item.type || '—',
         typeVariant: 'outline',
         name: item.name || item.itemId,
         user: borrowerLabel,
@@ -296,8 +346,8 @@ const buildInventoryRows = async () => {
       inventoryRows.push({
         id: item.itemId,
         queueTab: 'inventory',
-        type: 'Transferred Item',
-        typeShort: 'Transferred',
+        type: item.type || '—',
+        typeShort: item.type || '—',
         typeVariant: 'outline',
         name: item.name || item.itemId,
         user: borrowerLabel,
@@ -325,8 +375,8 @@ const buildInventoryRows = async () => {
       inventoryRows.push({
         id: `${item.itemId}-warranty-expired`,
         queueTab: 'inventory',
-        type: 'Warranty Expired',
-        typeShort: 'Warranty',
+        type: item.type || '—',
+        typeShort: item.type || '—',
         typeVariant: 'outline',
         name: item.name || item.itemId,
         user: item.supplier || '—',
@@ -349,8 +399,8 @@ const buildInventoryRows = async () => {
       inventoryRows.push({
         id: `${item.itemId}-warranty-soon`,
         queueTab: 'inventory',
-        type: 'Warranty Expiring Soon',
-        typeShort: 'Warranty',
+        type: item.type || '—',
+        typeShort: item.type || '—',
         typeVariant: 'outline',
         name: item.name || item.itemId,
         user: item.supplier || '—',
@@ -465,7 +515,15 @@ const sortQueueRows = (rows, sortBy, sortOrder) => {
  * Dashboard statistics for admin/operator.
  */
 exports.getStats = catchAsync(async (req, res) => {
-  const warrantyRowsPromise = Item.find({ warrantyEnd: { $exists: true, $ne: '' } })
+  const { itemFilter, itemIdScope } = await resolveStatsScope(req.user);
+  if (itemFilter === null) {
+    return res.status(403).json({ success: false, message: 'You do not have permission to view dashboard stats' });
+  }
+
+  const hasItemScope = Array.isArray(itemIdScope);
+  const requestScope = hasItemScope ? { itemID: { $in: itemIdScope } } : {};
+
+  const warrantyRowsPromise = Item.find({ ...itemFilter, warrantyEnd: { $exists: true, $ne: '' } })
     .select('warrantyEnd')
     .lean();
 
@@ -483,17 +541,17 @@ exports.getStats = catchAsync(async (req, res) => {
     rejectedRequests,
     warrantyRows
   ] = await Promise.all([
-    Item.countDocuments(),
-    Item.countDocuments({ status: 'Available' }),
-    Item.countDocuments({ status: 'In-use' }),
-    Item.countDocuments({ status: 'Missing' }),
-    Item.countDocuments({ status: 'Not Available' }),
-    Item.countDocuments({ status: 'Transferred' }),
-    Item.countDocuments({ status: 'Dispose' }),
-    BorrowRequest.countDocuments({ status: { $in: ['Pending', 'Pending Check-Out'] }, parentRequestId: null }),
-    BorrowRequest.countDocuments({ status: 'Returned' }),
-    BorrowRequest.countDocuments({ status: 'Approved' }),
-    BorrowRequest.countDocuments({ status: 'Rejected' }),
+    Item.countDocuments(itemFilter),
+    Item.countDocuments({ ...itemFilter, status: 'Available' }),
+    Item.countDocuments({ ...itemFilter, status: 'In-use' }),
+    Item.countDocuments({ ...itemFilter, status: 'Missing' }),
+    Item.countDocuments({ ...itemFilter, status: 'Not Available' }),
+    Item.countDocuments({ ...itemFilter, status: 'Transferred' }),
+    Item.countDocuments({ ...itemFilter, status: 'Dispose' }),
+    BorrowRequest.countDocuments({ ...requestScope, status: { $in: ['Pending', 'Pending Check-Out'] }, parentRequestId: null }),
+    BorrowRequest.countDocuments({ ...requestScope, status: 'Returned' }),
+    BorrowRequest.countDocuments({ ...requestScope, status: 'Approved' }),
+    BorrowRequest.countDocuments({ ...requestScope, status: 'Rejected' }),
     warrantyRowsPromise
   ]);
 
@@ -531,6 +589,11 @@ exports.getStats = catchAsync(async (req, res) => {
 });
 
 exports.getDashboardQueue = catchAsync(async (req, res) => {
+  const { itemFilter, itemIdScope } = await resolveStatsScope(req.user);
+  if (itemFilter === null) {
+    return res.status(403).json({ success: false, message: 'You do not have permission to view dashboard queue' });
+  }
+
   const tab = normalizeValue(req.query.tab) || 'all';
   const page = clampInt(req.query.page, 1, 1, 100000);
   const pageSize = clampInt(req.query.pageSize, 10, 1, 100);
@@ -542,8 +605,8 @@ exports.getDashboardQueue = catchAsync(async (req, res) => {
   const sortOrder = req.query.sortOrder || 'desc';
 
   const [{ returnRows, requestRows, returnCounts, requestCounts }, { inventoryRows, inventoryCounts }] = await Promise.all([
-    buildRequestAndReturnRows(),
-    buildInventoryRows()
+    buildRequestAndReturnRows({ itemIdScope }),
+    buildInventoryRows({ itemFilter })
   ]);
 
   const tabRows = {
