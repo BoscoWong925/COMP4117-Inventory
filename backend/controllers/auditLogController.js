@@ -2,6 +2,8 @@ const AuditLog = require('../models/AuditLog');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * GET /api/audit-logs
  * All logs with filtering and pagination.
@@ -53,17 +55,17 @@ exports.getAllLogs = catchAsync(async (req, res) => {
 
   // User ID filter
   if (userID) {
-    filter.userID = new RegExp(userID, 'i');
+    filter.userID = new RegExp(escapeRegex(userID), 'i');
   }
 
   // Item ID filter
   if (itemID) {
-    filter.affectedItemID = new RegExp(itemID, 'i');
+    filter.affectedItemID = new RegExp(escapeRegex(itemID), 'i');
   }
 
   // Text search (across multiple fields)
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$or = [
       { userID: searchRegex },
       { details: searchRegex },

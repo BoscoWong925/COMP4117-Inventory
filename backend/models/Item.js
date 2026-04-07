@@ -163,5 +163,6 @@ itemSchema.index({ vendor: 1 });
 itemSchema.index({ supplier: 1 });
 itemSchema.index({ owner: 1 });
 itemSchema.index({ canBorrow: 1 });
+itemSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Item', itemSchema);

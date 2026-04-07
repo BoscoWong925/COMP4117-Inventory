@@ -1,6 +1,25 @@
 const { EmailClient } = require('@azure/communication-email');
+const Notification = require('../models/Notification');
 
 let emailClient = null;
+
+// ─── In-App Notification Helper ───────────────────────────
+const createNotification = async ({ recipientId, type, subject, message, relatedRequestId, relatedItemId, senderName }) => {
+  try {
+    if (!recipientId) return;
+    await Notification.create({
+      recipientId,
+      type,
+      subject,
+      message,
+      relatedRequestId: relatedRequestId || null,
+      relatedItemId: relatedItemId || null,
+      senderName: senderName || 'Inventory System'
+    });
+  } catch (err) {
+    console.error('Failed to create in-app notification:', err.message);
+  }
+};
 
 // ─── Azure Configuration ──────────────────────────────────
 const getAzureConfig = () => {
@@ -71,7 +90,6 @@ const sendEmail = async ({ to, subject, text }) => {
 
 /** Notify borrower: request approved */
 const sendApprovalEmail = async ({ request, borrower, item, approver }) => {
-  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   const subject = `[Inventory] Request ${request.requestId} Approved`;
   const text = [
     `Hello ${borrower.name || borrower.userId},`,
@@ -86,12 +104,13 @@ const sendApprovalEmail = async ({ request, borrower, item, approver }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'request_approved', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: approver?.name || 'Approver' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   return sendEmail({ to: borrower.email, subject, text });
 };
 
 /** Notify borrower: request rejected */
 const sendRejectionEmail = async ({ request, borrower, item, approver, reason }) => {
-  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   const subject = `[Inventory] Request ${request.requestId} Rejected`;
   const text = [
     `Hello ${borrower.name || borrower.userId},`,
@@ -106,6 +125,8 @@ const sendRejectionEmail = async ({ request, borrower, item, approver, reason })
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'request_rejected', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: approver?.name || 'Approver' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   return sendEmail({ to: borrower.email, subject, text });
 };
 
@@ -126,6 +147,9 @@ const sendNewRequestEmail = async ({ request, borrower, item, recipients }) => {
     '',
     'Inventory System'
   ].join('\n');
+  for (const r of recipients) {
+    if (r.userId) await createNotification({ recipientId: r.userId, type: 'new_request', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: borrower?.name || 'Borrower' });
+  }
   const emails = recipients.map(r => r.email).filter(Boolean);
   if (emails.length === 0) return { skipped: true, reason: 'No valid recipient emails' };
   return sendEmail({ to: emails.join(','), subject, text });
@@ -133,7 +157,6 @@ const sendNewRequestEmail = async ({ request, borrower, item, recipients }) => {
 
 /** Notify borrower: item checked out */
 const sendCheckoutEmail = async ({ request, borrower, item, operator }) => {
-  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   const subject = `[Inventory] Item Checked Out - ${request.requestId}`;
   const text = [
     `Hello ${borrower.name || borrower.userId},`,
@@ -148,12 +171,13 @@ const sendCheckoutEmail = async ({ request, borrower, item, operator }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'checkout', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: operator?.name || 'Operator' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   return sendEmail({ to: borrower.email, subject, text });
 };
 
 /** Notify borrower: checkout denied */
 const sendCheckoutDeniedEmail = async ({ request, borrower, item, operator, reason }) => {
-  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   const subject = `[Inventory] Check-Out Denied - ${request.requestId}`;
   const text = [
     `Hello ${borrower.name || borrower.userId},`,
@@ -168,6 +192,8 @@ const sendCheckoutDeniedEmail = async ({ request, borrower, item, operator, reas
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'checkout_denied', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: operator?.name || 'Operator' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
   return sendEmail({ to: borrower.email, subject, text });
 };
 
@@ -187,6 +213,9 @@ const sendReturnEmail = async ({ request, borrower, item, recipients }) => {
     '',
     'Inventory System'
   ].join('\n');
+  for (const r of recipients) {
+    if (r.userId) await createNotification({ recipientId: r.userId, type: 'item_returned', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: borrower?.name || 'Borrower' });
+  }
   const emails = recipients.map(r => r.email).filter(Boolean);
   if (emails.length === 0) return { skipped: true, reason: 'No valid recipient emails' };
   return sendEmail({ to: emails.join(','), subject, text });
@@ -207,8 +236,9 @@ const sendItemStatusChangeEmail = async ({ item, oldStatus, newStatus, changedBy
     `Date: ${formatDate(new Date())}`,
     '',
     'Inventory System'
-  ].join('\n');
-  const emails = recipients.map(r => r.email).filter(Boolean);
+  ].join('\n');  for (const r of recipients) {
+    if (r.userId) await createNotification({ recipientId: r.userId, type: 'item_status_change', subject, message: text, relatedItemId: item.itemId, senderName: changedBy?.name || 'System' });
+  }  const emails = recipients.map(r => r.email).filter(Boolean);
   if (emails.length === 0) return { skipped: true, reason: 'No valid recipient emails' };
   return sendEmail({ to: emails.join(','), subject, text });
 };
@@ -217,7 +247,6 @@ const sendItemStatusChangeEmail = async ({ item, oldStatus, newStatus, changedBy
 
 /** Welcome email on account creation */
 const sendWelcomeEmail = async ({ user, createdBy }) => {
-  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   const subject = '[Inventory] Your Account Has Been Created';
   const text = [
     `Hello ${user.name},`,
@@ -231,12 +260,13 @@ const sendWelcomeEmail = async ({ user, createdBy }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: user?.userId, type: 'welcome', subject, message: text });
+  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   return sendEmail({ to: user.email, subject, text });
 };
 
 /** Notify user: account deactivated */
 const sendAccountDeactivatedEmail = async ({ user }) => {
-  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   const subject = '[Inventory] Your Account Has Been Deactivated';
   const text = [
     `Hello ${user.name},`,
@@ -248,12 +278,13 @@ const sendAccountDeactivatedEmail = async ({ user }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: user?.userId, type: 'account_deactivated', subject, message: text });
+  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   return sendEmail({ to: user.email, subject, text });
 };
 
 /** Notify user: account reactivated */
 const sendAccountActivatedEmail = async ({ user }) => {
-  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   const subject = '[Inventory] Your Account Has Been Reactivated';
   const text = [
     `Hello ${user.name},`,
@@ -263,12 +294,13 @@ const sendAccountActivatedEmail = async ({ user }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: user?.userId, type: 'account_activated', subject, message: text });
+  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   return sendEmail({ to: user.email, subject, text });
 };
 
 /** Notify user: role changed */
 const sendRoleChangedEmail = async ({ user, oldRole, newRole }) => {
-  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   const subject = '[Inventory] Your Role Has Been Updated';
   const text = [
     `Hello ${user.name},`,
@@ -278,20 +310,26 @@ const sendRoleChangedEmail = async ({ user, oldRole, newRole }) => {
     '',
     'Inventory System'
   ].join('\n');
+  await createNotification({ recipientId: user?.userId, type: 'role_changed', subject, message: text });
+  if (!user?.email) return { skipped: true, reason: 'User email missing' };
   return sendEmail({ to: user.email, subject, text });
 };
 
 // ─── Manual / Custom Email ────────────────────────────────
 
 /** Send a custom email (operator/teacher manual send) */
-const sendCustomEmail = async ({ to, subject, message, senderName }) => {
-  if (!to) return { skipped: true, reason: 'Recipient email missing' };
+const sendCustomEmail = async ({ to, subject, message, senderName, recipientUserId }) => {
+  const fullSubject = `[Inventory] ${subject}`;
   const text = [
     message,
     '',
     `--- Sent by ${senderName || 'Inventory System'}`
   ].join('\n');
-  return sendEmail({ to, subject: `[Inventory] ${subject}`, text });
+  if (recipientUserId) {
+    await createNotification({ recipientId: recipientUserId, type: 'custom_email', subject: fullSubject, message: text, senderName: senderName || 'Inventory System' });
+  }
+  if (!to) return { skipped: true, reason: 'Recipient email missing' };
+  return sendEmail({ to, subject: fullSubject, text });
 };
 
 module.exports = {

@@ -180,6 +180,29 @@ export default {
         }
       })
 
+      // Sort: overdue first, then closest return date, no-return-date last (fallback to createdAt desc)
+      const now = Date.now()
+      groups.sort((a, b) => {
+        const aDate = a.parent.request?.returnDate
+        const bDate = b.parent.request?.returnDate
+        const aHas = !!aDate
+        const bHas = !!bDate
+        if (aHas && !bHas) return -1
+        if (!aHas && bHas) return 1
+        if (!aHas && !bHas) {
+          const aTime = new Date(a.parent.item?.createdAt || 0).getTime()
+          const bTime = new Date(b.parent.item?.createdAt || 0).getTime()
+          return bTime - aTime
+        }
+        const aTime = new Date(aDate).getTime()
+        const bTime = new Date(bDate).getTime()
+        const aOverdue = aTime < now
+        const bOverdue = bTime < now
+        if (aOverdue && !bOverdue) return -1
+        if (!aOverdue && bOverdue) return 1
+        return Math.abs(aTime - now) - Math.abs(bTime - now)
+      })
+
       return groups
     })
 

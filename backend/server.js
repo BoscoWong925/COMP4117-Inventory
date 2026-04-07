@@ -16,6 +16,7 @@ const borrowRequestRoutes = require('./routes/borrowRequests');
 const auditLogRoutes = require('./routes/auditLogs');
 const userRoutes = require('./routes/users');
 const statsRoutes = require('./routes/stats');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use('/api/borrow-requests', borrowRequestRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

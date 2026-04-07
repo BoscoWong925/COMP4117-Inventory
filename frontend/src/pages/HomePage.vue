@@ -792,8 +792,8 @@
           <Card class="ops-summary-card" @click="$emit('navigate', 'my-items')">
             <div class="ops-card-header">
               <div class="ops-card-icon ops-card-icon--success"><Package :size="18" /></div>
+              <span class="ops-card-value">{{ myActiveBorrows.length }}</span>
             </div>
-            <span class="ops-card-value">{{ myActiveBorrows.length }}</span>
             <span class="ops-card-label">Active Borrows</span>
             <div class="ops-card-metrics">
               <span>Checked out <strong>{{ myCheckedOutBorrows.length }}</strong></span>
@@ -801,11 +801,11 @@
             </div>
           </Card>
 
-          <Card class="ops-summary-card" @click="studentActiveTab = 'pending'">
+          <Card class="ops-summary-card" @click="$emit('navigate', 'my-borrowing-record', { tab: 'pending' })">
             <div class="ops-card-header">
               <div class="ops-card-icon ops-card-icon--warning"><ClipboardList :size="18" /></div>
+              <span class="ops-card-value">{{ myPendingBorrows.length }}</span>
             </div>
-            <span class="ops-card-value">{{ myPendingBorrows.length }}</span>
             <span class="ops-card-label">Pending Requests</span>
             <div class="ops-card-metrics">
               <span>Awaiting approval <strong>{{ myPendingApprovalBorrows.length }}</strong></span>
@@ -813,11 +813,11 @@
             </div>
           </Card>
 
-          <Card class="ops-summary-card" :class="{ 'student-card-pulse': myOverdueBorrows.length > 0 }" @click="studentActiveTab = 'borrowed'">
+          <Card class="ops-summary-card" @click="scrollToStudentTab('borrowed')">
             <div class="ops-card-header">
               <div class="ops-card-icon ops-card-icon--danger"><AlertTriangle :size="18" /></div>
+              <span class="ops-card-value" :class="{ 'ops-card-value--danger': myOverdueBorrows.length > 0 }">{{ myOverdueBorrows.length }}</span>
             </div>
-            <span class="ops-card-value" :class="{ 'ops-card-value--danger': myOverdueBorrows.length > 0 }">{{ myOverdueBorrows.length }}</span>
             <span class="ops-card-label">Overdue Returns</span>
             <div class="ops-card-metrics">
               <span :class="{ 'metric-danger': myOverdueOver7d.length > 0 }">Over 7 days <strong>{{ myOverdueOver7d.length }}</strong></span>
@@ -825,11 +825,11 @@
             </div>
           </Card>
 
-          <Card class="ops-summary-card" @click="studentActiveTab = 'borrowed'">
+          <Card class="ops-summary-card" @click="scrollToStudentTab('borrowed')">
             <div class="ops-card-header">
               <div class="ops-card-icon ops-card-icon--warning"><Clock :size="18" /></div>
+              <span class="ops-card-value" :class="{ 'ops-card-value--warning': myDueSoonBorrows.length > 0 }">{{ myDueSoonBorrows.length }}</span>
             </div>
-            <span class="ops-card-value" :class="{ 'ops-card-value--warning': myDueSoonBorrows.length > 0 }">{{ myDueSoonBorrows.length }}</span>
             <span class="ops-card-label">Due Within 7 Days</span>
             <div class="ops-card-metrics">
               <span>Due today <strong>{{ myDueTodayBorrowsList.length }}</strong></span>
@@ -842,7 +842,7 @@
         <!-- Main 2-column layout -->
         <div class="ops-main animate-in delay-2">
           <!-- LEFT: Items & Requests Table -->
-          <Card class="student-main-card">
+          <Card class="student-main-card" ref="studentMainCardRef">
             <div class="student-tabs-header">
               <h3 class="ops-section-title">My Items & Requests</h3>
             </div>
@@ -852,7 +852,7 @@
                   Currently Borrowed <span class="ops-tab-count">{{ myCheckedOutBorrows.length }}</span>
                 </button>
                 <button class="ops-tab" :class="{ active: studentActiveTab === 'pending' }" @click="studentActiveTab = 'pending'">
-                  Pending Requests <span class="ops-tab-count" :class="{ 'ops-tab-count--warning': myPendingBorrows.length > 0 }">{{ myPendingBorrows.length }}</span>
+                  Pending Requests <span class="ops-tab-count" :class="{ 'ops-tab-count--warning': myAllPendingRequests.length > 0 }">{{ myAllPendingRequests.length }}</span>
                 </button>
                 <button class="ops-tab" :class="{ active: studentActiveTab === 'all' }" @click="studentActiveTab = 'all'">
                   All Records <span class="ops-tab-count">{{ myBorrows.length }}</span>
@@ -869,7 +869,6 @@
                     <th>Item ID</th>
                     <th>Return Date</th>
                     <th>Days Left</th>
-                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -883,7 +882,6 @@
                         {{ getDaysLeftLabel(borrow) }}
                       </span>
                     </td>
-                    <td><StatusBadge :status="borrow.status" type="request" /></td>
                   </tr>
                 </tbody>
               </table>
@@ -1086,7 +1084,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
 import { formatDate, waitingTime, isOverdue } from '../utils/helpers'
@@ -1621,10 +1619,19 @@ export default {
 
     // === Student dashboard state & computed ===
     const studentActiveTab = ref('borrowed')
+    const studentMainCardRef = ref(null)
     const borrowedPage = ref(1)
     const pendingPage = ref(1)
     const allPage = ref(1)
     const STUDENT_PAGE_SIZE = 5
+
+    const scrollToStudentTab = (tab) => {
+      studentActiveTab.value = tab
+      nextTick(() => {
+        const el = studentMainCardRef.value?.$el || studentMainCardRef.value
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
 
     const daysUntilReturn = (returnDate) => {
       if (!returnDate) return null
@@ -1681,7 +1688,7 @@ export default {
     const myAllPendingRequests = computed(() =>
       myBorrows.value.filter(b => {
         const s = normalizedStatus(b.status)
-        return s === 'pending' || s === 'pending check-out' || s === 'approved' || s === 'rejected'
+        return s === 'pending' || s === 'pending check-out'
       }).sort((a, b) => {
         const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
         const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
@@ -2345,6 +2352,8 @@ export default {
       returnSchedule, studentNotifications, daysUntilReturn,
       getBorrowRowClass, getDaysLeftClass, getDaysLeftLabel,
       getStageClass, getStageName,
+      scrollToStudentTab, studentMainCardRef,
+      normalizedStatus,
     }
   }
 }

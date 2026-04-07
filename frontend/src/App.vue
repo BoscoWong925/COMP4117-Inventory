@@ -60,7 +60,7 @@
         <header class="content-topbar">
           <div class="content-topbar-left">
             <div>
-              <h1 class="content-title">Inventory Management</h1>
+              <h1 class="content-title">Inventory System</h1>
               <p class="content-subtitle">{{ headerDateTimeLabel }}</p>
             </div>
           </div>
@@ -69,6 +69,13 @@
               <svg v-if="darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             </button>
+            <!-- Notification Bell -->
+            <div class="notification-bell-wrapper">
+              <button @click="toggleNotificationPanel" class="icon-btn" title="Notifications">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span v-if="notifUnreadCount > 0" class="notif-badge">{{ notifUnreadCount > 99 ? '99+' : notifUnreadCount }}</span>
+              </button>
+            </div>
             <div class="user-chip" @click="showUserMenu = !showUserMenu">
               <div class="avatar">{{ user?.name?.charAt(0)?.toUpperCase() || '?' }}</div>
               <span class="user-name hidden sm:inline">{{ user?.name }}</span>
@@ -96,7 +103,6 @@
         <div v-if="showSettings" class="settings-panel">
           <p class="settings-label">Theme preference</p>
           <div class="settings-options">
-            <button @click="setThemePreference('system')" :class="['settings-pill', themePreference === 'system' ? 'settings-pill-active' : '']">System</button>
             <button @click="setThemePreference('dark')" :class="['settings-pill', themePreference === 'dark' ? 'settings-pill-active' : '']">Dark</button>
             <button @click="setThemePreference('light')" :class="['settings-pill', themePreference === 'light' ? 'settings-pill-active' : '']">Light</button>
           </div>
@@ -117,6 +123,60 @@
       </div>
     </div>
 
+    <!-- Notification Panel -->
+    <div v-if="showNotifPanel" class="notif-overlay" @click.self="showNotifPanel = false">
+      <div class="notif-panel animate-scale-in">
+        <div class="notif-panel-header">
+          <h3 class="notif-panel-title">Notifications</h3>
+          <button v-if="notifUnreadCount > 0" @click="handleMarkAllRead" class="notif-mark-all-btn">Mark all read</button>
+        </div>
+        <div class="notif-panel-body">
+          <div v-if="notifLoading" class="notif-empty">Loading...</div>
+          <div v-else-if="notifications.length === 0" class="notif-empty">No notifications yet</div>
+          <div v-else class="notif-list">
+            <button
+              v-for="notif in notifications"
+              :key="notif._id"
+              @click="handleNotifClick(notif)"
+              :class="['notif-item', !notif.isRead ? 'notif-item-unread' : '']"
+            >
+              <div class="notif-item-icon" :class="getNotifIconClass(notif.type)">
+                <svg v-if="notif.type === 'request_approved'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg v-else-if="notif.type === 'request_rejected' || notif.type === 'checkout_denied'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg v-else-if="notif.type === 'checkout'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+                <svg v-else-if="notif.type === 'item_returned'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              </div>
+              <div class="notif-item-content">
+                <p class="notif-item-subject">{{ notif.subject }}</p>
+                <p class="notif-item-sender">From: {{ notif.senderName }}</p>
+                <p class="notif-item-time">{{ formatNotifTime(notif.createdAt) }}</p>
+              </div>
+              <span v-if="!notif.isRead" class="notif-unread-dot"></span>
+            </button>
+          </div>
+          <button v-if="notifications.length < notifTotal" @click="loadMoreNotifications" class="notif-load-more">Load more</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Detail Modal -->
+    <div v-if="selectedNotif" class="notif-overlay" @click.self="selectedNotif = null">
+      <div class="notif-detail-card animate-scale-in">
+        <div class="notif-detail-header">
+          <h3 class="notif-detail-title">{{ selectedNotif.subject }}</h3>
+          <button @click="selectedNotif = null" class="notif-close-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="notif-detail-meta">
+          <span>From: {{ selectedNotif.senderName }}</span>
+          <span>{{ formatNotifTime(selectedNotif.createdAt) }}</span>
+        </div>
+        <pre class="notif-detail-body">{{ selectedNotif.message }}</pre>
+      </div>
+    </div>
+
         <!-- ===== Main Content ===== -->
         <main class="main-content">
           <component :is="currentComponent" @navigate="handleNavigate" :pageParams="pageParams" />
@@ -127,31 +187,6 @@
 
   <LoginPage v-else :onLogin="handleLogin" :darkMode="darkMode" @toggle-theme="darkMode = !darkMode" />
   </template>
-
-  <!-- Overdue Warning Modal -->
-  <div v-if="showOverdueWarning" class="fixed inset-0 z-[9999] flex items-center justify-center modal-overlay" @click.self="showOverdueWarning = false">
-    <div class="modal-card max-w-lg w-full mx-4 overflow-hidden p-0">
-      <div class="px-6 py-4 flex items-center gap-3" style="background: var(--danger); color: #fff;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <h3 class="text-lg font-bold">Overdue Items Warning</h3>
-      </div>
-      <div class="px-6 py-4">
-        <p class="font-medium mb-3" style="color: var(--danger);">You have {{ overdueItems.length }} overdue item(s) that must be returned immediately:</p>
-        <ul class="space-y-2 max-h-60 overflow-y-auto">
-          <li v-for="item in overdueItems" :key="item._id" class="flex justify-between items-center p-3 rounded-lg" style="background: var(--danger-light); border: 1px solid var(--danger);">
-            <div>
-              <span class="font-semibold" style="color: var(--text-primary);">{{ item.itemID || 'N/A' }}</span>
-              <span class="text-sm ml-2" style="color: var(--danger);">({{ item.itemName || 'Unknown Item' }})</span>
-            </div>
-            <span class="text-sm font-medium" style="color: var(--danger);">Due: {{ formatDate(item.returnDate) }}</span>
-          </li>
-        </ul>
-      </div>
-      <div class="px-6 py-4 flex justify-end" style="border-top: 1px solid var(--border);">
-        <button @click="showOverdueWarning = false" class="btn btn-danger">I Understand</button>
-      </div>
-    </div>
-  </div>
 </template>
 
 <script>
@@ -160,6 +195,7 @@ import { useAuth } from './hooks/useAuth'
 import logoDark from '@/Assetes/logo_650.svg'
 import logoWhite from '@/Assetes/logo_white_650.svg'
 import { borrowingService } from './utils/services'
+import { notificationService } from './utils/services'
 import { isOverdue, formatDate } from './utils/helpers'
 import LoginPage from './pages/LoginPage.vue'
 import ApproveRequestsPage from './pages/ApproveRequestsPage.vue'
@@ -228,18 +264,26 @@ export default {
     const pendingCheckoutCount = ref(0)
     const darkMode = ref(true)
     const showSettings = ref(false)
-    const themePreference = ref(localStorage.getItem('inventory_theme') || 'system')
+    const themePreference = ref((() => { const saved = localStorage.getItem('inventory_theme'); return (saved === 'dark' || saved === 'light') ? saved : 'dark' })())
     const compactMode = ref(localStorage.getItem('inventory_compact') === 'true')
     const reduceMotion = ref(localStorage.getItem('inventory_reduce_motion') === 'true')
     const showUserMenu = ref(false)
-    const showOverdueWarning = ref(false)
-    const overdueItems = ref([])
     const headerNow = ref(new Date())
     let pollTimer = null
     let headerClockTimer = null
     const activeGroup = ref('dashboard')
     const expandedGroup = ref(null)
     const sidebarCollapsed = ref(localStorage.getItem('inventory_sidebar_collapsed') === 'true')
+
+    // Notification state
+    const showNotifPanel = ref(false)
+    const notifications = ref([])
+    const notifUnreadCount = ref(0)
+    const notifTotal = ref(0)
+    const notifLoading = ref(false)
+    const notifPage = ref(1)
+    const selectedNotif = ref(null)
+    let notifPollTimer = null
 
     // Navigation groups with sub-items (two-layer nav)
     const navGroups = computed(() => {
@@ -443,6 +487,81 @@ export default {
       }
     }
 
+    // ── Notification methods ──
+    const refreshNotifCount = async () => {
+      try {
+        notifUnreadCount.value = await notificationService.getUnreadCount()
+      } catch { notifUnreadCount.value = 0 }
+    }
+
+    const loadNotifications = async () => {
+      notifLoading.value = true
+      try {
+        const data = await notificationService.getNotifications({ page: 1, pageSize: 20 })
+        notifications.value = data.notifications
+        notifTotal.value = data.total
+        notifUnreadCount.value = data.unreadCount
+        notifPage.value = 1
+      } catch { /* silent */ }
+      notifLoading.value = false
+    }
+
+    const loadMoreNotifications = async () => {
+      const nextPage = notifPage.value + 1
+      try {
+        const data = await notificationService.getNotifications({ page: nextPage, pageSize: 20 })
+        notifications.value = [...notifications.value, ...data.notifications]
+        notifTotal.value = data.total
+        notifPage.value = nextPage
+      } catch { /* silent */ }
+    }
+
+    const toggleNotificationPanel = async () => {
+      showNotifPanel.value = !showNotifPanel.value
+      showUserMenu.value = false
+      if (showNotifPanel.value) {
+        await loadNotifications()
+      }
+    }
+
+    const handleNotifClick = async (notif) => {
+      if (!notif.isRead) {
+        await notificationService.markAsRead(notif._id)
+        notif.isRead = true
+        notifUnreadCount.value = Math.max(0, notifUnreadCount.value - 1)
+      }
+      selectedNotif.value = notif
+      showNotifPanel.value = false
+    }
+
+    const handleMarkAllRead = async () => {
+      await notificationService.markAllAsRead()
+      notifications.value.forEach(n => n.isRead = true)
+      notifUnreadCount.value = 0
+    }
+
+    const getNotifIconClass = (type) => {
+      if (type === 'request_approved' || type === 'checkout') return 'notif-icon-success'
+      if (type === 'request_rejected' || type === 'checkout_denied') return 'notif-icon-danger'
+      if (type === 'new_request') return 'notif-icon-info'
+      return 'notif-icon-default'
+    }
+
+    const formatNotifTime = (dateStr) => {
+      if (!dateStr) return ''
+      const d = new Date(dateStr)
+      const now = new Date()
+      const diffMs = now - d
+      const diffMin = Math.floor(diffMs / 60000)
+      if (diffMin < 1) return 'Just now'
+      if (diffMin < 60) return `${diffMin}m ago`
+      const diffHr = Math.floor(diffMin / 60)
+      if (diffHr < 24) return `${diffHr}h ago`
+      const diffDay = Math.floor(diffHr / 24)
+      if (diffDay < 7) return `${diffDay}d ago`
+      return d.toLocaleDateString('en-HK', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+
     const handleNavigate = (page, params = {}) => {
       currentPage.value = page
       pageParams.value = params || {}
@@ -459,33 +578,17 @@ export default {
         refreshPendingCount()
         if (!pollTimer) pollTimer = setInterval(refreshPendingCount, 5000)
       }
+      // Start notification polling for all authenticated users
+      refreshNotifCount()
+      if (!notifPollTimer) notifPollTimer = setInterval(refreshNotifCount, 15000)
       // Check for overdue borrows for user role
       if (user.value?.role === 'user') {
-        try {
-          const requests = await borrowingService.getRequestsForUser(user.value.username).then(r => r.requests || [])
-          const overdue = requests.filter(r => (r.status === 'approved' || r.status === 'Approved') && isOverdue(r.returnDate))
-          if (overdue.length > 0) {
-            overdueItems.value = overdue
-            showOverdueWarning.value = true
-          }
-        } catch (e) {
-          console.error('Failed to check overdue items:', e)
-        }
+        // Overdue check removed — no popup warning
       }
     }
 
     const applyThemePreference = () => {
-      if (themePreference.value === 'dark') {
-        darkMode.value = true
-        return
-      }
-      if (themePreference.value === 'light') {
-        darkMode.value = false
-        return
-      }
-      if (window.matchMedia) {
-        darkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches
-      }
+      darkMode.value = themePreference.value === 'dark'
     }
 
     const setThemePreference = (pref) => {
@@ -495,8 +598,6 @@ export default {
     const toggleTheme = () => {
       themePreference.value = darkMode.value ? 'light' : 'dark'
     }
-
-    let systemThemeListener = null
 
     const handleLogin = async (username, password) => {
       const ok = await login(username, password)
@@ -511,17 +612,6 @@ export default {
       headerClockTimer = setInterval(() => {
         headerNow.value = new Date()
       }, 1000)
-      if (window.matchMedia) {
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-        systemThemeListener = () => {
-          if (themePreference.value === 'system') applyThemePreference()
-        }
-        if (mediaQuery.addEventListener) {
-          mediaQuery.addEventListener('change', systemThemeListener)
-        } else if (mediaQuery.addListener) {
-          mediaQuery.addListener(systemThemeListener)
-        }
-      }
       await initAuth()
       if (isAuthenticated.value) {
         activeGroup.value = findGroupForPage(currentPage.value, pageParams.value || {})
@@ -592,22 +682,18 @@ export default {
     const handleLogout = async () => {
       showUserMenu.value = false
       showSettings.value = false
+      showNotifPanel.value = false
+      selectedNotif.value = null
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+      if (notifPollTimer) { clearInterval(notifPollTimer); notifPollTimer = null }
       await logout()
       currentPage.value = 'home'
     }
 
     onUnmounted(() => {
       if (pollTimer) clearInterval(pollTimer)
+      if (notifPollTimer) clearInterval(notifPollTimer)
       if (headerClockTimer) clearInterval(headerClockTimer)
-      if (systemThemeListener && window.matchMedia) {
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-        if (mediaQuery.removeEventListener) {
-          mediaQuery.removeEventListener('change', systemThemeListener)
-        } else if (mediaQuery.removeListener) {
-          mediaQuery.removeListener(systemThemeListener)
-        }
-      }
     })
 
     watch(themePreference, (value) => {
@@ -665,9 +751,20 @@ export default {
       handleLogin,
       handleNavigate,
       handleLogout,
-      showOverdueWarning,
-      overdueItems,
       formatDate,
+      // Notification
+      showNotifPanel,
+      notifications,
+      notifUnreadCount,
+      notifTotal,
+      notifLoading,
+      selectedNotif,
+      toggleNotificationPanel,
+      handleNotifClick,
+      handleMarkAllRead,
+      loadMoreNotifications,
+      getNotifIconClass,
+      formatNotifTime,
     }
   }
 }
@@ -1323,5 +1420,286 @@ export default {
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.96) translateY(-4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ===== Notification Bell ===== */
+.notification-bell-wrapper {
+  position: relative;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  background: var(--danger, #ef4444);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* ===== Notification Overlay ===== */
+.notif-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  padding: 3.5rem 1.25rem 0;
+}
+
+/* ===== Notification Panel ===== */
+.notif-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 22rem;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  height: fit-content;
+  overflow: hidden;
+}
+
+.notif-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-panel-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.notif-mark-all-btn {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+  transition: background 0.12s;
+}
+
+.notif-mark-all-btn:hover {
+  background: var(--accent-surface);
+}
+
+.notif-panel-body {
+  overflow-y: auto;
+  max-height: calc(70vh - 3.5rem);
+}
+
+.notif-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.notif-item:hover {
+  background: var(--surface-2);
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item-unread {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.notif-item-unread:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.notif-item-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.notif-icon-success {
+  background: color-mix(in srgb, #22c55e 15%, transparent);
+  color: #22c55e;
+}
+
+.notif-icon-danger {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #ef4444;
+}
+
+.notif-icon-info {
+  background: color-mix(in srgb, #3b82f6 15%, transparent);
+  color: #3b82f6;
+}
+
+.notif-icon-default {
+  background: var(--surface-2);
+  color: var(--muted-foreground);
+}
+
+.notif-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-item-subject {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.notif-item-sender {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  margin: 0.125rem 0 0;
+}
+
+.notif-item-time {
+  font-size: 0.625rem;
+  color: var(--muted-foreground);
+  margin: 0.125rem 0 0;
+}
+
+.notif-unread-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 0.375rem;
+}
+
+.notif-load-more {
+  display: block;
+  width: 100%;
+  padding: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.notif-load-more:hover {
+  background: var(--accent-surface);
+}
+
+/* ===== Notification Detail Modal ===== */
+.notif-detail-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 28rem;
+  max-width: 90vw;
+  max-height: 70vh;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notif-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-detail-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  margin: 0;
+}
+
+.notif-close-btn {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.12s;
+  flex-shrink: 0;
+}
+
+.notif-close-btn:hover {
+  background: var(--surface-2);
+}
+
+.notif-detail-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-detail-body {
+  padding: 1rem 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  overflow-y: auto;
+  margin: 0;
 }
 </style>

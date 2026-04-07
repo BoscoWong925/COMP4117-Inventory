@@ -76,8 +76,16 @@
     </ModuleFilterPanel>
 
     <Card class="checked-table-card">
+      <div class="return-sub-tabs">
+        <button class="return-sub-tab" :class="{ active: returnViewTab === 'department' }" @click="returnViewTab = 'department'; selectedReturnIds = []">
+          Department Items
+        </button>
+        <button class="return-sub-tab" :class="{ active: returnViewTab === 'teacher' }" @click="returnViewTab = 'teacher'; selectedReturnIds = []">
+          Teacher Items
+        </button>
+      </div>
       <Transition name="bulk-bar">
-        <div v-if="selectedReturnIds.length > 0" class="bulk-toolbar">
+        <div v-if="returnViewTab === 'department' && selectedReturnIds.length > 0" class="bulk-toolbar">
           <div class="bulk-toolbar-left">
             <span class="bulk-chip">{{ selectedReturnIds.length }} selected</span>
             <DropdownMenu align="start">
@@ -102,6 +110,7 @@
             <tr>
               <th class="text-center" style="width:3rem">
                 <Checkbox
+                  v-if="returnViewTab === 'department'"
                   :checked="allReturnSelected"
                   :indeterminate="selectedReturnIds.length > 0 && !allReturnSelected"
                   @update:checked="toggleSelectAllReturn"
@@ -137,7 +146,9 @@
               <td colspan="11" class="checked-empty-cell">No checked-out items match your filters</td>
             </tr>
 
-            <template v-else v-for="group in paginatedGroups" :key="group.parent.id">
+            <!-- Department-owned items -->
+            <template v-else-if="returnViewTab === 'department'">
+            <template v-for="group in paginatedGroups" :key="group.parent.id">
               <tr class="row-parent">
                 <td class="text-center">
                   <Checkbox
@@ -158,7 +169,7 @@
                 <td>{{ group.parent.supplier }}</td>
                 <td>{{ group.parent.location }}</td>
                 <td>{{ formatDate(getReturnMeta(group.parent).returnDate) || '-' }}</td>
-                <td>{{ getReturnMeta(group.parent).dueLabel }}</td>
+                <td><span class="due-badge" :class="getReturnMeta(group.parent).dueClass">{{ getReturnMeta(group.parent).dueLabel }}</span></td>
                 <td class="text-center">
                   <DropdownMenu align="end">
                     <template #trigger>
@@ -191,9 +202,65 @@
                 <td>{{ child.supplier }}</td>
                 <td>{{ child.location }}</td>
                 <td>{{ formatDate(getReturnMeta(child).returnDate) || '-' }}</td>
-                <td>{{ getReturnMeta(child).dueLabel }}</td>
+                <td><span class="due-badge" :class="getReturnMeta(child).dueClass">{{ getReturnMeta(child).dueLabel }}</span></td>
                 <td class="checked-child-return">Auto with parent</td>
               </tr>
+            </template>
+            </template>
+
+            <!-- Teacher-owned items (view-only for operators) -->
+            <template v-else>
+            <template v-for="group in paginatedGroups" :key="'t-' + group.parent.id">
+              <tr class="row-parent row-teacher-owned">
+                <td></td>
+                <td class="checked-parent-id">{{ group.parent.id }}</td>
+                <td class="checked-parent-name">
+                  {{ group.parent.name }}
+                  <span v-if="group.children.length > 0" class="checked-child-count">
+                    (+ {{ group.children.length }} component{{ group.children.length > 1 ? 's' : '' }})
+                  </span>
+                  <span class="teacher-owner-tag">Owner: {{ getOwnerDisplayName(group.parent.owner) }}</span>
+                </td>
+                <td>{{ group.parent.category }}</td>
+                <td>{{ group.parent.currentBorrower }}</td>
+                <td>{{ getBorrowerName(group.parent.currentBorrower, group.parent) }}</td>
+                <td>{{ group.parent.supplier }}</td>
+                <td>{{ group.parent.location }}</td>
+                <td>{{ formatDate(getReturnMeta(group.parent).returnDate) || '-' }}</td>
+                <td><span class="due-badge" :class="getReturnMeta(group.parent).dueClass">{{ getReturnMeta(group.parent).dueLabel }}</span></td>
+                <td class="text-center">
+                  <DropdownMenu align="end">
+                    <template #trigger>
+                      <button class="kebab-trigger" aria-label="Row actions">
+                        <MoreVertical :size="14" />
+                      </button>
+                    </template>
+                    <template #default="{ close }">
+                      <DropdownMenuItem disabled>
+                        <RotateCcw :size="12" /> View only (teacher-owned)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-if="group.parent.currentBorrower" @click="openEmailForBorrower(group.parent); close()">
+                        <Mail :size="12" /> Email Borrower
+                      </DropdownMenuItem>
+                    </template>
+                  </DropdownMenu>
+                </td>
+              </tr>
+
+              <tr v-for="child in group.children" :key="child.id" class="row-child row-teacher-owned">
+                <td></td>
+                <td class="checked-child-id">↳ {{ child.id }}</td>
+                <td class="checked-child-name">{{ child.name }}</td>
+                <td>{{ child.category }}</td>
+                <td>{{ child.currentBorrower }}</td>
+                <td>{{ getBorrowerName(child.currentBorrower, child) }}</td>
+                <td>{{ child.supplier }}</td>
+                <td>{{ child.location }}</td>
+                <td>{{ formatDate(getReturnMeta(child).returnDate) || '-' }}</td>
+                <td><span class="due-badge" :class="getReturnMeta(child).dueClass">{{ getReturnMeta(child).dueLabel }}</span></td>
+                <td class="checked-child-return">Auto with parent</td>
+              </tr>
+            </template>
             </template>
           </tbody>
         </table>
@@ -202,7 +269,7 @@
       <TablePaginationBar
         v-model:currentPage="currentPage"
         v-model:pageSize="pageSize"
-        :total-items="totalItems"
+        :total-items="totalFilteredGroups"
         :disabled="showLentSkeleton"
       />
     </Card>
@@ -347,6 +414,7 @@ export default {
     const bulkReturnNotes = ref('')
     let searchDebounceTimer = null
     let loadRequestToken = 0
+    const returnViewTab = ref('department')
 
     const searchFilters = ref({
       id: '', name: '', category: '', vendor: '', location: '',
@@ -471,7 +539,7 @@ export default {
       const request = getLinkedApprovedRequest(item.id)
       const returnDate = request?.returnDate ? new Date(request.returnDate) : null
       if (!returnDate || Number.isNaN(returnDate.getTime())) {
-        return { returnDate: null, dueLabel: 'No due date', dueSort: Number.POSITIVE_INFINITY }
+        return { returnDate: null, dueLabel: 'No due date', dueSort: Number.POSITIVE_INFINITY, dueClass: 'due-badge--unknown' }
       }
 
       const dueDay = new Date(returnDate)
@@ -481,21 +549,24 @@ export default {
       const diffDays = Math.floor((dueDay - today) / 86400000)
 
       if (diffDays < 0) {
-        return { returnDate, dueLabel: `Overdue (${Math.abs(diffDays)}d)`, dueSort: diffDays }
+        return { returnDate, dueLabel: `Overdue (${Math.abs(diffDays)}d)`, dueSort: diffDays, dueClass: 'due-badge--overdue' }
       }
       if (diffDays === 0) {
-        return { returnDate, dueLabel: 'Due Today (0d left)', dueSort: 0 }
+        return { returnDate, dueLabel: 'Due Today', dueSort: 0, dueClass: 'due-badge--today' }
+      }
+      if (diffDays <= 3) {
+        return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays, dueClass: 'due-badge--soon' }
       }
       if (diffDays <= 7) {
-        return { returnDate, dueLabel: `Due Soon (${diffDays}d left)`, dueSort: diffDays }
+        return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays, dueClass: 'due-badge--warning' }
       }
 
-      return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays }
+      return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays, dueClass: 'due-badge--ok' }
     }
 
     const buildQueryParams = () => {
       const f = searchFilters.value
-      const params = { page: currentPage.value, pageSize: pageSize.value }
+      const params = { page: 1, pageSize: 9999 }
       if (f.category) params.category = f.category
       if (f.location) params.location = f.location
       if (f.type || typeFilter.value) params.type = f.type || typeFilter.value
@@ -507,8 +578,8 @@ export default {
       // Send item ID and name as separate search params
       if (f.id) params.itemIdSearch = f.id
       if (f.name) params.itemNameSearch = f.name
-      // Only send sortBy to backend for fields that exist on the Item model.
-      // returnDate, dueStatus, borrowerName are computed client-side from BorrowRequest data.
+      // Owner-type filter for tab-based navigation
+      if (returnViewTab.value) params.ownerType = returnViewTab.value
       return params
     }
 
@@ -594,7 +665,8 @@ export default {
       loadLentOutItems()
     })
 
-    watch(() => pageSize.value, () => {
+    watch(returnViewTab, () => {
+      selectedReturnIds.value = []
       if (currentPage.value !== 1) {
         currentPage.value = 1
         return
@@ -602,8 +674,10 @@ export default {
       loadLentOutItems()
     })
 
-    watch(() => currentPage.value, () => {
-      loadLentOutItems()
+    watch(() => pageSize.value, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      }
     })
 
     // Debounced watcher for text inputs
@@ -665,11 +739,65 @@ export default {
     })
 
     const sortedGroups = computed(() => {
-      return [...groupedItems.value]
+      // Sort: overdue first, then closest to return date, then no-return-date last
+      return [...groupedItems.value].sort((a, b) => {
+        const aMeta = getReturnMeta(a.parent)
+        const bMeta = getReturnMeta(b.parent)
+        const aSort = aMeta.dueSort
+        const bSort = bMeta.dueSort
+        // Both have no due date — fall back to createdAt desc
+        if (aSort === Number.POSITIVE_INFINITY && bSort === Number.POSITIVE_INFINITY) {
+          const aTime = new Date(a.parent.createdAt || 0).getTime()
+          const bTime = new Date(b.parent.createdAt || 0).getTime()
+          return bTime - aTime
+        }
+        // No due date goes last
+        if (aSort === Number.POSITIVE_INFINITY) return 1
+        if (bSort === Number.POSITIVE_INFINITY) return -1
+        // Overdue (negative) before non-overdue (positive/zero)
+        const aOverdue = aSort < 0
+        const bOverdue = bSort < 0
+        if (aOverdue && !bOverdue) return -1
+        if (!aOverdue && bOverdue) return 1
+        // Within same group: closer to today (smaller absolute value) ranks higher
+        return Math.abs(aSort) - Math.abs(bSort)
+      })
     })
 
+    const departmentGroups = computed(() => {
+      return sortedGroups.value.filter(g => !g.parent.owner || g.parent.owner === 'department')
+    })
+
+    const teacherGroups = computed(() => {
+      return sortedGroups.value.filter(g => g.parent.owner && g.parent.owner !== 'department')
+    })
+
+    const getOwnerDisplayName = (ownerId) => {
+      if (!ownerId || ownerId === 'department') return 'Department'
+      return ownerId
+    }
+
     const paginatedGroups = computed(() => {
-      return sortedGroups.value
+      const tab = returnViewTab.value
+      let groups = sortedGroups.value
+      if (tab === 'department') {
+        groups = groups.filter(g => !g.parent.owner || g.parent.owner === 'department')
+      } else if (tab === 'teacher') {
+        groups = groups.filter(g => g.parent.owner && g.parent.owner !== 'department')
+      }
+      const start = (currentPage.value - 1) * pageSize.value
+      return groups.slice(start, start + pageSize.value)
+    })
+
+    const totalFilteredGroups = computed(() => {
+      const tab = returnViewTab.value
+      let groups = sortedGroups.value
+      if (tab === 'department') {
+        groups = groups.filter(g => !g.parent.owner || g.parent.owner === 'department')
+      } else if (tab === 'teacher') {
+        groups = groups.filter(g => g.parent.owner && g.parent.owner !== 'department')
+      }
+      return groups.length
     })
 
     const handleReturnItem = async (item) => {
@@ -800,6 +928,7 @@ export default {
       groupedItems,
       sortedGroups,
       paginatedGroups,
+      totalFilteredGroups,
       showFilterPanel,
       searchFilters,
       uniqueCategories,
@@ -829,6 +958,10 @@ export default {
       openEmailForBorrower,
       canReturnItem,
       formatDate,
+      departmentGroups,
+      teacherGroups,
+      getOwnerDisplayName,
+      returnViewTab,
     }
   }
 }
@@ -1068,5 +1201,112 @@ thead th:hover .sort-icon {
 .bulk-bar-leave-from {
   max-height: 4rem;
   opacity: 1;
+}
+
+/* Teacher-owned section separator */
+.teacher-section-row td {
+  padding: 0 !important;
+  border-bottom: none !important;
+}
+.teacher-section-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  background: var(--accent-surface);
+  border-top: 2px solid var(--accent);
+}
+.teacher-section-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.teacher-section-hint {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* Teacher-owned row tint */
+.row-teacher-owned {
+  background: color-mix(in srgb, var(--accent-surface) 35%, transparent);
+}
+
+/* Inline teacher owner tag */
+.teacher-owner-tag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* Return sub-tabs */
+.return-sub-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
+}
+.return-sub-tab {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.return-sub-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-100);
+}
+.return-sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Due status badges */
+.due-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-md, 0.375rem);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.due-badge--overdue {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+.due-badge--today {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+.due-badge--soon {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.due-badge--warning {
+  background: #fffbeb;
+  color: #b45309;
+}
+.due-badge--ok {
+  background: var(--success-light);
+  color: var(--success);
+}
+.due-badge--unknown {
+  background: var(--surface-100);
+  color: var(--muted-foreground);
 }
 </style>

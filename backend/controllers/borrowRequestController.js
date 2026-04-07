@@ -7,6 +7,8 @@ const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
 const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail } = require('../utils/emailService');
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * Resolve whether current user can process request workflow actions for the given item.
  * - admin: can process all items
@@ -213,7 +215,7 @@ exports.getAllRequests = catchAsync(async (req, res) => {
   // Text search: search across requestId, item name, borrower name/ID
   let searchFilter = null;
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     // Also search by item name: find matching item IDs first
     const matchingItems = await Item.find({ name: searchRegex }).select('itemId').lean();
     const matchingItemIds = matchingItems.map(i => i.itemId);
@@ -275,10 +277,29 @@ exports.getAllRequests = catchAsync(async (req, res) => {
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await BorrowRequest.countDocuments(parentFilter);
-  const parentRequests = await BorrowRequest.find(parentFilter)
-    .sort(sort)
-    .skip(skip)
-    .limit(parseInt(pageSize));
+
+  // When filtering by Returned status, use special sort:
+  // overdue first, then closest return date, then no-return-date last
+  const isReturnedFilter = historyStatus === 'Returned';
+  let parentRequests;
+  if (isReturnedFilter) {
+    parentRequests = await BorrowRequest.aggregate([
+      { $match: parentFilter },
+      { $addFields: {
+        _hasReturnDate: { $cond: [{ $ifNull: ['$returnDate', false] }, 1, 0] },
+        _isOverdue: { $cond: { if: { $and: [{ $ne: ['$returnDate', null] }, { $lt: ['$returnDate', new Date()] }] }, then: 1, else: 0 } },
+        _distFromNow: { $abs: { $subtract: [{ $ifNull: ['$returnDate', new Date(0)] }, new Date()] } }
+      }},
+      { $sort: { _hasReturnDate: -1, _isOverdue: -1, _distFromNow: 1 } },
+      { $skip: skip },
+      { $limit: parseInt(pageSize) }
+    ]);
+  } else {
+    parentRequests = await BorrowRequest.find(parentFilter)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(pageSize));
+  }
 
   const parentIds = parentRequests.map(r => r.requestId);
   const childRequests = await BorrowRequest.find({ parentRequestId: { $in: parentIds } }).sort(sort);
@@ -372,7 +393,7 @@ exports.getPendingRequests = catchAsync(async (req, res) => {
 
   let combinedParentFilter = parentFilter;
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     const [matchingItems, matchingUsers] = await Promise.all([
       Item.find({ $or: [{ name: searchRegex }, { itemId: searchRegex }] }).select('itemId').lean(),
       User.find({ $or: [{ name: searchRegex }, { userId: searchRegex }] }).select('userId').lean()
@@ -468,7 +489,7 @@ exports.getMyRequests = catchAsync(async (req, res) => {
   const filter = { borrowerID: req.user.userId };
   if (status) filter.status = status;
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$or = [
       { requestId: searchRegex },
       { itemName: searchRegex },
@@ -1313,7 +1334,7 @@ exports.getTeacherPendingRequests = catchAsync(async (req, res) => {
 
   let combinedQuery = query;
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     const [matchingItems, matchingUsers] = await Promise.all([
       Item.find({ $or: [{ name: searchRegex }, { itemId: searchRegex }] }).select('itemId').lean(),
       User.find({ $or: [{ name: searchRegex }, { userId: searchRegex }] }).select('userId').lean()
@@ -1399,10 +1420,29 @@ exports.getTeacherRequestHistory = catchAsync(async (req, res) => {
 
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await BorrowRequest.countDocuments(filter);
-  const requests = await BorrowRequest.find(filter)
-    .sort(sort)
-    .skip(skip)
-    .limit(parseInt(pageSize));
+
+  // When filtering by Returned or Approved status, use special sort:
+  // overdue first, then closest return date, then no-return-date last
+  const useReturnDateSort = status === 'Returned' || status === 'Approved';
+  let requests;
+  if (useReturnDateSort) {
+    requests = await BorrowRequest.aggregate([
+      { $match: filter },
+      { $addFields: {
+        _hasReturnDate: { $cond: [{ $ifNull: ['$returnDate', false] }, 1, 0] },
+        _isOverdue: { $cond: { if: { $and: [{ $ne: ['$returnDate', null] }, { $lt: ['$returnDate', new Date()] }] }, then: 1, else: 0 } },
+        _distFromNow: { $abs: { $subtract: [{ $ifNull: ['$returnDate', new Date(0)] }, new Date()] } }
+      }},
+      { $sort: { _hasReturnDate: -1, _isOverdue: -1, _distFromNow: 1 } },
+      { $skip: skip },
+      { $limit: parseInt(pageSize) }
+    ]);
+  } else {
+    requests = await BorrowRequest.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(pageSize));
+  }
 
   const populated = await populateRequests(requests);
 

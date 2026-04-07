@@ -495,3 +495,27 @@ export const getDatabase = () => {
   console.warn('getDatabase() is deprecated. Use API services instead.');
   return { users: [], items: [], requests: [], logs: [] };
 };
+
+// ===== Notification Service =====
+export const notificationService = {
+  getNotifications: async (params = {}) => {
+    const query = new URLSearchParams(cleanQueryParams({ pageSize: 20, ...params })).toString();
+    const data = await apiRequest(`/notifications?${query}`);
+    return { notifications: data.notifications || [], total: data.total || 0, unreadCount: data.unreadCount || 0 };
+  },
+
+  getUnreadCount: async () => {
+    const data = await apiRequest('/notifications/unread-count');
+    return data.unreadCount || 0;
+  },
+
+  markAsRead: async (id) => {
+    const data = await apiRequest(`/notifications/${id}/read`, { method: 'PUT' });
+    return data.notification;
+  },
+
+  markAllAsRead: async () => {
+    await apiRequest('/notifications/read-all', { method: 'PUT' });
+    return true;
+  }
+};

@@ -104,19 +104,9 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-              <div>
-                <p class="field-label">Reason</p>
-                <p class="font-medium text-sm">{{ group.parent.reason || '—' }}</p>
-              </div>
-              <div>
-                <p class="field-label">Declared Return</p>
-                <p class="font-medium">{{ formatDateTime(group.parent.declaredReturnDate) || '—' }}</p>
-              </div>
-              <div>
-                <p class="field-label">Returned Date</p>
-                <p class="font-medium">{{ formatDateTime(group.parent.returnedDate) || '—' }}</p>
-              </div>
+            <div v-if="group.parent.reason" class="mb-3">
+              <p class="field-label">Reason</p>
+              <p class="font-medium text-base" style="line-height:1.5">{{ group.parent.reason }}</p>
             </div>
 
             <!-- Child component records -->
@@ -134,45 +124,11 @@
               </div>
             </div>
 
-            <div class="flex gap-2 flex-wrap">
-              <Button
-                v-if="group.parent.status === 'Approved' && !group.parent.returnedDate"
-                variant="outline"
-                size="sm"
-                @click="openDeclareReturn(group.parent)"
-              >
-                Declare Return Date
-              </Button>
-            </div>
           </div>
         </div>
       </template>
 
       <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredRecords.length" :pageSize="pageSize" />
-    </div>
-
-    <!-- Declare Return Date Modal -->
-    <div v-if="declareReturnTarget" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div class="modal-card max-w-md w-full">
-        <h3 class="modal-title">Declare Return Date</h3>
-        <p class="text-sm text-muted mb-3">
-          Select when you plan to return <strong>{{ declareReturnTarget.itemName }}</strong>.
-          <span v-if="declareReturnTarget.returnDate">Must be on or before {{ formatDate(declareReturnTarget.returnDate) }}.</span>
-        </p>
-        <div class="mb-4">
-          <label class="modal-label">Return Date</label>
-          <Input
-            type="date"
-            v-model="declareReturnDateValue"
-            :max="declareReturnMaxDate"
-          />
-        </div>
-        <div v-if="declareReturnError" class="text-sm mb-3" style="color:var(--danger)">{{ declareReturnError }}</div>
-        <div class="flex gap-2">
-          <Button variant="success" class="flex-1" @click="confirmDeclareReturn">Confirm</Button>
-          <Button variant="outline" class="flex-1" @click="declareReturnTarget = null; declareReturnDateValue = ''; declareReturnError = ''">Cancel</Button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -191,7 +147,10 @@ import {
 
 export default {
   components: { PaginationControl, Button, Input, ModulePageHeader, ArrowUpDown, CheckCircle2, XCircle, RotateCcw },
-  setup() {
+  props: {
+    pageParams: { type: Object, default: () => ({}) },
+  },
+  setup(props) {
     const records = ref([])
     const loadError = ref('')
     const loading = ref(true)
@@ -200,9 +159,6 @@ export default {
     const searchText = ref('')
     const activeStatusTab = ref('all')
     const sortOrder = ref('desc')
-    const declareReturnTarget = ref(null)
-    const declareReturnDateValue = ref('')
-    const declareReturnError = ref('')
 
     const normalizedStatus = (status) => String(status || '').trim().toLowerCase()
 
@@ -314,11 +270,41 @@ export default {
       }
 
       // Sort
-      filtered.sort((a, b) => {
-        const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
-        const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
-        return sortOrder.value === 'desc' ? bTime - aTime : aTime - bTime
-      })
+      if (activeStatusTab.value === 'approved') {
+        // Checked-out tab: overdue first, then by closest return date, then no-return-date last
+        const now = Date.now()
+        filtered.sort((a, b) => {
+          const aHas = !!a.returnDate
+          const bHas = !!b.returnDate
+          // Items without returnDate go to the end
+          if (aHas && !bHas) return -1
+          if (!aHas && bHas) return 1
+          if (!aHas && !bHas) {
+            // Both without returnDate: fall back to createdAt
+            const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
+            const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
+            return bTime - aTime
+          }
+          // Both have returnDate
+          const aTime = new Date(a.returnDate).getTime()
+          const bTime = new Date(b.returnDate).getTime()
+          const aOverdue = aTime < now
+          const bOverdue = bTime < now
+          // Overdue items come first
+          if (aOverdue && !bOverdue) return -1
+          if (!aOverdue && bOverdue) return 1
+          // Within same group: closer to today ranks higher
+          const aDist = Math.abs(aTime - now)
+          const bDist = Math.abs(bTime - now)
+          return aDist - bDist
+        })
+      } else {
+        filtered.sort((a, b) => {
+          const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
+          const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
+          return sortOrder.value === 'desc' ? bTime - aTime : aTime - bTime
+        })
+      }
 
       return filtered
     })
@@ -354,43 +340,6 @@ export default {
       return groupedRecords.value.slice(start, start + pageSize)
     })
 
-    const declareReturnMaxDate = computed(() => {
-      if (!declareReturnTarget.value?.returnDate) return ''
-      return new Date(declareReturnTarget.value.returnDate).toISOString().split('T')[0]
-    })
-
-    const openDeclareReturn = (record) => {
-      declareReturnTarget.value = record
-      declareReturnDateValue.value = record.declaredReturnDate
-        ? new Date(record.declaredReturnDate).toISOString().split('T')[0]
-        : ''
-      declareReturnError.value = ''
-    }
-
-    const confirmDeclareReturn = async () => {
-      if (!declareReturnDateValue.value) {
-        declareReturnError.value = 'Please select a return date'
-        return
-      }
-      const declared = new Date(declareReturnDateValue.value)
-      if (declareReturnTarget.value.returnDate && declared > new Date(declareReturnTarget.value.returnDate)) {
-        declareReturnError.value = 'Return date cannot be later than the set return date'
-        return
-      }
-      try {
-        await borrowingService.declareReturnDate(
-          declareReturnTarget.value.id,
-          `${declareReturnDateValue.value}T17:00:00Z`
-        )
-        declareReturnTarget.value = null
-        declareReturnDateValue.value = ''
-        declareReturnError.value = ''
-        loadRecords()
-      } catch (e) {
-        declareReturnError.value = e.message || 'Failed to declare return date'
-      }
-    }
-
     const loadRecords = async () => {
       loadError.value = ''
       loading.value = true
@@ -413,6 +362,16 @@ export default {
 
     onMounted(() => {
       loadRecords()
+      if (props.pageParams?.tab) {
+        activeStatusTab.value = props.pageParams.tab
+      }
+    })
+
+    watch(() => props.pageParams?.tab, (newTab) => {
+      if (newTab) {
+        activeStatusTab.value = newTab
+        currentPage.value = 1
+      }
     })
 
     const getOwnerDisplayName = (ownerId) => {
@@ -425,8 +384,6 @@ export default {
       searchText, activeStatusTab, sortOrder, toggleSort,
       statusTabs, filteredRecords, groupedRecords, paginatedGroups,
       currentPage, pageSize,
-      declareReturnTarget, declareReturnDateValue, declareReturnError, declareReturnMaxDate,
-      openDeclareReturn, confirmDeclareReturn,
       normalizedStatus, isRecordOverdue,
       getDaysLeft, getDaysLeftClass, getDaysLeftLabel,
       getStageClass, getStageName,

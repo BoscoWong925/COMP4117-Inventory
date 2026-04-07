@@ -4,6 +4,8 @@ const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
 const { sendWelcomeEmail, sendAccountDeactivatedEmail, sendAccountActivatedEmail, sendRoleChangedEmail } = require('../utils/emailService');
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * Helper: Format user response (exclude password)
  */
@@ -48,7 +50,7 @@ exports.getAllUsers = catchAsync(async (req, res) => {
   if (isActive !== undefined) filter.isActive = isActive === 'true';
 
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     const searchOr = [
       { userId: searchRegex },
       { username: searchRegex },
@@ -290,7 +292,7 @@ exports.searchUsers = catchAsync(async (req, res) => {
   const { query } = req.params;
   const { limit = 10 } = req.query;
 
-  const searchRegex = new RegExp(query, 'i');
+  const searchRegex = new RegExp(escapeRegex(query), 'i');
   const users = await User.find({
     $or: [
       { userId: searchRegex },
@@ -362,7 +364,8 @@ exports.sendEmailToUser = catchAsync(async (req, res, next) => {
     to: recipient.email,
     subject,
     message,
-    senderName: req.user.name || req.user.userId
+    senderName: req.user.name || req.user.userId,
+    recipientUserId: recipient.userId
   });
 
   if (result.skipped) {

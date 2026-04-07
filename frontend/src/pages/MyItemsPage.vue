@@ -18,25 +18,6 @@
       <button @click="statusFilter = ''" class="text-accent hover:underline font-medium">Clear Filter &times;</button>
     </div>
 
-    <div v-if="!isTeacher" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <Card class="p-4 text-center">
-        <p class="text-2xl font-bold text-accent">{{ borrowedCount }}</p>
-        <p class="text-xs text-muted">Active Borrowed</p>
-      </Card>
-      <Card class="p-4 text-center">
-        <p class="text-2xl font-bold" style="color:var(--warning)">{{ dueSoonCount }}</p>
-        <p class="text-xs text-muted">Due Within 7 Days</p>
-      </Card>
-      <Card class="p-4 text-center">
-        <p class="text-2xl font-bold" style="color:var(--danger)">{{ overdueCount }}</p>
-        <p class="text-xs text-muted">Overdue</p>
-      </Card>
-      <Card class="p-4 text-center">
-        <p class="text-2xl font-bold" style="color:var(--info)">{{ filteredBorrowedItems.length }}</p>
-        <p class="text-xs text-muted">Visible In List</p>
-      </Card>
-    </div>
-
     <!-- Tabs for teacher -->
     <div v-if="isTeacher" class="flex gap-2 mb-4">
       <button
@@ -222,9 +203,7 @@
               <tr>
                 <th>Item</th>
                 <th>Request ID</th>
-                <th>Status</th>
                 <th>Return Date</th>
-                <th>Days Remaining</th>
                 <th>Due Status</th>
               </tr>
             </thead>
@@ -232,17 +211,12 @@
               <tr v-for="req in paginatedBorrowedItems" :key="req.id" :class="getRowUrgencyClass(req)">
                 <td class="text-sm" style="font-weight:500">{{ req.itemName }}</td>
                 <td class="text-sm">{{ req.id }}</td>
-                <td class="text-sm">
-                  <Badge variant="info">Borrowed</Badge>
-                </td>
                 <td class="text-sm">{{ formatDate(req.returnDate) || 'N/A' }}</td>
                 <td class="text-sm">
-                  <span class="days-remaining-badge" :class="getDaysRemainingClass(req)">
-                    {{ getDaysRemainingLabel(req) }}
-                  </span>
-                </td>
-                <td class="text-sm">
-                  <Badge :variant="getDueStatusVariant(req)">{{ getDueStatusLabel(req) }}</Badge>
+                  <Badge :variant="getDueStatusVariant(req)">
+                    {{ getDueStatusLabel(req) }}
+                    <template v-if="getDueStatusLabel(req) === 'Overdue'"> ({{ getDaysOverdueCount(req) }}d)</template>
+                  </Badge>
                 </td>
               </tr>
             </tbody>
@@ -367,7 +341,26 @@ export default {
     })
 
     const filteredBorrowedItems = computed(() => {
-      return borrowedItems.value
+      // Sort: overdue first, then closest to return date, then no-return-date last
+      return [...borrowedItems.value].sort((a, b) => {
+        const aHas = !!a.returnDate
+        const bHas = !!b.returnDate
+        if (aHas && !bHas) return -1
+        if (!aHas && bHas) return 1
+        if (!aHas && !bHas) {
+          const aTime = new Date(a.createdAt || 0).getTime()
+          const bTime = new Date(b.createdAt || 0).getTime()
+          return bTime - aTime
+        }
+        const now = Date.now()
+        const aTime = new Date(a.returnDate).getTime()
+        const bTime = new Date(b.returnDate).getTime()
+        const aOverdue = aTime < now
+        const bOverdue = bTime < now
+        if (aOverdue && !bOverdue) return -1
+        if (!aOverdue && bOverdue) return 1
+        return Math.abs(aTime - now) - Math.abs(bTime - now)
+      })
     })
 
     const dueSoonCount = computed(() => {
@@ -542,6 +535,12 @@ export default {
       return 'On Time'
     }
 
+    const getDaysOverdueCount = (req) => {
+      const d = daysUntilReturn(req.returnDate)
+      if (d === null || d >= 0) return 0
+      return Math.abs(d)
+    }
+
     const handleBulkSetNotAvailable = async () => {
       showBulkSetNotAvailableModal.value = false
       try {
@@ -604,7 +603,7 @@ export default {
       handleBulkSetNotAvailable, handleBulkSetAvailable,
       getStatusBadgeVariant, formatDate,
       getRowUrgencyClass, getDaysRemainingClass, getDaysRemainingLabel,
-      getDueStatusVariant, getDueStatusLabel
+      getDueStatusVariant, getDueStatusLabel, getDaysOverdueCount
     }
   }
 }

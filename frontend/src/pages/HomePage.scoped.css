@@ -160,6 +160,8 @@
   justify-content: space-between;
   gap: 0.5rem;
   border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
 }
 .ops-attention-tabs {
   display: flex;
@@ -1197,17 +1199,22 @@
 .ops-card-value--danger { color: var(--danger); }
 .ops-card-value--warning { color: var(--warning-dark); }
 
-.student-card-pulse {
-  animation: student-pulse 2s ease-in-out infinite;
-}
-@keyframes student-pulse {
-  0%, 100% { box-shadow: var(--shadow-card); }
-  50% { box-shadow: 0 0 0 3px var(--danger-light), var(--shadow-card); }
-}
-
 .student-main-card {
   padding: 0;
-  overflow: hidden;
+}
+.student-main-card :deep(.p-card-body),
+.student-main-card :deep(.p-card-content) {
+  padding: 0;
+  overflow: visible;
+}
+.student-main-card .ops-attention-tabs-row {
+  position: relative;
+  z-index: 2;
+}
+.student-main-card .ops-tab {
+  pointer-events: auto;
+  position: relative;
+  z-index: 3;
 }
 .student-tabs-header {
   padding: 1rem 1.25rem 0;

@@ -10,6 +10,9 @@ const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 
+/** Escape special regex characters so user input is matched literally. */
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * Resolve currentBorrower userId to name for a list of items.
  */
@@ -50,7 +53,7 @@ exports.getAllItems = catchAsync(async (req, res) => {
     search, warrantyEnd, warrantyStatus,
     itemId: qItemId, name: qName, universityID: qUniId, description: qDesc,
     page = 1, pageSize = 10,
-    sortBy = 'itemId', sortDir = 'asc'
+    sortBy = 'createdAt', sortDir = 'desc'
   } = req.query;
 
   const filter = {};
@@ -71,14 +74,14 @@ exports.getAllItems = catchAsync(async (req, res) => {
   if (category) filter.category = category;
   if (location) filter.location = location;
   if (vendor) filter.vendor = vendor;
-  if (supplier) filter.supplier = new RegExp(supplier, 'i');
+  if (supplier) filter.supplier = new RegExp(escapeRegex(supplier), 'i');
   if (warrantyEnd) filter.warrantyEnd = { $lte: warrantyEnd };
 
   // Per-field text searches (regex)
-  if (qItemId) filter.itemId = new RegExp(qItemId, 'i');
-  if (qName) filter.name = new RegExp(qName, 'i');
-  if (qUniId) filter.universityID = new RegExp(qUniId, 'i');
-  if (qDesc) filter.description = new RegExp(qDesc, 'i');
+  if (qItemId) filter.itemId = new RegExp(escapeRegex(qItemId), 'i');
+  if (qName) filter.name = new RegExp(escapeRegex(qName), 'i');
+  if (qUniId) filter.universityID = new RegExp(escapeRegex(qUniId), 'i');
+  if (qDesc) filter.description = new RegExp(escapeRegex(qDesc), 'i');
 
   // Warranty status filter
   if (warrantyStatus === 'expired') {
@@ -93,7 +96,7 @@ exports.getAllItems = catchAsync(async (req, res) => {
   }
 
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$or = [
       { itemId: searchRegex },
       { name: searchRegex },
@@ -155,7 +158,7 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
   if (owner) filter.owner = owner;
 
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$and.push({
       $or: [
         { itemId: searchRegex },
@@ -169,7 +172,7 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await Item.countDocuments(filter);
   const items = await Item.find(filter)
-    .sort({ itemId: 1 })
+    .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(pageSize));
 
@@ -189,9 +192,9 @@ exports.getAvailableItems = catchAsync(async (req, res) => {
 exports.getLentOutItems = catchAsync(async (req, res) => {
   const {
     search, itemIdSearch, itemNameSearch, category, location, type, vendor,
-    borrowerId, borrowerName, year, statusFilter,
+    borrowerId, borrowerName, year, statusFilter, ownerType,
     page = 1, pageSize = 10,
-    sortBy = 'itemId', sortDir = 'asc'
+    sortBy = 'createdAt', sortDir = 'desc'
   } = req.query;
 
   const filter = { status: 'In-use' };
@@ -201,7 +204,12 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   // - teacher: lent-out items they own
   // - student: no access
   if (req.user.role === 'admin' || req.user.role === 'operator') {
-    // no owner filter
+    // Owner-type tab filter for admin/operator
+    if (ownerType === 'department') {
+      filter.$or = [{ owner: { $exists: false } }, { owner: null }, { owner: '' }, { owner: 'department' }];
+    } else if (ownerType === 'teacher') {
+      filter.owner = { $exists: true, $nin: [null, '', 'department'] };
+    }
   } else if (req.user.role === 'user' && req.user.subRole === 'teacher') {
     filter.owner = req.user.userId;
   } else {
@@ -215,7 +223,7 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   if (borrowerId) {
     filter.currentBorrower = borrowerId;
   } else if (borrowerName) {
-    const nameRegex = new RegExp(borrowerName, 'i');
+    const nameRegex = new RegExp(escapeRegex(borrowerName), 'i');
     const matchingUsers = await User.find({ name: nameRegex }).select('userId').lean();
     const matchingIds = matchingUsers.map(u => u.userId);
     filter.currentBorrower = { $in: matchingIds.length > 0 ? matchingIds : ['__no_match__'] };
@@ -241,7 +249,7 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   }
 
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$or = [
       { itemId: searchRegex },
       { name: searchRegex },
@@ -251,7 +259,6 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   }
 
   // Individual field search params (used by LentOut filter page)
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (itemIdSearch) {
     filter.itemId = new RegExp(escapeRegex(itemIdSearch), 'i');
   }
@@ -588,7 +595,7 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
   }
 
   if (search) {
-    const searchRegex = new RegExp(search, 'i');
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
     filter.$or = [
       { itemId: searchRegex },
       { name: searchRegex },
@@ -600,7 +607,7 @@ exports.getItemsByOwner = catchAsync(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(pageSize);
   const total = await Item.countDocuments(filter);
   const rawItems = await Item.find(filter)
-    .sort({ itemId: 1 })
+    .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(pageSize));
 

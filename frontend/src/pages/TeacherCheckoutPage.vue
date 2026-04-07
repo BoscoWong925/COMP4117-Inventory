@@ -178,12 +178,34 @@ export default {
     const returnLoading = ref(false)
 
     const filteredItems = computed(() => {
-      if (!searchText.value?.trim()) return borrowedItems.value
-      const q = searchText.value.trim().toLowerCase()
-      return borrowedItems.value.filter(i =>
-        (i.itemID || '').toLowerCase().includes(q) ||
-        (i.itemName || '').toLowerCase().includes(q)
-      )
+      let items = borrowedItems.value
+      if (searchText.value?.trim()) {
+        const q = searchText.value.trim().toLowerCase()
+        items = items.filter(i =>
+          (i.itemID || '').toLowerCase().includes(q) ||
+          (i.itemName || '').toLowerCase().includes(q)
+        )
+      }
+      // Sort: overdue first, then closest return date, no-return-date last (fallback to createdAt desc)
+      const now = Date.now()
+      return [...items].sort((a, b) => {
+        const aHas = !!a.returnDate
+        const bHas = !!b.returnDate
+        if (aHas && !bHas) return -1
+        if (!aHas && bHas) return 1
+        if (!aHas && !bHas) {
+          const aTime = new Date(a.createdAt || a.requestDate || 0).getTime()
+          const bTime = new Date(b.createdAt || b.requestDate || 0).getTime()
+          return bTime - aTime
+        }
+        const aTime = new Date(a.returnDate).getTime()
+        const bTime = new Date(b.returnDate).getTime()
+        const aOverdue = aTime < now
+        const bOverdue = bTime < now
+        if (aOverdue && !bOverdue) return -1
+        if (!aOverdue && bOverdue) return 1
+        return Math.abs(aTime - now) - Math.abs(bTime - now)
+      })
     })
 
     const paginatedItems = computed(() => filteredItems.value)
