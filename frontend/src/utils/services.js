@@ -1,5 +1,5 @@
 // API Base URL - uses env var in production, falls back to localhost for dev
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') + '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002') + '/api';
 
 // ===== HTTP Helper =====
 const getToken = () => sessionStorage.getItem('token');

@@ -44,6 +44,34 @@
             More Filters
             <span v-if="advancedFilterCount > 0" class="qf-badge">{{ advancedFilterCount }}</span>
           </button>
+          <div class="col-selector-wrapper">
+            <button class="qf-toggle-btn" :class="{ 'qf-toggle-btn--active': showColumnSelector }" @click="showColumnSelector = !showColumnSelector">
+              <Columns3 :size="13" />
+              Columns
+              <span v-if="visibleColumns.length !== allColumns.filter(c => c.default).length" class="qf-badge">{{ visibleColumns.length }}</span>
+            </button>
+            <Transition name="col-panel">
+              <div v-if="showColumnSelector" class="col-selector-panel" @click.stop>
+                <div class="col-selector-header">
+                  <span class="col-selector-title">Toggle Columns</span>
+                  <button class="qf-clear-btn" @click="resetColumnsToDefault">Reset</button>
+                </div>
+                <div class="col-selector-list">
+                  <label
+                    v-for="col in allColumns.filter(c => !(c.hideForTeacher && isTeacher))"
+                    :key="col.key"
+                    class="col-selector-item"
+                  >
+                    <Checkbox
+                      :checked="selectedColumnKeys.includes(col.key)"
+                      @update:checked="toggleColumn(col.key)"
+                    />
+                    <span>{{ col.label }}</span>
+                  </label>
+                </div>
+              </div>
+            </Transition>
+          </div>
           <button v-if="hasAnyFilter" class="qf-clear-btn" @click="clearFilters">Clear all</button>
         </div>
       </div>
@@ -146,14 +174,7 @@
                     @update:checked="toggleSelectAll"
                   />
                 </th>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Location</th>
-                <th>Supplier</th>
-                <th v-if="!isTeacher">Ownership</th>
-                <th>Warranty End</th>
+                <th v-for="col in visibleColumns" :key="col.key">{{ col.label }}</th>
                 <th style="text-align:center">Actions</th>
               </tr>
             </thead>
@@ -179,14 +200,38 @@
                       @update:checked="toggleItemSelection(item.id, $event)"
                     />
                   </td>
-                  <td class="font-medium" style="color:var(--muted-foreground);font-size:0.75rem">{{ item.id }}</td>
-                  <td class="font-semibold">{{ item.name }}</td>
-                  <td>{{ item.type }}</td>
-                  <td><Badge :variant="getItemStatusVariant(item.status)">{{ normalizeItemStatus(item.status) }}</Badge></td>
-                  <td>{{ item.location }}</td>
-                  <td>{{ item.supplier }}</td>
-                  <td v-if="!isTeacher"><Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge></td>
-                  <td>{{ formatDate(item.warrantyEnd) }}</td>
+                  <td v-for="col in visibleColumns" :key="col.key"
+                    :class="{
+                      'font-medium': col.key === 'id',
+                      'font-semibold': col.key === 'name',
+                    }"
+                    :style="col.key === 'id' ? 'color:var(--muted-foreground);font-size:0.75rem' : ''"
+                  >
+                    <template v-if="col.key === 'status'">
+                      <Badge :variant="getItemStatusVariant(item.status)">{{ normalizeItemStatus(item.status) }}</Badge>
+                    </template>
+                    <template v-else-if="col.key === 'owner'">
+                      <Badge :variant="item.owner === 'department' ? 'info' : 'outline'">{{ getOwnerName(item.owner) }}</Badge>
+                    </template>
+                    <template v-else-if="col.key === 'warrantyEnd' || col.key === 'warrantyStartDate' || col.key === 'purchaseDate'">
+                      {{ formatDate(item[col.key]) }}
+                    </template>
+                    <template v-else-if="col.key === 'warrantyOnsite'">
+                      {{ item.warrantyOnsite ? 'Yes' : 'No' }}
+                    </template>
+                    <template v-else-if="col.key === 'canBorrow'">
+                      {{ item.canBorrow !== false ? 'Yes' : 'No' }}
+                    </template>
+                    <template v-else-if="col.key === 'price'">
+                      {{ item.price != null && item.price !== 0 ? `$${Number(item.price).toFixed(2)}` : '' }}
+                    </template>
+                    <template v-else-if="col.key === 'id'">
+                      {{ item.id }}
+                    </template>
+                    <template v-else>
+                      {{ item[col.key] }}
+                    </template>
+                  </td>
                   <td style="text-align:center">
                     <DropdownMenu align="end">
                       <template #trigger>
@@ -563,7 +608,7 @@ import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
-import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, SlidersHorizontal } from 'lucide-vue-next'
+import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, SlidersHorizontal, Columns3 } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
 import {
@@ -631,6 +676,7 @@ export default {
     Card,
     Checkbox,
     ChevronDown,
+    Columns3,
     DeleteBlockModal,
     DropdownMenu,
     DropdownMenuItem,
@@ -699,6 +745,74 @@ export default {
       warrantyEnd: '', description: ''
     })
 
+    // ── Column visibility ──────────────────────────
+    const allColumns = [
+      { key: 'id', label: 'ID', default: true },
+      { key: 'name', label: 'Name', default: true },
+      { key: 'universityID', label: 'University ID', default: false },
+      { key: 'type', label: 'Type', default: true },
+      { key: 'category', label: 'Category', default: false },
+      { key: 'status', label: 'Status', default: true },
+      { key: 'location', label: 'Location', default: true },
+      { key: 'description', label: 'Description', default: false },
+      { key: 'supplier', label: 'Supplier', default: true },
+      { key: 'vendor', label: 'Vendor', default: false },
+      { key: 'invoiceNumber', label: 'Invoice #', default: false },
+      { key: 'foRequestID', label: 'FO Request ID', default: false },
+      { key: 'orderID', label: 'Order ID', default: false },
+      { key: 'supplierStatus', label: 'Supplier Status', default: false },
+      { key: 'projectLinked', label: 'Project Linked', default: false },
+      { key: 'fundingSource', label: 'Funding Source', default: false },
+      { key: 'purchaseDate', label: 'Purchase Date', default: false },
+      { key: 'warrantyStartDate', label: 'Warranty Start', default: false },
+      { key: 'warrantyEnd', label: 'Warranty End', default: true },
+      { key: 'warrantyVendor', label: 'Warranty Vendor', default: false },
+      { key: 'warrantyOnsite', label: 'Warranty Onsite', default: false },
+      { key: 'price', label: 'Price', default: false },
+      { key: 'departmentID', label: 'Department ID', default: false },
+      { key: 'owner', label: 'Ownership', default: true, hideForTeacher: true },
+      { key: 'motherID', label: 'Mother ID', default: false },
+      { key: 'currentBorrower', label: 'Current Borrower', default: false },
+      { key: 'canBorrow', label: 'Can Borrow', default: false },
+    ]
+
+    const defaultSelectedKeys = allColumns.filter(c => c.default).map(c => c.key)
+
+    const loadSelectedColumns = () => {
+      try {
+        const saved = localStorage.getItem('inv_selected_columns')
+        if (saved) return JSON.parse(saved)
+      } catch (e) { /* ignore */ }
+      return [...defaultSelectedKeys]
+    }
+
+    const selectedColumnKeys = ref(loadSelectedColumns())
+    const showColumnSelector = ref(false)
+
+    watch(selectedColumnKeys, (val) => {
+      try { localStorage.setItem('inv_selected_columns', JSON.stringify(val)) } catch (e) { /* ignore */ }
+    }, { deep: true })
+
+    const toggleColumn = (key) => {
+      const idx = selectedColumnKeys.value.indexOf(key)
+      if (idx >= 0) {
+        selectedColumnKeys.value.splice(idx, 1)
+      } else {
+        selectedColumnKeys.value.push(key)
+      }
+    }
+
+    const resetColumnsToDefault = () => {
+      selectedColumnKeys.value = [...defaultSelectedKeys]
+    }
+
+    const visibleColumns = computed(() => {
+      return allColumns.filter(col => {
+        if (col.hideForTeacher && isTeacher.value) return false
+        return selectedColumnKeys.value.includes(col.key)
+      })
+    })
+
     const advancedFilterCount = computed(() => {
       const f = searchFilters.value
       return [f.id, f.category, f.vendor, f.supplier, f.universityID, f.warrantyEnd, f.description]
@@ -746,9 +860,8 @@ export default {
     })
 
     const tableColumnSpan = computed(() => {
-      let columns = 8 // ID, Name, Type, Status, Location, Supplier, Warranty End, Actions
-      if (isAdmin.value) columns += 1
-      if (!isTeacher.value) columns += 1
+      let columns = visibleColumns.value.length + 1 // visible data columns + Actions
+      if (isAdmin.value) columns += 1 // checkbox column
       return columns
     })
 
@@ -1545,7 +1658,14 @@ export default {
       }
     }
 
+    const handleOutsideClick = (e) => {
+      if (showColumnSelector.value && !e.target.closest('.col-selector-wrapper')) {
+        showColumnSelector.value = false
+      }
+    }
+
     onMounted(() => {
+      document.addEventListener('click', handleOutsideClick)
       // Apply auto-filter from dashboard navigation
       if (props.pageParams?.filter) {
         const filterMap = { available: 'Available', missing: 'Missing', disposed: 'Dispose' }
@@ -1571,6 +1691,7 @@ export default {
     })
 
     onUnmounted(() => {
+      document.removeEventListener('click', handleOutsideClick)
       // Cleanup OCR worker if needed
       if (ocrWorker) {
         ocrWorker.terminate()
@@ -1652,6 +1773,12 @@ export default {
       activeStatusFilter,
       teachers,
       getOwnerName,
+      allColumns,
+      selectedColumnKeys,
+      showColumnSelector,
+      visibleColumns,
+      toggleColumn,
+      resetColumnsToDefault,
       selectedItemIds,
       singleDeleteTarget,
       showDeleteConfirm,
@@ -1810,6 +1937,70 @@ export default {
   white-space: nowrap;
 }
 .qf-clear-btn:hover { color: var(--text-primary); }
+
+/* ── Column Selector ───────────────────────────── */
+.col-selector-wrapper {
+  position: relative;
+}
+
+.col-selector-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  width: 14rem;
+  max-height: 22rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.col-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.col-selector-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.col-selector-list {
+  overflow-y: auto;
+  padding: 0.375rem 0;
+}
+
+.col-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.col-selector-item:hover {
+  background: var(--surface-100);
+}
+
+/* Column panel transition */
+.col-panel-enter-active,
+.col-panel-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.col-panel-enter-from,
+.col-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
 
 /* ── Advanced Filter Panel ─────────────────────── */
 .adv-filter-card {
