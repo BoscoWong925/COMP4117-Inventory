@@ -204,7 +204,6 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   // - teacher: lent-out items they own
   // - student: no access
   if (req.user.role === 'admin' || req.user.role === 'operator') {
-    // Owner-type tab filter for admin/operator
     if (ownerType === 'department') {
       filter.$or = [{ owner: { $exists: false } }, { owner: null }, { owner: '' }, { owner: 'department' }];
     } else if (ownerType === 'teacher') {

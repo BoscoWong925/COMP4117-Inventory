@@ -143,14 +143,13 @@ exports.getAllRequests = catchAsync(async (req, res) => {
   const filter = {};
 
   // Access scope:
-  // - admin/operator: all requests (for visibility/history)
+  // - admin/operator: all requests
   // - teacher: only requests for items they own
   // - student: no access
   if (req.user.role === 'user') {
     if (req.user.subRole !== 'teacher') {
       throw ApiError.forbidden('You do not have permission to view all requests');
     }
-
     const ownedItemIds = await Item.distinct('itemId', { owner: req.user.userId });
     if (ownedItemIds.length === 0) {
       return res.status(200).json({
@@ -346,8 +345,7 @@ exports.getPendingRequests = catchAsync(async (req, res) => {
   } = req.query;
 
   // Access scope:
-  // - admin: all items
-  // - operator: all items (same as admin)
+  // - admin/operator: all items
   // - teacher: items owned by that teacher
   // - student: no access
   let scopedItemIds = [];

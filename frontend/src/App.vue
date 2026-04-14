@@ -334,16 +334,21 @@ export default {
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
+          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
+            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
+            { page: 'search-available', label: 'Search Available', icon: NAV_ICONS.items },
+          ]},
           { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
             { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
             { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
           ]},
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
-            { page: 'manage-items', label: 'Items', icon: NAV_ICONS.items },
+            { page: 'manage-items', label: 'My Items', icon: NAV_ICONS.items },
           ]},
           { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'lent-out-filter' },
           { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
-            { page: 'borrow-history', label: 'Borrow History', icon: NAV_ICONS.history },
+            { page: 'my-borrowing-record', label: 'My Borrow Records', icon: NAV_ICONS.myRecords },
+            { page: 'borrow-history', label: 'Owned Items History', icon: NAV_ICONS.history },
           ]},
           { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
             { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
