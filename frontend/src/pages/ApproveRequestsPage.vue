@@ -138,7 +138,9 @@
                   </td>
                   <td>
                     {{ group.parent.borrowerName || group.parent.borrowerID }}
-                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
+                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot-wrap" @mouseenter="showOverdueTooltip" @mouseleave="hideOverdueTooltip">
+                      <span class="request-overdue-dot"></span>
+                    </span>
                   </td>
                   <td>{{ formatDate(group.parent.requestDate) }}</td>
                   <td class="request-waiting-text">{{ waitingTime(group.parent.requestDate) }}</td>
@@ -200,7 +202,9 @@
                   </td>
                   <td>
                     {{ group.parent.borrowerName || group.parent.borrowerID }}
-                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot" title="This borrower has overdue items"></span>
+                    <span v-if="overdueBorrowerIDs.has(group.parent.borrowerID)" class="request-overdue-dot-wrap" @mouseenter="showOverdueTooltip" @mouseleave="hideOverdueTooltip">
+                      <span class="request-overdue-dot"></span>
+                    </span>
                   </td>
                   <td>{{ formatDate(group.parent.approvalDate) }}</td>
                   <td class="request-waiting-text">{{ waitingTime(group.parent.approvalDate) }}</td>
@@ -403,6 +407,11 @@
       :defaultSubject="emailTarget ? 'Regarding Request ' + emailTarget.id : ''"
       @close="showEmailModal = false"
     />
+    <Teleport to="body">
+      <div v-if="overdueTooltipVisible" class="request-overdue-tooltip" :style="overdueTooltipStyle">
+        This user has overdue item(s) to return
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -497,6 +506,21 @@ export default {
       })
       return ids
     })
+
+    const overdueTooltipVisible = ref(false)
+    const overdueTooltipStyle = ref({})
+    const showOverdueTooltip = (e) => {
+      const rect = e.currentTarget.getBoundingClientRect()
+      overdueTooltipStyle.value = {
+        top: rect.top + rect.height / 2 + 'px',
+        left: rect.right + 8 + 'px',
+        transform: 'translateY(-50%)',
+      }
+      overdueTooltipVisible.value = true
+    }
+    const hideOverdueTooltip = () => {
+      overdueTooltipVisible.value = false
+    }
 
     const buildGroups = (reqs) => {
       const parents = reqs.filter(r => !r.parentRequestId)
@@ -1007,6 +1031,10 @@ export default {
       overdueBorrowerIDs,
       showEmailModal,
       emailTarget,
+      overdueTooltipVisible,
+      overdueTooltipStyle,
+      showOverdueTooltip,
+      hideOverdueTooltip,
       toggleSelectAllCurrent,
       togglePendingSelection,
       toggleCheckoutSelection,
@@ -1212,14 +1240,35 @@ export default {
   text-overflow: ellipsis;
 }
 
+.request-overdue-dot-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.375rem;
+  cursor: pointer;
+}
+
 .request-overdue-dot {
   display: inline-block;
   width: 0.5rem;
   height: 0.5rem;
-  margin-left: 0.375rem;
   border-radius: 50%;
   background: var(--danger);
   animation: requestPulse 1.6s ease-in-out infinite;
+}
+
+:global(.request-overdue-tooltip) {
+  position: fixed;
+  padding: 0.375rem 0.625rem;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
 @keyframes requestPulse {

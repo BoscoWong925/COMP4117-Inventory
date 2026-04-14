@@ -305,7 +305,7 @@
                       </td>
                       <td v-if="visibleColumns.user" class="cell-ellip">
                         {{ row.user }}
-                        <span v-if="row.hasOverdue" class="overdue-dot-wrap" title="This borrower has overdue items">
+                        <span v-if="row.hasOverdue" class="overdue-dot-wrap" @mouseenter="showOverdueTooltip" @mouseleave="hideOverdueTooltip">
                           <span class="overdue-dot"></span>
                         </span>
                       </td>
@@ -1081,6 +1081,11 @@
       </div>
     </template>
   </div>
+  <Teleport to="body">
+    <div v-if="overdueTooltipVisible" class="overdue-fixed-tooltip" :style="overdueTooltipStyle">
+      This user has overdue item(s) to return
+    </div>
+  </Teleport>
 </template>
 
 <script>
@@ -2314,6 +2319,21 @@ export default {
 
     onMounted(() => loadDashboardData())
 
+    const overdueTooltipVisible = ref(false)
+    const overdueTooltipStyle = ref({})
+    const showOverdueTooltip = (e) => {
+      const rect = e.currentTarget.getBoundingClientRect()
+      overdueTooltipStyle.value = {
+        top: rect.top + rect.height / 2 + 'px',
+        left: rect.right + 8 + 'px',
+        transform: 'translateY(-50%)',
+      }
+      overdueTooltipVisible.value = true
+    }
+    const hideOverdueTooltip = () => {
+      overdueTooltipVisible.value = false
+    }
+
     return {
       user, stats, recentLogs, filteredLogs, myBorrows,
       dashboardLoadState,
@@ -2366,9 +2386,25 @@ export default {
       getStageClass, getStageName,
       scrollToStudentTab, studentMainCardRef,
       normalizedStatus,
+      overdueTooltipVisible, overdueTooltipStyle, showOverdueTooltip, hideOverdueTooltip,
     }
   }
 }
 </script>
 
 <style scoped src="./HomePage.scoped.css"></style>
+<style>
+.overdue-fixed-tooltip {
+  position: fixed;
+  padding: 0.375rem 0.625rem;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+</style>
