@@ -354,10 +354,6 @@ export default {
             { page: 'my-borrowing-record', label: 'My Borrow Records', icon: NAV_ICONS.myRecords },
             { page: 'borrow-history', label: 'Owned Items History', icon: NAV_ICONS.history },
           ]},
-          { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
-            { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
-            { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
-          ]},
         ]
       } else if (user.value?.role === 'user') {
         return [
