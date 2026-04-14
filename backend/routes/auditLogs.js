@@ -4,7 +4,7 @@ const auditLogController = require('../controllers/auditLogController');
 const { authenticate, authorize } = require('../middleware/auth');
 
 router.use(authenticate);
-router.get('/', authorize('admin', 'operator'), auditLogController.getAllLogs);
+router.get('/', authorize('admin', 'operator', 'user'), auditLogController.getAllLogs);
 router.delete('/', authorize('admin'), auditLogController.deleteLogs);
 
 module.exports = router;

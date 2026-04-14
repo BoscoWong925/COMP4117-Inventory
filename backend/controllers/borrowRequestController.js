@@ -5,7 +5,7 @@ const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
-const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail } = require('../utils/emailService');
+const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendRequestSubmittedEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail } = require('../utils/emailService');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -143,14 +143,13 @@ exports.getAllRequests = catchAsync(async (req, res) => {
   const filter = {};
 
   // Access scope:
-  // - admin/operator: all requests (for visibility/history)
+  // - admin/operator: all requests
   // - teacher: only requests for items they own
   // - student: no access
   if (req.user.role === 'user') {
     if (req.user.subRole !== 'teacher') {
       throw ApiError.forbidden('You do not have permission to view all requests');
     }
-
     const ownedItemIds = await Item.distinct('itemId', { owner: req.user.userId });
     if (ownedItemIds.length === 0) {
       return res.status(200).json({
@@ -295,10 +294,24 @@ exports.getAllRequests = catchAsync(async (req, res) => {
       { $limit: parseInt(pageSize) }
     ]);
   } else {
-    parentRequests = await BorrowRequest.find(parentFilter)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(pageSize));
+    // Cosmos DB may reject compound filter+sort without a matching compound index.
+    // Sort in memory to support all sortBy fields reliably.
+    const allParents = await BorrowRequest.find(parentFilter).lean();
+    const direction = sortDir === 'desc' ? -1 : 1;
+    const normalizeSortValue = (value) => {
+      if (value === undefined || value === null) return '';
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'number') return value;
+      return String(value).toLowerCase();
+    };
+    allParents.sort((a, b) => {
+      const aVal = normalizeSortValue(a[sortBy]);
+      const bVal = normalizeSortValue(b[sortBy]);
+      if (aVal < bVal) return -1 * direction;
+      if (aVal > bVal) return 1 * direction;
+      return 0;
+    });
+    parentRequests = allParents.slice(skip, skip + parseInt(pageSize));
   }
 
   const parentIds = parentRequests.map(r => r.requestId);
@@ -332,12 +345,12 @@ exports.getPendingRequests = catchAsync(async (req, res) => {
   } = req.query;
 
   // Access scope:
-  // - admin/operator: department-owned items only
+  // - admin/operator: all items
   // - teacher: items owned by that teacher
   // - student: no access
   let scopedItemIds = [];
   if (req.user.role === 'admin' || req.user.role === 'operator') {
-    scopedItemIds = await Item.distinct('itemId', { owner: 'department' });
+    scopedItemIds = await Item.distinct('itemId', {});
   } else if (req.user.role === 'user' && req.user.subRole === 'teacher') {
     scopedItemIds = await Item.distinct('itemId', { owner: req.user.userId });
   } else {
@@ -610,6 +623,7 @@ exports.createRequest = catchAsync(async (req, res, next) => {
   if (req.files && req.files.length > 0) {
     parentRequest.attachments = req.files.map(file => ({
       filename: file.filename,
+      originalname: file.originalname,
       mimetype: file.mimetype,
       size: file.size,
       path: file.path
@@ -626,6 +640,11 @@ exports.createRequest = catchAsync(async (req, res, next) => {
     const emailResult = await sendNewRequestEmail({ request: parentRequest, borrower, item, recipients });
     if (emailResult?.sent) {
       await addAuditLog(borrowerID, 'EMAIL_SENT', `New request email sent for ${parentRequestId}`, itemID);
+    }
+    // Confirmation email to the borrower
+    const confirmResult = await sendRequestSubmittedEmail({ request: parentRequest, borrower, item });
+    if (confirmResult?.sent) {
+      await addAuditLog(borrowerID, 'EMAIL_SENT', `Submission confirmation email sent for ${parentRequestId}`, itemID);
     }
   } catch (emailErr) {
     await addAuditLog(borrowerID, 'EMAIL_FAILED', `New request email failed: ${emailErr.message}`, itemID);
@@ -1119,6 +1138,7 @@ exports.uploadAttachments = catchAsync(async (req, res, next) => {
 
   const newAttachments = req.files.map(file => ({
     filename: file.filename,
+    originalname: file.originalname,
     mimetype: file.mimetype,
     size: file.size,
     path: file.path

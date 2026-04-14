@@ -513,7 +513,7 @@ export default {
         selectedPendingIds.value = []
         selectedCheckoutIds.value = []
         const status = activeTab.value === 'pending' ? 'Pending' : 'Pending Check-Out'
-        const response = await borrowingService.getTeacherPendingRequests({ page: currentPage.value, pageSize, status })
+        const response = await borrowingService.getTeacherPendingRequests({ page: currentPage.value, pageSize: pageSizeRef.value, status })
         pendingRequests.value = response.requests || []
         pendingCount.value = response.pendingCount || 0
         checkoutCount.value = response.checkoutCount || 0
@@ -528,7 +528,7 @@ export default {
       try {
         const params = {
           page: currentPage.value,
-          pageSize,
+          pageSize: pageSizeRef.value,
         }
         if (historyStatus.value !== 'All') params.status = historyStatus.value
         const result = await borrowingService.getTeacherRequestHistory(params)
@@ -546,6 +546,18 @@ export default {
         loadHistory()
       } else {
         loadPending()
+      }
+    })
+
+    watch(pageSizeRef, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      } else {
+        if (activeTab.value === 'history') {
+          loadHistory()
+        } else {
+          loadPending()
+        }
       }
     })
 

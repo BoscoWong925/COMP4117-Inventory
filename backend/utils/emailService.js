@@ -130,6 +130,28 @@ const sendRejectionEmail = async ({ request, borrower, item, approver, reason })
   return sendEmail({ to: borrower.email, subject, text });
 };
 
+/** Notify borrower: their request was successfully submitted */
+const sendRequestSubmittedEmail = async ({ request, borrower, item }) => {
+  const subject = `[Inventory] Borrow Request ${request.requestId} Submitted`;
+  const text = [
+    `Hello ${borrower?.name || borrower?.userId || 'User'},`,
+    '',
+    'Your borrow request has been submitted successfully and is pending approval.',
+    '',
+    `Request ID: ${request.requestId}`,
+    `Item: ${request.itemID} - ${item?.name || 'Unknown'}`,
+    `Reason: ${request.reason || 'N/A'}`,
+    `Date: ${formatDate(request.requestDate)}`,
+    '',
+    'You will receive another email once your request is reviewed.',
+    '',
+    'Inventory System'
+  ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'request_submitted', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: 'Inventory System' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
+  return sendEmail({ to: borrower.email, subject, text });
+};
+
 /** Notify item owner / operators: new borrow request submitted */
 const sendNewRequestEmail = async ({ request, borrower, item, recipients }) => {
   if (!recipients || recipients.length === 0) return { skipped: true, reason: 'No recipients' };
@@ -337,6 +359,7 @@ module.exports = {
   sendApprovalEmail,
   sendRejectionEmail,
   sendNewRequestEmail,
+  sendRequestSubmittedEmail,
   sendCheckoutEmail,
   sendCheckoutDeniedEmail,
   sendReturnEmail,

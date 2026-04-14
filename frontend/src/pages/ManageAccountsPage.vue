@@ -378,7 +378,7 @@ export default {
       try {
         const params = {
           page: currentPage.value,
-          pageSize,
+          pageSize: pageSizeRef.value,
         }
         if (filterRole.value) params.displayRole = filterRole.value
         if (filterStatus.value) params.isActive = filterStatus.value === 'active' ? 'true' : 'false'
@@ -412,6 +412,14 @@ export default {
     // Watch dropdown filters and pagination -> reload immediately
     watch([filterRole, filterStatus, currentPage], () => {
       loadUsers()
+    })
+
+    watch(pageSizeRef, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      } else {
+        loadUsers()
+      }
     })
 
     // Debounced watcher for search text

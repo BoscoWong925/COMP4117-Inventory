@@ -123,7 +123,11 @@
               <th>Borrower Name</th>
               <th>Vendor</th>
               <th>Location</th>
-              <th>Return Date</th>
+              <th class="sortable-th" @click="toggleReturnDateSort" style="cursor:pointer;user-select:none;">
+                Return Date
+                <span v-if="returnDateSortDir === 'asc'" class="sort-arrow">▲</span>
+                <span v-else class="sort-arrow">▼</span>
+              </th>
               <th>Due / Status</th>
               <th class="text-center">Return</th>
             </tr>
@@ -269,7 +273,8 @@
       <TablePaginationBar
         v-model:currentPage="currentPage"
         v-model:pageSize="pageSize"
-        :total-items="totalFilteredGroups"
+        :total-items="totalItems"
+        :page-size-options="[20, 50, 100]"
         :disabled="showLentSkeleton"
       />
     </Card>
@@ -395,7 +400,7 @@ export default {
     const years = ref([])
     const currentPage = ref(1)
     const totalItems = ref(0)
-    const pageSize = ref(10)
+    const pageSize = ref(50)
     const isLentLoaded = ref(false)
     const isLentInitialLoading = ref(false)
     const isLentFetching = ref(false)
@@ -405,9 +410,10 @@ export default {
     const newLocation = ref('')
     const otherLocation = ref('')
     const typeFilter = ref('')
-    const sortField = ref('')
-    const sortDir = ref('asc')
+    const sortField = ref('updatedAt')
+    const sortDir = ref('desc')
     // Note: sorting UI removed; sortField/sortDir kept for API default ordering
+    const returnDateSortDir = ref('asc') // asc = soonest/overdue first, desc = latest first
     const showFilterPanel = ref(false)
     const activeStatusFilter = ref('')
     const selectedReturnIds = ref([])
@@ -566,9 +572,13 @@ export default {
       return { returnDate, dueLabel: `${diffDays}d left`, dueSort: diffDays, dueClass: 'due-badge--ok' }
     }
 
+    const toggleReturnDateSort = () => {
+      returnDateSortDir.value = returnDateSortDir.value === 'asc' ? 'desc' : 'asc'
+    }
+
     const buildQueryParams = () => {
       const f = searchFilters.value
-      const params = { page: 1, pageSize: 9999 }
+      const params = { page: currentPage.value, pageSize: pageSize.value }
       if (f.category) params.category = f.category
       if (f.location) params.location = f.location
       if (f.type || typeFilter.value) params.type = f.type || typeFilter.value
@@ -582,6 +592,8 @@ export default {
       if (f.name) params.itemNameSearch = f.name
       // Owner-type filter for tab-based navigation
       if (returnViewTab.value) params.ownerType = returnViewTab.value
+      params.sortBy = sortField.value
+      params.sortDir = sortDir.value
       return params
     }
 
@@ -679,7 +691,14 @@ export default {
     watch(() => pageSize.value, () => {
       if (currentPage.value !== 1) {
         currentPage.value = 1
+      } else {
+        loadLentOutItems()
       }
+    })
+
+    // Reload when page changes (server-side pagination)
+    watch(currentPage, () => {
+      loadLentOutItems()
     })
 
     // Debounced watcher for text inputs
@@ -741,7 +760,7 @@ export default {
     })
 
     const sortedGroups = computed(() => {
-      // Sort: overdue first, then closest to return date, then no-return-date last
+      const isAsc = returnDateSortDir.value === 'asc'
       return [...groupedItems.value].sort((a, b) => {
         const aMeta = getReturnMeta(a.parent)
         const bMeta = getReturnMeta(b.parent)
@@ -753,16 +772,14 @@ export default {
           const bTime = new Date(b.parent.createdAt || 0).getTime()
           return bTime - aTime
         }
-        // No due date goes last
+        // No due date goes last regardless of direction
         if (aSort === Number.POSITIVE_INFINITY) return 1
         if (bSort === Number.POSITIVE_INFINITY) return -1
-        // Overdue (negative) before non-overdue (positive/zero)
-        const aOverdue = aSort < 0
-        const bOverdue = bSort < 0
-        if (aOverdue && !bOverdue) return -1
-        if (!aOverdue && bOverdue) return 1
-        // Within same group: closer to today (smaller absolute value) ranks higher
-        return Math.abs(aSort) - Math.abs(bSort)
+
+        // Get actual return dates for chronological sort
+        const aDate = aMeta.returnDate ? aMeta.returnDate.getTime() : 0
+        const bDate = bMeta.returnDate ? bMeta.returnDate.getTime() : 0
+        return isAsc ? aDate - bDate : bDate - aDate
       })
     })
 
@@ -787,8 +804,7 @@ export default {
       } else if (tab === 'teacher') {
         groups = groups.filter(g => g.parent.owner && g.parent.owner !== 'department')
       }
-      const start = (currentPage.value - 1) * pageSize.value
-      return groups.slice(start, start + pageSize.value)
+      return groups
     })
 
     const totalFilteredGroups = computed(() => {
@@ -947,6 +963,8 @@ export default {
       activeStatusFilter,
       getBorrowerName,
       getReturnMeta,
+      returnDateSortDir,
+      toggleReturnDateSort,
       handleReturnItem,
       saveLocation,
       showLocationCard,
@@ -1318,5 +1336,18 @@ thead th:hover .sort-icon {
 .due-badge--unknown {
   background: var(--surface-100);
   color: var(--muted-foreground);
+}
+
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable-th:hover {
+  color: var(--primary);
+}
+.sort-arrow {
+  font-size: 0.7em;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 </style>

@@ -23,7 +23,7 @@
         class="status-tab" :class="{ active: activeStatusTab === tab.key }"
         @click="activeStatusTab = tab.key; currentPage = 1">
         {{ tab.label }}
-        <span class="tab-count" :class="tab.countClass">{{ tab.count }}</span>
+        <span v-if="tab.count > 0" class="tab-count" :class="tab.countClass">{{ tab.count }}</span>
       </button>
     </div>
 
@@ -31,7 +31,7 @@
       Error loading records: {{ loadError }}
     </div>
     <div v-else-if="loading" class="empty-state">Loading records...</div>
-    <div v-else-if="filteredRecords.length === 0" class="empty-state">
+    <div v-else-if="records.length === 0" class="empty-state">
       <p v-if="activeStatusTab !== 'all' || searchText">No matching records found</p>
       <p v-else>No borrowing records yet</p>
     </div>
@@ -128,7 +128,7 @@
         </div>
       </template>
 
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="filteredRecords.length" :pageSize="pageSize" />
+      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
     </div>
   </div>
 </template>
@@ -156,6 +156,7 @@ export default {
     const loading = ref(true)
     const currentPage = ref(1)
     const pageSize = 10
+    const totalItems = ref(0)
     const searchText = ref('')
     const activeStatusTab = ref('all')
     const sortOrder = ref('desc')
@@ -225,93 +226,17 @@ export default {
       return record.status
     }
 
-    const statusTabs = computed(() => {
-      const counts = { all: 0, pending: 0, approved: 0, rejected: 0, returned: 0 }
-      for (const r of records.value) {
-        counts.all++
-        const s = normalizedStatus(r.status)
-        if (s === 'pending') counts.pending++
-        else if (s === 'approved' || s === 'pending check-out') counts.approved++
-        else if (s === 'rejected') counts.rejected++
-        else if (s === 'returned') counts.returned++
-      }
-      return [
-        { key: 'all', label: 'All', count: counts.all, countClass: '' },
-        { key: 'pending', label: 'Pending', count: counts.pending, countClass: counts.pending > 0 ? 'tab-count--warning' : '' },
-        { key: 'approved', label: 'Approved', count: counts.approved, countClass: counts.approved > 0 ? 'tab-count--success' : '' },
-        { key: 'rejected', label: 'Rejected', count: counts.rejected, countClass: counts.rejected > 0 ? 'tab-count--danger' : '' },
-        { key: 'returned', label: 'Returned', count: counts.returned, countClass: '' },
-      ]
-    })
+    const statusTabs = [
+      { key: 'all', label: 'All', count: 0, countClass: '' },
+      { key: 'pending', label: 'Pending', count: 0, countClass: '' },
+      { key: 'approved', label: 'Approved', count: 0, countClass: '' },
+      { key: 'rejected', label: 'Rejected', count: 0, countClass: '' },
+      { key: 'returned', label: 'Returned', count: 0, countClass: '' },
+    ]
 
-    const filteredRecords = computed(() => {
-      let filtered = [...records.value]
-
-      // Status filter
-      if (activeStatusTab.value !== 'all') {
-        filtered = filtered.filter(r => {
-          const s = normalizedStatus(r.status)
-          if (activeStatusTab.value === 'pending') return s === 'pending'
-          if (activeStatusTab.value === 'approved') return s === 'approved' || s === 'pending check-out'
-          if (activeStatusTab.value === 'rejected') return s === 'rejected'
-          if (activeStatusTab.value === 'returned') return s === 'returned'
-          return true
-        })
-      }
-
-      // Search filter
-      if (searchText.value.trim()) {
-        const q = searchText.value.trim().toLowerCase()
-        filtered = filtered.filter(r =>
-          (r.itemName || '').toLowerCase().includes(q) ||
-          (r.id || '').toLowerCase().includes(q) ||
-          (r.requestId || '').toLowerCase().includes(q)
-        )
-      }
-
-      // Sort
-      if (activeStatusTab.value === 'approved') {
-        // Checked-out tab: overdue first, then by closest return date, then no-return-date last
-        const now = Date.now()
-        filtered.sort((a, b) => {
-          const aHas = !!a.returnDate
-          const bHas = !!b.returnDate
-          // Items without returnDate go to the end
-          if (aHas && !bHas) return -1
-          if (!aHas && bHas) return 1
-          if (!aHas && !bHas) {
-            // Both without returnDate: fall back to createdAt
-            const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
-            const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
-            return bTime - aTime
-          }
-          // Both have returnDate
-          const aTime = new Date(a.returnDate).getTime()
-          const bTime = new Date(b.returnDate).getTime()
-          const aOverdue = aTime < now
-          const bOverdue = bTime < now
-          // Overdue items come first
-          if (aOverdue && !bOverdue) return -1
-          if (!aOverdue && bOverdue) return 1
-          // Within same group: closer to today ranks higher
-          const aDist = Math.abs(aTime - now)
-          const bDist = Math.abs(bTime - now)
-          return aDist - bDist
-        })
-      } else {
-        filtered.sort((a, b) => {
-          const aTime = new Date(a.requestDate || a.createdAt || 0).getTime()
-          const bTime = new Date(b.requestDate || b.createdAt || 0).getTime()
-          return sortOrder.value === 'desc' ? bTime - aTime : aTime - bTime
-        })
-      }
-
-      return filtered
-    })
-
-    // Group records: parent records with their child component records
+    // Server handles all filtering; groupedRecords just reconstructs parent-child structure
     const groupedRecords = computed(() => {
-      const allRecords = filteredRecords.value
+      const allRecords = records.value
       const childrenByParent = new Map()
       const parentIdSet = new Set()
       allRecords.forEach(r => {
@@ -335,10 +260,9 @@ export default {
       return groups
     })
 
-    const paginatedGroups = computed(() => {
-      const start = (currentPage.value - 1) * pageSize
-      return groupedRecords.value.slice(start, start + pageSize)
-    })
+    const paginatedGroups = computed(() => groupedRecords.value)
+
+    const statusMap = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', returned: 'Returned' }
 
     const loadRecords = async () => {
       loadError.value = ''
@@ -346,12 +270,19 @@ export default {
       try {
         const currentUser = authService.getCurrentUser()
         const userID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
-        const response = await borrowingService.getRequestsForUser(userID)
+        const response = await borrowingService.getRequestsForUser(userID, {
+          page: currentPage.value,
+          pageSize,
+          search: searchText.value || undefined,
+          status: activeStatusTab.value !== 'all' ? statusMap[activeStatusTab.value] : undefined,
+          sortDir: sortOrder.value,
+        })
         const userRequests = response.requests || []
         records.value = userRequests.map(req => ({
           ...req,
           itemName: req.itemName || 'Unknown Item'
         }))
+        totalItems.value = response.total || 0
       } catch (e) {
         console.error('Failed to load records:', e)
         loadError.value = e.message || 'Failed to load records'
@@ -374,6 +305,18 @@ export default {
       }
     })
 
+    watch([searchText, activeStatusTab, sortOrder], () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      } else {
+        loadRecords()
+      }
+    })
+
+    watch(currentPage, () => {
+      loadRecords()
+    })
+
     const getOwnerDisplayName = (ownerId) => {
       if (!ownerId || ownerId === 'department') return 'Department'
       return ownerId
@@ -382,8 +325,8 @@ export default {
     return {
       records, loadError, loading,
       searchText, activeStatusTab, sortOrder, toggleSort,
-      statusTabs, filteredRecords, groupedRecords, paginatedGroups,
-      currentPage, pageSize,
+      statusTabs, groupedRecords, paginatedGroups,
+      currentPage, pageSize, totalItems,
       normalizedStatus, isRecordOverdue,
       getDaysLeft, getDaysLeftClass, getDaysLeftLabel,
       getStageClass, getStageName,

@@ -204,7 +204,6 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   // - teacher: lent-out items they own
   // - student: no access
   if (req.user.role === 'admin' || req.user.role === 'operator') {
-    // Owner-type tab filter for admin/operator
     if (ownerType === 'department') {
       filter.$or = [{ owner: { $exists: false } }, { owner: null }, { owner: '' }, { owner: 'department' }];
     } else if (ownerType === 'teacher') {
@@ -278,6 +277,7 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   const direction = sortDir === 'desc' ? -1 : 1;
   const normalizeSortValue = (value) => {
     if (value === undefined || value === null) return '';
+    if (value instanceof Date) return value.getTime();
     if (typeof value === 'number') return value;
     return String(value).toLowerCase();
   };
