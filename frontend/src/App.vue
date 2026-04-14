@@ -187,6 +187,7 @@
 
   <LoginPage v-else :onLogin="handleLogin" :darkMode="darkMode" @toggle-theme="darkMode = !darkMode" />
   </template>
+  <ActionOverlay />
 </template>
 
 <script>
@@ -197,6 +198,8 @@ import logoWhite from '@/Assetes/logo_white_650.svg'
 import { borrowingService } from './utils/services'
 import { notificationService } from './utils/services'
 import { isOverdue, formatDate } from './utils/helpers'
+import { useActionLock } from './hooks/useActionLock'
+import ActionOverlay from './components/ActionOverlay.vue'
 import LoginPage from './pages/LoginPage.vue'
 import ApproveRequestsPage from './pages/ApproveRequestsPage.vue'
 import BorrowHistoryPage from './pages/BorrowHistoryPage.vue'
@@ -254,6 +257,7 @@ export default {
     ManageAccountsPage,
     TeacherRequestsPage,
     NotificationBadge,
+    ActionOverlay,
   },
   setup() {
     const { user, isAuthenticated, login, logout, initAuth, isAuthLoading } = useAuth()
@@ -562,7 +566,13 @@ export default {
       return d.toLocaleDateString('en-HK', { month: 'short', day: 'numeric', year: 'numeric' })
     }
 
+    const { _actionInProgress } = useActionLock()
+
     const handleNavigate = (page, params = {}) => {
+      if (_actionInProgress.value) {
+        alert('An action is currently in progress. Please wait for it to finish.')
+        return
+      }
       currentPage.value = page
       pageParams.value = params || {}
       sessionStorage.setItem('inventory_last_page', page)

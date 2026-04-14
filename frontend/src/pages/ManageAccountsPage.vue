@@ -305,6 +305,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Mail, ShieldOff, ShieldCheck } from 'lucide-vue-next'
 import { userService } from '../utils/services'
+import { useActionLock } from '../hooks/useActionLock'
 import SendEmailModal from '../components/SendEmailModal.vue'
 import {
   UiBadge as Badge,
@@ -460,6 +461,8 @@ export default {
       showPassword.value = false
     }
 
+    const { runAction } = useActionLock()
+
     const handleSubmit = async () => {
       const dr = formData.value.displayRole
       let role, subRole
@@ -481,28 +484,30 @@ export default {
         payload.password = formData.value.password
       }
 
-      try {
-        if (editingUser.value) {
-          // Don't send userId/username on update (they're immutable)
-          delete payload.userId
-          delete payload.username
-          await userService.updateUser(editingUser.value.userId, payload)
-          showMessage('Account updated successfully', true)
-        } else {
-          if (!formData.value.password) {
-            alert('Password is required for new accounts')
-            return
-          }
-          await userService.createUser(payload)
-          showMessage('Account created successfully', true)
-        }
-        showForm.value = false
-        resetForm()
-        await loadUsers()
-      } catch (e) {
-        console.error('Failed to save account:', e)
-        showMessage('Error: ' + e.message, false)
+      if (!editingUser.value && !formData.value.password) {
+        alert('Password is required for new accounts')
+        return
       }
+
+      await runAction(editingUser.value ? 'Updating account...' : 'Creating account...', async () => {
+        try {
+          if (editingUser.value) {
+            delete payload.userId
+            delete payload.username
+            await userService.updateUser(editingUser.value.userId, payload)
+            showMessage('Account updated successfully', true)
+          } else {
+            await userService.createUser(payload)
+            showMessage('Account created successfully', true)
+          }
+          showForm.value = false
+          resetForm()
+          await loadUsers()
+        } catch (e) {
+          console.error('Failed to save account:', e)
+          showMessage('Error: ' + e.message, false)
+        }
+      })
     }
 
     const confirmDelete = (u) => {
@@ -512,25 +517,29 @@ export default {
 
     const handleDelete = async () => {
       if (!deleteTarget.value) return
-      try {
-        await userService.deleteUser(deleteTarget.value.userId)
-        showMessage('Account deleted', true)
-        showDeleteModal.value = false
-        deleteTarget.value = null
-        await loadUsers()
-      } catch (e) {
-        showMessage('Error: ' + e.message, false)
-      }
+      await runAction('Deleting account...', async () => {
+        try {
+          await userService.deleteUser(deleteTarget.value.userId)
+          showMessage('Account deleted', true)
+          showDeleteModal.value = false
+          deleteTarget.value = null
+          await loadUsers()
+        } catch (e) {
+          showMessage('Error: ' + e.message, false)
+        }
+      })
     }
 
     const toggleStatus = async (u, isActive) => {
-      try {
-        await userService.toggleUserStatus(u.userId, isActive)
-        showMessage(`Account ${isActive ? 'enabled' : 'disabled'}`, true)
-        await loadUsers()
-      } catch (e) {
-        showMessage('Error: ' + e.message, false)
-      }
+      await runAction(isActive ? 'Enabling account...' : 'Disabling account...', async () => {
+        try {
+          await userService.toggleUserStatus(u.userId, isActive)
+          showMessage(`Account ${isActive ? 'enabled' : 'disabled'}`, true)
+          await loadUsers()
+        } catch (e) {
+          showMessage('Error: ' + e.message, false)
+        }
+      })
     }
 
     const allSelected = computed(() => {
@@ -571,59 +580,65 @@ export default {
 
     const handleBulkDisable = async () => {
       showBulkDisableModal.value = false
-      try {
-        for (const userId of selectedUserIds.value) {
+      const ids = [...selectedUserIds.value]
+      const count = ids.length
+      await runAction('Disabling accounts...', async (onProgress) => {
+        let done = 0
+        for (const userId of ids) {
           try {
             await userService.toggleUserStatus(userId, false)
           } catch (e) {
             console.error(`Failed to disable user ${userId}:`, e)
           }
+          done++
+          onProgress(done, count)
         }
         selectedUserIds.value = []
-        showMessage(`Disabled ${selectedUserIds.value.length} account(s)`, true)
+        showMessage(`Disabled ${count} account(s)`, true)
         await loadUsers()
-      } catch (e) {
-        console.error('Failed to bulk disable users:', e)
-        showMessage('Error disabling accounts', false)
-      }
+      })
     }
 
     const handleBulkEnable = async () => {
       showBulkEnableModal.value = false
-      try {
-        for (const userId of selectedUserIds.value) {
+      const ids = [...selectedUserIds.value]
+      const count = ids.length
+      await runAction('Enabling accounts...', async (onProgress) => {
+        let done = 0
+        for (const userId of ids) {
           try {
             await userService.toggleUserStatus(userId, true)
           } catch (e) {
             console.error(`Failed to enable user ${userId}:`, e)
           }
+          done++
+          onProgress(done, count)
         }
         selectedUserIds.value = []
-        showMessage(`Enabled ${selectedUserIds.value.length} account(s)`, true)
+        showMessage(`Enabled ${count} account(s)`, true)
         await loadUsers()
-      } catch (e) {
-        console.error('Failed to bulk enable users:', e)
-        showMessage('Error enabling accounts', false)
-      }
+      })
     }
 
     const handleBulkDelete = async () => {
       showBulkDeleteModal.value = false
-      try {
-        for (const userId of selectedUserIds.value) {
+      const ids = [...selectedUserIds.value]
+      const count = ids.length
+      await runAction('Deleting accounts...', async (onProgress) => {
+        let done = 0
+        for (const userId of ids) {
           try {
             await userService.deleteUser(userId)
           } catch (e) {
             console.error(`Failed to delete user ${userId}:`, e)
           }
+          done++
+          onProgress(done, count)
         }
         selectedUserIds.value = []
-        showMessage(`Deleted ${selectedUserIds.value.length} account(s)`, true)
+        showMessage(`Deleted ${count} account(s)`, true)
         await loadUsers()
-      } catch (e) {
-        console.error('Failed to bulk delete users:', e)
-        showMessage('Error deleting accounts', false)
-      }
+      })
     }
 
     const showMessage = (msg, success) => {

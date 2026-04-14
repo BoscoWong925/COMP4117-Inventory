@@ -29,5 +29,6 @@ router.put('/:id/deny', borrowRequestController.denyCheckout);
 router.put('/:id/declare-return', borrowRequestController.declareReturnDate);
 router.put('/:id/return', borrowRequestController.returnRequest);
 router.post('/:id/attachments', upload.array('attachments', 10), borrowRequestController.uploadAttachments);
+router.delete('/:id', borrowRequestController.deleteRequest);
 
 module.exports = router;

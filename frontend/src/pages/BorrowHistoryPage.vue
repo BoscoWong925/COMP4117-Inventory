@@ -176,6 +176,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { Download, Zap, ChevronDown, Trash2 } from 'lucide-vue-next'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, exportToExcel } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import {
   UiButton as Button,
   UiCard as Card,
@@ -205,6 +206,7 @@ export default {
     }
   },
   setup(props) {
+    const { runAction } = useActionLock()
     const history = ref([])
     const totalHistory = ref(0)
     const showFilters = ref(false)
@@ -307,19 +309,21 @@ export default {
 
     const handleDeleteRecords = async () => {
       showDeleteConfirm.value = false
-      try {
-        for (const id of selectedHistoryIds.value) {
+      const ids = [...selectedHistoryIds.value]
+      await runAction('Deleting records...', async (onProgress) => {
+        let done = 0
+        for (const id of ids) {
           try {
             await borrowingService.deleteRequest(id)
           } catch (error) {
             console.error(`Failed to delete record ${id}:`, error)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedHistoryIds.value = []
         loadHistory()
-      } catch (error) {
-        console.error('Failed to delete records:', error)
-      }
+      })
     }
 
     const buildQueryParams = () => {

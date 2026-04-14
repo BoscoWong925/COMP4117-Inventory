@@ -157,9 +157,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { getStatusColor } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 
 export default {
   setup() {
+    const { runAction } = useActionLock()
     const availableItems = ref([])
     const searchText = ref('')
     const selectedItem = ref(null)
@@ -264,39 +266,41 @@ export default {
         return
       }
 
-      try {
-        submitError.value = ''
-        const currentUser = await authService.getCurrentUser()
-        const borrowerID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
+      await runAction('Submitting borrow request...', async () => {
+        try {
+          submitError.value = ''
+          const currentUser = await authService.getCurrentUser()
+          const borrowerID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
 
-        // Create main request
-        const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+          // Create main request
+          const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
 
-        // Auto-borrow linked components in parallel
-        autoBorrowedComponents.value = []
-        if (selectedItem.value.fixedComponents && selectedItem.value.fixedComponents.length > 0) {
-          const comps = await Promise.all(selectedItem.value.fixedComponents.map(id => inventoryService.getItemById(id)))
-          const available = comps.filter(c => c && c.status === 'Available')
-          await Promise.all(available.map(comp => borrowingService.createRequest(comp.id, borrowerID, `Auto-borrowed with ${selectedItem.value.name}`, mainReq.id)))
-          autoBorrowedComponents.value = available
-        }
-
-        submitted.value = true
-        setTimeout(() => {
-          selectedItem.value = null
-          reason.value = ''
-          submitted.value = false
-          uploadedFiles.value = []
-          filePreviews.value = []
+          // Auto-borrow linked components in parallel
           autoBorrowedComponents.value = []
-          linkedComponents.value = []
-          showComponentViewer.value = false
-          loadAvailableItems()
-        }, 3000)
-      } catch (e) {
-        console.error('Failed to submit request:', e)
-        submitError.value = e?.response?.data?.message || e?.message || 'Failed to submit borrow request. Please try again.'
-      }
+          if (selectedItem.value.fixedComponents && selectedItem.value.fixedComponents.length > 0) {
+            const comps = await Promise.all(selectedItem.value.fixedComponents.map(id => inventoryService.getItemById(id)))
+            const available = comps.filter(c => c && c.status === 'Available')
+            await Promise.all(available.map(comp => borrowingService.createRequest(comp.id, borrowerID, `Auto-borrowed with ${selectedItem.value.name}`, mainReq.id)))
+            autoBorrowedComponents.value = available
+          }
+
+          submitted.value = true
+          setTimeout(() => {
+            selectedItem.value = null
+            reason.value = ''
+            submitted.value = false
+            uploadedFiles.value = []
+            filePreviews.value = []
+            autoBorrowedComponents.value = []
+            linkedComponents.value = []
+            showComponentViewer.value = false
+            loadAvailableItems()
+          }, 3000)
+        } catch (e) {
+          console.error('Failed to submit request:', e)
+          submitError.value = e?.response?.data?.message || e?.message || 'Failed to submit borrow request. Please try again.'
+        }
+      })
     }
 
     onMounted(() => {

@@ -1088,6 +1088,7 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useAuth } from '../hooks/useAuth'
 import { inventoryService, borrowingService, auditService, authService, statsService } from '../utils/services'
 import { formatDate, waitingTime, isOverdue } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import {
   ClipboardList, ClipboardCheck, RotateCcw, Package, AlertTriangle,
   AlertCircle, CheckCircle2, BarChart3, Activity, Zap, Plus,
@@ -1221,6 +1222,7 @@ export default {
     const inlineLocation = ref('Lab A')
     const bulkConfirmActionId = ref('')
     const bulkActionSubmitting = ref(false)
+    const { runAction } = useActionLock()
     const bulkApproveReturnDate = ref('')
     const bulkApproveLocation = ref('Lab A')
     const bulkApproveRemark = ref('')
@@ -1807,19 +1809,21 @@ export default {
 
     const confirmInlineApprove = async () => {
       if (!inlineReturnDate.value) { alert('Please set a return date'); return }
-      const returnDatetime = inlineReturnDate.value + 'T17:00:00Z'
-      try {
-        const req = await borrowingService.approveRequest(inlineApproveId.value, returnDatetime)
-        if (req) {
-          req.notes = inlineRemark.value
-          const item = await inventoryService.getItemById(req.itemID)
-          if (item && inlineLocation.value) {
-            await inventoryService.updateItem(item.id, { ...item, location: inlineLocation.value })
+      await runAction('Approving request...', async () => {
+        const returnDatetime = inlineReturnDate.value + 'T17:00:00Z'
+        try {
+          const req = await borrowingService.approveRequest(inlineApproveId.value, returnDatetime)
+          if (req) {
+            req.notes = inlineRemark.value
+            const item = await inventoryService.getItemById(req.itemID)
+            if (item && inlineLocation.value) {
+              await inventoryService.updateItem(item.id, { ...item, location: inlineLocation.value })
+            }
           }
-        }
-      } catch (e) { console.error('Failed to approve request:', e) }
-      cancelInlineApprove()
-      loadDashboardData()
+        } catch (e) { console.error('Failed to approve request:', e) }
+        cancelInlineApprove()
+        loadDashboardData()
+      })
     }
 
     const cancelInlineApprove = () => {
@@ -1831,10 +1835,12 @@ export default {
 
     const confirmInlineReject = async () => {
       if (!inlineRejectReason.value) { alert('Please provide a rejection reason'); return }
-      try { await borrowingService.rejectRequest(inlineRejectId.value, inlineRejectReason.value) }
-      catch (e) { console.error('Failed to reject request:', e) }
-      cancelInlineReject()
-      loadDashboardData()
+      await runAction('Rejecting request...', async () => {
+        try { await borrowingService.rejectRequest(inlineRejectId.value, inlineRejectReason.value) }
+        catch (e) { console.error('Failed to reject request:', e) }
+        cancelInlineReject()
+        loadDashboardData()
+      })
     }
 
     const cancelInlineReject = () => {
@@ -1844,16 +1850,20 @@ export default {
 
     const handleInlineCheckout = async (requestId) => {
       if (!confirm('Confirm item has been borrowed out?')) return
-      try { await borrowingService.checkoutRequest(requestId) }
-      catch (e) { console.error('Failed to checkout request:', e) }
-      loadDashboardData()
+      await runAction('Processing checkout...', async () => {
+        try { await borrowingService.checkoutRequest(requestId) }
+        catch (e) { console.error('Failed to checkout request:', e) }
+        loadDashboardData()
+      })
     }
 
     const handleTeacherCheckout = async (requestId) => {
       if (!confirm('Confirm item has been borrowed out?')) return
-      try { await borrowingService.checkoutRequest(requestId) }
-      catch (e) { console.error('Failed to checkout request:', e) }
-      loadDashboardData()
+      await runAction('Processing checkout...', async () => {
+        try { await borrowingService.checkoutRequest(requestId) }
+        catch (e) { console.error('Failed to checkout request:', e) }
+        loadDashboardData()
+      })
     }
 
     const resolveBulkViewTarget = () => {
@@ -2027,17 +2037,19 @@ export default {
       const skippedCount = statsForAction.ineligibleCount
       bulkActionSubmitting.value = true
       try {
-        if (action.id === 'approve-selected') {
-          result = await processBulkApprove(statsForAction.eligibleRows)
-        } else if (action.id === 'reject-selected') {
-          result = await processBulkReject(statsForAction.eligibleRows)
-        } else if (action.id === 'mark-checkout-ready') {
-          result = await processBulkCheckout(statsForAction.eligibleRows)
-        } else {
-          alert(`${action.label} is not connected yet.`)
-          cancelBulkAction()
-          return
-        }
+        await runAction('Processing bulk action...', async () => {
+          if (action.id === 'approve-selected') {
+            result = await processBulkApprove(statsForAction.eligibleRows)
+          } else if (action.id === 'reject-selected') {
+            result = await processBulkReject(statsForAction.eligibleRows)
+          } else if (action.id === 'mark-checkout-ready') {
+            result = await processBulkCheckout(statsForAction.eligibleRows)
+          } else {
+            alert(`${action.label} is not connected yet.`)
+            cancelBulkAction()
+            return
+          }
+        })
       } finally {
         bulkActionSubmitting.value = false
       }

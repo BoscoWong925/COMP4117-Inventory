@@ -1454,3 +1454,31 @@ exports.getTeacherRequestHistory = catchAsync(async (req, res) => {
     pageSize: parseInt(pageSize)
   });
 });
+
+exports.deleteRequest = catchAsync(async (req, res, next) => {
+  const request = await BorrowRequest.findOne({ requestId: req.params.id });
+  if (!request) {
+    return next(new ApiError('Borrow request not found', 404));
+  }
+
+  // Only admin can delete, or the original requester for their own completed records
+  const isAdmin = req.user.role === 'admin';
+  const isOwner = request.borrowerID === req.user.userId;
+  const isCompleted = ['Returned', 'Rejected', 'Denied'].includes(request.historyStatus || request.status);
+
+  if (!isAdmin && !(isOwner && isCompleted)) {
+    return next(new ApiError('You do not have permission to delete this record', 403));
+  }
+
+  await BorrowRequest.deleteOne({ requestId: req.params.id });
+
+  await addAuditLog({
+    action: 'DELETE',
+    targetType: 'BorrowRequest',
+    targetId: req.params.id,
+    userId: req.user.userId,
+    details: { status: request.status, itemID: request.itemID }
+  });
+
+  res.status(200).json({ success: true, message: 'Record deleted' });
+});

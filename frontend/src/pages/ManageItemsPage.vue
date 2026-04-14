@@ -608,6 +608,7 @@ import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, SlidersHorizontal, Columns3 } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
@@ -982,14 +983,18 @@ export default {
       }
     }
 
+    const { runAction } = useActionLock()
+
     const handleTeacherStatusChange = async (item, nextStatus) => {
-      try {
-        await inventoryService.updateItemStatus(item.id, nextStatus)
-        await loadItems()
-      } catch (e) {
-        const message = e?.message || 'Failed to update item status'
-        alert(message)
-      }
+      await runAction('Updating item status...', async () => {
+        try {
+          await inventoryService.updateItemStatus(item.id, nextStatus)
+          await loadItems()
+        } catch (e) {
+          const message = e?.message || 'Failed to update item status'
+          alert(message)
+        }
+      })
     }
 
     // Watch dropdown/select filters to reload immediately
@@ -1091,54 +1096,56 @@ export default {
 
       // Invoice file is optional — admin can add items manually without an invoice
 
-      try {
-        if (editingItem.value) {
-          // Build a clean payload with only the editable fields for the backend
-          const updatePayload = {
-            name: formData.value.name,
-            universityID: formData.value.universityID,
-            type: formData.value.type,
-            category: formData.value.category,
-            status: formData.value.status,
-            location: formData.value.location,
-            description: formData.value.description,
-            motherID: formData.value.motherID,
-            supplier: formData.value.supplier,
-            invoiceNumber: formData.value.invoiceNumber,
-            warrantyStartDate: formData.value.warrantyStartDate,
-            warrantyEnd: formData.value.warrantyEnd,
-            departmentID: formData.value.departmentID,
-            owner: formData.value.owner,
-            canBorrow: formData.value.canBorrow,
-          }
-
-          // Determine if there is a new invoice File object to upload
-          const invoiceFile = (formData.value.invoiceFile && formData.value.invoiceFile instanceof File)
-            ? formData.value.invoiceFile
-            : null
-
-          const updatedItem = await inventoryService.updateItem(editingItem.value.id, updatePayload, invoiceFile)
-
-          // Immediately update the local items list so the UI reflects changes
-          if (updatedItem) {
-            const idx = items.value.findIndex(i => i.id === editingItem.value.id)
-            if (idx !== -1) {
-              items.value.splice(idx, 1, updatedItem)
+      await runAction(editingItem.value ? 'Updating item...' : 'Adding item...', async () => {
+        try {
+          if (editingItem.value) {
+            // Build a clean payload with only the editable fields for the backend
+            const updatePayload = {
+              name: formData.value.name,
+              universityID: formData.value.universityID,
+              type: formData.value.type,
+              category: formData.value.category,
+              status: formData.value.status,
+              location: formData.value.location,
+              description: formData.value.description,
+              motherID: formData.value.motherID,
+              supplier: formData.value.supplier,
+              invoiceNumber: formData.value.invoiceNumber,
+              warrantyStartDate: formData.value.warrantyStartDate,
+              warrantyEnd: formData.value.warrantyEnd,
+              departmentID: formData.value.departmentID,
+              owner: formData.value.owner,
+              canBorrow: formData.value.canBorrow,
             }
-          }
-        } else {
-          await inventoryService.addItem(formData.value)
-          // Reload full list to pick up the new item with server-generated ID
-          await loadItems()
-        }
-      } catch (e) {
-        console.error('Failed to submit item:', e)
-        alert('Failed to save item: ' + e.message)
-        return
-      }
 
-      resetForm()
-      showForm.value = false
+            // Determine if there is a new invoice File object to upload
+            const invoiceFile = (formData.value.invoiceFile && formData.value.invoiceFile instanceof File)
+              ? formData.value.invoiceFile
+              : null
+
+            const updatedItem = await inventoryService.updateItem(editingItem.value.id, updatePayload, invoiceFile)
+
+            // Immediately update the local items list so the UI reflects changes
+            if (updatedItem) {
+              const idx = items.value.findIndex(i => i.id === editingItem.value.id)
+              if (idx !== -1) {
+                items.value.splice(idx, 1, updatedItem)
+              }
+            }
+          } else {
+            await inventoryService.addItem(formData.value)
+            // Reload full list to pick up the new item with server-generated ID
+            await loadItems()
+          }
+        } catch (e) {
+          console.error('Failed to submit item:', e)
+          alert('Failed to save item: ' + e.message)
+          return
+        }
+
+        resetForm()
+        showForm.value = false
+      })
     }
 
     const handleEdit = (item) => {
@@ -1251,26 +1258,34 @@ export default {
 
     const handleDeleteItems = async () => {
       showDeleteConfirm.value = false
-      try {
-        if (singleDeleteTarget.value) {
-          // Single item delete from kebab menu
-          await inventoryService.deleteItem(singleDeleteTarget.value.id)
-          singleDeleteTarget.value = null
-        } else {
-          // Bulk delete selected items
-          for (const id of selectedItemIds.value) {
+      if (singleDeleteTarget.value) {
+        await runAction('Deleting item...', async () => {
+          try {
+            await inventoryService.deleteItem(singleDeleteTarget.value.id)
+            singleDeleteTarget.value = null
+            loadItems()
+          } catch (e) {
+            console.error('Failed to delete items:', e)
+            singleDeleteTarget.value = null
+          }
+        })
+      } else {
+        const ids = [...selectedItemIds.value]
+        await runAction('Deleting items...', async (onProgress) => {
+          const total = ids.length
+          let done = 0
+          for (const id of ids) {
             try {
               await inventoryService.deleteItem(id)
             } catch (e) {
               console.error(`Failed to delete item ${id}:`, e)
             }
+            done++
+            onProgress(done, total)
           }
           selectedItemIds.value = []
-        }
-        loadItems()
-      } catch (e) {
-        console.error('Failed to delete items:', e)
-        singleDeleteTarget.value = null
+          loadItems()
+        })
       }
     }
 
@@ -1280,14 +1295,16 @@ export default {
         return
       }
       if (window.confirm('Delete this item?')) {
-        try {
-          await inventoryService.deleteItem(editingItem.value.id)
-        } catch (e) {
-          console.error('Failed to delete item:', e)
-        }
-        showForm.value = false
-        resetForm()
-        loadItems()
+        await runAction('Deleting item...', async () => {
+          try {
+            await inventoryService.deleteItem(editingItem.value.id)
+          } catch (e) {
+            console.error('Failed to delete item:', e)
+          }
+          showForm.value = false
+          resetForm()
+          loadItems()
+        })
       }
     }
 
@@ -1315,27 +1332,31 @@ export default {
           }
 
           let imported = 0
-          for (const row of jsonData) {
-            // Map Excel columns to item properties
-            const newItem = {
-              name: row.name || row.Name || row['Item Name'] || '',
-              universityID: row.universityID || row['University ID'] || row.UniversityID || `UNI-IMPORT-${Date.now()}`,
-              type: row.type || row.Type || 'Hardware',
-              category: row.category || row.Category || 'Other',
-              status: row.status || row.Status || 'Available',
-              location: row.location || row.Location || 'Other',
-              description: row.description || row.Description || '',
-              supplier: row.supplier || row.Supplier || row.Vendor || '',
-              motherID: row.motherID || row['Mother ID'] || null,
-              invoiceNumber: row.invoiceNumber || row['Invoice Number'] || '',
-              warrantyEnd: row.warrantyEnd || row['Warranty End'] || null
-            }
+          const total = jsonData.length
+          await runAction('Importing items from Excel...', async (onProgress) => {
+            for (const row of jsonData) {
+              // Map Excel columns to item properties
+              const newItem = {
+                name: row.name || row.Name || row['Item Name'] || '',
+                universityID: row.universityID || row['University ID'] || row.UniversityID || `UNI-IMPORT-${Date.now()}`,
+                type: row.type || row.Type || 'Hardware',
+                category: row.category || row.Category || 'Other',
+                status: row.status || row.Status || 'Available',
+                location: row.location || row.Location || 'Other',
+                description: row.description || row.Description || '',
+                supplier: row.supplier || row.Supplier || row.Vendor || '',
+                motherID: row.motherID || row['Mother ID'] || null,
+                invoiceNumber: row.invoiceNumber || row['Invoice Number'] || '',
+                warrantyEnd: row.warrantyEnd || row['Warranty End'] || null
+              }
 
-            if (newItem.name) {
-              await inventoryService.addItem(newItem)
-              imported++
+              if (newItem.name) {
+                await inventoryService.addItem(newItem)
+                imported++
+              }
+              onProgress(imported, total)
             }
-          }
+          })
 
           importMessage.value = `Successfully imported ${imported} items from Excel`
           importSuccess.value = true

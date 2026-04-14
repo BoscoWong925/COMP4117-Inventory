@@ -342,6 +342,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { exportToExcel, getUniqueVendors, formatDate } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import { MoreVertical, Zap, ChevronDown, Mail, RotateCcw } from 'lucide-vue-next'
 import SendEmailModal from '../components/SendEmailModal.vue'
 import {
@@ -384,6 +385,7 @@ export default {
     pageParams: { type: Object, default: () => ({}) }
   },
   setup(props) {
+    const { runAction } = useActionLock()
     const currentUser = authService.getCurrentUser()
     const items = ref([])
     const allRequests = ref([])
@@ -807,22 +809,24 @@ export default {
       }
 
       if (window.confirm(`Are you sure you want to confirm the return of "${item.name}" (${item.id})?`)) {
-        try {
-          const reqs = allRequests.value
-          const req = reqs.find(
-            r => r.itemID === item.id && r.status === 'Approved'
-          )
-          if (req) {
-            await borrowingService.returnItem(req.id || req.requestId)
+        await runAction('Returning item...', async () => {
+          try {
+            const reqs = allRequests.value
+            const req = reqs.find(
+              r => r.itemID === item.id && r.status === 'Approved'
+            )
+            if (req) {
+              await borrowingService.returnItem(req.id || req.requestId)
+            }
+          } catch (e) {
+            console.error('Failed to return item:', e)
           }
-        } catch (e) {
-          console.error('Failed to return item:', e)
-        }
-        // Show location update card
-        returnedItem.value = item
-        newLocation.value = item.location || 'Lab A'
-        showLocationCard.value = true
-        loadLentOutItems()
+          // Show location update card
+          returnedItem.value = item
+          newLocation.value = item.location || 'Lab A'
+          showLocationCard.value = true
+          loadLentOutItems()
+        })
       }
     }
 
@@ -840,24 +844,26 @@ export default {
             try { localStorage.setItem('inv_custom_locations', JSON.stringify(locationOptions.value)) } catch (e) { /* ignore */ }
           }
         }
-        try {
-          await inventoryService.updateItem(returnedItem.value.id, { location: loc })
-          // Also update location for child component items
-          if (returnedItem.value.fixedComponents && returnedItem.value.fixedComponents.length > 0) {
-            for (const compID of returnedItem.value.fixedComponents) {
-              const comp = await inventoryService.getItemById(compID)
-              if (comp) {
-                await inventoryService.updateItem(comp.id, { location: loc })
+        await runAction('Saving location...', async () => {
+          try {
+            await inventoryService.updateItem(returnedItem.value.id, { location: loc })
+            // Also update location for child component items
+            if (returnedItem.value.fixedComponents && returnedItem.value.fixedComponents.length > 0) {
+              for (const compID of returnedItem.value.fixedComponents) {
+                const comp = await inventoryService.getItemById(compID)
+                if (comp) {
+                  await inventoryService.updateItem(comp.id, { location: loc })
+                }
               }
             }
+          } catch (e) {
+            console.error('Failed to save location:', e)
           }
-        } catch (e) {
-          console.error('Failed to save location:', e)
-        }
-        showLocationCard.value = false
-        returnedItem.value = null
-        otherLocation.value = ''
-        loadLentOutItems()
+          showLocationCard.value = false
+          returnedItem.value = null
+          otherLocation.value = ''
+          loadLentOutItems()
+        })
       }
     }
 
@@ -867,13 +873,17 @@ export default {
 
     const handleBulkReturn = async () => {
       showBulkReturnModal.value = false
-      try {
+      const ids = [...selectedReturnIds.value]
+      await runAction('Returning items...', async (onProgress) => {
+        let done = 0
         let skipped = 0
-        for (const itemId of selectedReturnIds.value) {
+        for (const itemId of ids) {
           try {
             const itemData = items.value.find(i => i.id === itemId)
             if (!canReturnItem(itemData)) {
               skipped += 1
+              done++
+              onProgress(done, ids.length)
               continue
             }
             const req = allRequests.value.find(
@@ -885,6 +895,8 @@ export default {
           } catch (e) {
             console.error(`Failed to return item ${itemId}:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedReturnIds.value = []
         bulkReturnCondition.value = 'Good'
@@ -893,9 +905,7 @@ export default {
         if (skipped > 0) {
           alert(`${skipped} selected item(s) were skipped due to owner permission restrictions.`)
         }
-      } catch (e) {
-        console.error('Failed to bulk return items:', e)
-      }
+      })
     }
 
     onMounted(() => {

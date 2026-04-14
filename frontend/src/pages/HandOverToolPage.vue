@@ -115,9 +115,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService, inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 
 export default {
   setup() {
+    const { runAction } = useActionLock()
     const borrowedItems = ref([])
     const searchText = ref('')
     const selectedGroup = ref(null)
@@ -219,15 +221,17 @@ export default {
 
     const confirmReturn = async () => {
       if (selectedGroup.value && selectedGroup.value.parent.request) {
-        try {
-          const requestId = selectedGroup.value.parent.request.id || selectedGroup.value.parent.request.requestId
-          await borrowingService.returnItem(requestId)
-        } catch (e) {
-          console.error('Failed to return item:', e)
-        }
-        showConfirm.value = false
-        selectedGroup.value = null
-        loadBorrowedItems()
+        await runAction('Returning item...', async () => {
+          try {
+            const requestId = selectedGroup.value.parent.request.id || selectedGroup.value.parent.request.requestId
+            await borrowingService.returnItem(requestId)
+          } catch (e) {
+            console.error('Failed to return item:', e)
+          }
+          showConfirm.value = false
+          selectedGroup.value = null
+          loadBorrowedItems()
+        })
       }
     }
 

@@ -359,6 +359,11 @@ export const borrowingService = {
     const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/borrow-requests/teacher-history?${query}`);
     return { requests: data.requests || [], total: data.total || 0 };
+  },
+
+  deleteRequest: async (id) => {
+    const data = await apiRequest(`/borrow-requests/${id}`, { method: 'DELETE' });
+    return data;
   }
 };
 

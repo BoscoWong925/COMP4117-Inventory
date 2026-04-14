@@ -418,6 +418,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService } from '../utils/services'
 import { formatDate, waitingTime } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import { MoreVertical, CheckCircle2, XCircle, Package, Mail, Zap, ChevronDown } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
@@ -578,23 +579,27 @@ export default {
       denyReason.value = ''
     }
 
+    const { runAction } = useActionLock()
+
     const handleApprove = async () => {
       if (!returnDate.value) {
         alert('Please set a return date')
         return
       }
-      const returnDatetime = `${returnDate.value}T17:00:00Z`
-      try {
-        const reqId = approveTarget.value.requestId || approveTarget.value.id || approveTarget.value._id
-        await borrowingService.approveRequest(reqId, returnDatetime)
-        approveTarget.value = null
-        returnDate.value = ''
-        approveRemark.value = ''
-        await loadPending()
-      } catch (e) {
-        console.error('Failed to approve:', e)
-        alert('Failed to approve: ' + e.message)
-      }
+      await runAction('Approving request...', async () => {
+        const returnDatetime = `${returnDate.value}T17:00:00Z`
+        try {
+          const reqId = approveTarget.value.requestId || approveTarget.value.id || approveTarget.value._id
+          await borrowingService.approveRequest(reqId, returnDatetime)
+          approveTarget.value = null
+          returnDate.value = ''
+          approveRemark.value = ''
+          await loadPending()
+        } catch (e) {
+          console.error('Failed to approve:', e)
+          alert('Failed to approve: ' + e.message)
+        }
+      })
     }
 
     const handleReject = async () => {
@@ -602,16 +607,18 @@ export default {
         alert('Please provide a rejection reason')
         return
       }
-      try {
-        const reqId = rejectTarget.value.requestId || rejectTarget.value.id || rejectTarget.value._id
-        await borrowingService.rejectRequest(reqId, rejectReason.value)
-        rejectTarget.value = null
-        rejectReason.value = ''
-        await loadPending()
-      } catch (e) {
-        console.error('Failed to reject:', e)
-        alert('Failed to reject: ' + e.message)
-      }
+      await runAction('Rejecting request...', async () => {
+        try {
+          const reqId = rejectTarget.value.requestId || rejectTarget.value.id || rejectTarget.value._id
+          await borrowingService.rejectRequest(reqId, rejectReason.value)
+          rejectTarget.value = null
+          rejectReason.value = ''
+          await loadPending()
+        } catch (e) {
+          console.error('Failed to reject:', e)
+          alert('Failed to reject: ' + e.message)
+        }
+      })
     }
 
     const handleCheckout = async (req) => {
@@ -619,27 +626,31 @@ export default {
         alert('This request must be approved first before checking out.')
         return
       }
-      try {
-        const reqId = req.requestId || req.id || req._id
-        await borrowingService.checkoutRequest(reqId)
-        await loadPending()
-      } catch (e) {
-        console.error('Failed to checkout:', e)
-        alert('Failed to checkout: ' + e.message)
-      }
+      await runAction('Processing checkout...', async () => {
+        try {
+          const reqId = req.requestId || req.id || req._id
+          await borrowingService.checkoutRequest(reqId)
+          await loadPending()
+        } catch (e) {
+          console.error('Failed to checkout:', e)
+          alert('Failed to checkout: ' + e.message)
+        }
+      })
     }
 
     const handleDeny = async () => {
-      try {
-        const reqId = denyTarget.value.requestId || denyTarget.value.id || denyTarget.value._id
-        await borrowingService.denyCheckout(reqId, denyReason.value || '')
-        denyTarget.value = null
-        denyReason.value = ''
-        await loadPending()
-      } catch (e) {
-        console.error('Failed to deny:', e)
-        alert('Failed to deny: ' + e.message)
-      }
+      await runAction('Denying checkout...', async () => {
+        try {
+          const reqId = denyTarget.value.requestId || denyTarget.value.id || denyTarget.value._id
+          await borrowingService.denyCheckout(reqId, denyReason.value || '')
+          denyTarget.value = null
+          denyReason.value = ''
+          await loadPending()
+        } catch (e) {
+          console.error('Failed to deny:', e)
+          alert('Failed to deny: ' + e.message)
+        }
+      })
     }
 
     const toggleSelectAllPending = (checked) => {
@@ -684,23 +695,24 @@ export default {
         return
       }
       showBulkApproveModal.value = false
+      const ids = [...selectedPendingIds.value]
       const returnDatetime = `${bulkReturnDate.value}T17:00:00Z`
-      try {
-        for (const reqId of selectedPendingIds.value) {
+      await runAction('Approving requests...', async (onProgress) => {
+        let done = 0
+        for (const reqId of ids) {
           try {
             await borrowingService.approveRequest(reqId, returnDatetime, '', bulkApproveRemark.value)
           } catch (e) {
             console.error(`Failed to approve request ${reqId}:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedPendingIds.value = []
         bulkReturnDate.value = ''
         bulkApproveRemark.value = ''
         await loadPending()
-      } catch (e) {
-        console.error('Failed to bulk approve:', e)
-        alert('Error during bulk approval')
-      }
+      })
     }
 
     const handleBulkReject = async () => {
@@ -709,58 +721,61 @@ export default {
         return
       }
       showBulkRejectModal.value = false
-      try {
-        for (const reqId of selectedPendingIds.value) {
+      const ids = [...selectedPendingIds.value]
+      await runAction('Rejecting requests...', async (onProgress) => {
+        let done = 0
+        for (const reqId of ids) {
           try {
             await borrowingService.rejectRequest(reqId, bulkRejectReason.value)
           } catch (e) {
             console.error(`Failed to reject request ${reqId}:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedPendingIds.value = []
         bulkRejectReason.value = ''
         await loadPending()
-      } catch (e) {
-        console.error('Failed to bulk reject:', e)
-        alert('Error during bulk rejection')
-      }
+      })
     }
 
     const handleBulkCheckout = async () => {
       showBulkCheckoutModal.value = false
-      try {
-        for (const reqId of selectedCheckoutIds.value) {
+      const ids = [...selectedCheckoutIds.value]
+      await runAction('Processing checkouts...', async (onProgress) => {
+        let done = 0
+        for (const reqId of ids) {
           try {
             await borrowingService.checkoutRequest(reqId)
           } catch (e) {
             console.error(`Failed to checkout request ${reqId}:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedCheckoutIds.value = []
         await loadPending()
-      } catch (e) {
-        console.error('Failed to bulk checkout:', e)
-        alert('Error during bulk checkout')
-      }
+      })
     }
 
     const handleBulkDeny = async () => {
       showBulkDenyModal.value = false
-      try {
-        for (const reqId of selectedCheckoutIds.value) {
+      const ids = [...selectedCheckoutIds.value]
+      await runAction('Denying checkouts...', async (onProgress) => {
+        let done = 0
+        for (const reqId of ids) {
           try {
             await borrowingService.denyCheckout(reqId, bulkDenyReason.value || '')
           } catch (e) {
             console.error(`Failed to deny request ${reqId}:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedCheckoutIds.value = []
         bulkDenyReason.value = ''
         await loadPending()
-      } catch (e) {
-        console.error('Failed to bulk deny:', e)
-        alert('Error during bulk denial')
-      }
+      })
     }
 
     onMounted(() => {

@@ -290,6 +290,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, isOverdue } from '../utils/helpers'
+import { useActionLock } from '../hooks/useActionLock'
 import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
@@ -313,6 +314,7 @@ export default {
     pageParams: { type: Object, default: () => ({}) }
   },
   setup(props) {
+    const { runAction } = useActionLock()
     const allOwnedItems = ref([])
     const ownedItems = ref([])
     const borrowedItems = ref([])
@@ -453,12 +455,14 @@ export default {
         return
       }
 
-      try {
-        await inventoryService.updateItemStatus(item.id, newStatus)
-        item.status = newStatus
-      } catch (e) {
-        alert(e.response?.data?.message || 'Failed to update status')
-      }
+      await runAction('Updating status...', async () => {
+        try {
+          await inventoryService.updateItemStatus(item.id, newStatus)
+          item.status = newStatus
+        } catch (e) {
+          alert(e.response?.data?.message || 'Failed to update status')
+        }
+      })
     }
 
     const toggleSelectAllOwned = (checked) => {
@@ -543,42 +547,44 @@ export default {
 
     const handleBulkSetNotAvailable = async () => {
       showBulkSetNotAvailableModal.value = false
-      try {
-        for (const itemId of selectedOwnedItemIds.value) {
+      const ids = [...selectedOwnedItemIds.value]
+      await runAction('Setting items to Not Available...', async (onProgress) => {
+        let done = 0
+        for (const itemId of ids) {
           try {
             const item = allOwnedItems.value.find((ownedItem) => ownedItem.id === itemId)
-            if (!item || item.status !== 'Available') continue
+            if (!item || item.status !== 'Available') { done++; onProgress(done, ids.length); continue }
             await inventoryService.updateItemStatus(itemId, 'Not Available')
           } catch (e) {
             console.error(`Failed to set ${itemId} to Not Available:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedOwnedItemIds.value = []
         await loadData()
-      } catch (e) {
-        console.error('Failed to bulk set items to Not Available:', e)
-        alert('Error setting items to Not Available')
-      }
+      })
     }
 
     const handleBulkSetAvailable = async () => {
       showBulkSetAvailableModal.value = false
-      try {
-        for (const itemId of selectedOwnedItemIds.value) {
+      const ids = [...selectedOwnedItemIds.value]
+      await runAction('Setting items to Available...', async (onProgress) => {
+        let done = 0
+        for (const itemId of ids) {
           try {
             const item = allOwnedItems.value.find((ownedItem) => ownedItem.id === itemId)
-            if (!item || item.status !== 'Not Available') continue
+            if (!item || item.status !== 'Not Available') { done++; onProgress(done, ids.length); continue }
             await inventoryService.updateItemStatus(itemId, 'Available')
           } catch (e) {
             console.error(`Failed to set ${itemId} to Available:`, e)
           }
+          done++
+          onProgress(done, ids.length)
         }
         selectedOwnedItemIds.value = []
         await loadData()
-      } catch (e) {
-        console.error('Failed to bulk set items to Available:', e)
-        alert('Error setting items to Available')
-      }
+      })
     }
 
     onMounted(() => {
