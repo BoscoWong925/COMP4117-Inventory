@@ -139,11 +139,15 @@
 
             <button
               @click="handleSubmitRequest"
-              :disabled="unavailableComponents.length > 0"
+              :disabled="unavailableComponents.length > 0 || submitting"
               :title="unavailableComponents.length > 0 ? 'Some linked components are not available' : ''"
               class="btn btn-outline-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit Request
+              <span v-if="submitting" style="display:inline-flex;align-items:center;gap:0.375rem;">
+                <svg style="width:14px;height:14px;animation:spin 0.8s linear infinite;flex-shrink:0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                Submitting...
+              </span>
+              <span v-else>Submit Request</span>
             </button>
           </template>
           <p v-else class="text-muted text-center">Select an item to request</p>
@@ -165,10 +169,13 @@ export default {
     const selectedItem = ref(null)
     const reason = ref('')
     const submitted = ref(false)
+    const submitting = ref(false)
     const submitError = ref('')
+    const submittedItemIds = ref([])
     const linkedComponents = ref([])
     const showComponentViewer = ref(false)
     const uploadedFiles = ref([])
+    const rawFiles = ref([])
     const filePreviews = ref([])
     const autoBorrowedComponents = ref([])
     const unavailableComponents = computed(() => linkedComponents.value.filter(c => c.status !== 'Available'))
@@ -194,7 +201,7 @@ export default {
           params.search = searchText.value
         }
         const result = await inventoryService.getAvailableItems(params)
-        availableItems.value = result.items
+        availableItems.value = result.items.filter(i => !submittedItemIds.value.includes(i.id))
       } catch (e) {
         console.error('Failed to load available items:', e)
       }
@@ -228,6 +235,7 @@ export default {
     const handleFileUpload = (event) => {
       const files = Array.from(event.target.files)
       files.forEach(file => {
+        rawFiles.value.push(file)
         uploadedFiles.value.push({
           name: file.name,
           size: file.size,
@@ -248,6 +256,7 @@ export default {
 
     const removeFile = (idx) => {
       uploadedFiles.value.splice(idx, 1)
+      rawFiles.value.splice(idx, 1)
       if (idx < filePreviews.value.length) {
         filePreviews.value.splice(idx, 1)
       }
@@ -263,14 +272,17 @@ export default {
         alert(`Cannot submit request: the following linked component(s) are not available — ${names}`)
         return
       }
+      if (submitting.value) return
 
+      submitting.value = true
       try {
         submitError.value = ''
         const currentUser = await authService.getCurrentUser()
         const borrowerID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
+        const submittedId = selectedItem.value.id
 
         // Create main request
-        const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+        const mainReq = await borrowingService.createRequest(submittedId, borrowerID, reason.value, null, rawFiles.value)
 
         // Auto-borrow linked components in parallel
         autoBorrowedComponents.value = []
@@ -281,12 +293,16 @@ export default {
           autoBorrowedComponents.value = available
         }
 
+        // Track submitted item so it stays hidden even after list reload
+        submittedItemIds.value.push(submittedId)
         submitted.value = true
+        availableItems.value = availableItems.value.filter(i => i.id !== submittedId)
         setTimeout(() => {
           selectedItem.value = null
           reason.value = ''
           submitted.value = false
           uploadedFiles.value = []
+          rawFiles.value = []
           filePreviews.value = []
           autoBorrowedComponents.value = []
           linkedComponents.value = []
@@ -296,6 +312,8 @@ export default {
       } catch (e) {
         console.error('Failed to submit request:', e)
         submitError.value = e?.response?.data?.message || e?.message || 'Failed to submit borrow request. Please try again.'
+      } finally {
+        submitting.value = false
       }
     }
 
@@ -310,6 +328,7 @@ export default {
       selectedItem,
       reason,
       submitted,
+      submitting,
       submitError,
       linkedComponents,
       showComponentViewer,
@@ -331,4 +350,7 @@ export default {
 </script>
 
 <style scoped>
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

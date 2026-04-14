@@ -242,7 +242,7 @@ export const borrowingService = {
   },
 
   getRequestsForUser: async (borrowerID, params = {}) => {
-    const query = new URLSearchParams(cleanQueryParams({ ...params, pageSize: params.pageSize || 1000 })).toString();
+    const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/borrow-requests/my?${query}`);
     return data;
   },
@@ -365,7 +365,6 @@ export const borrowingService = {
 // ===== Audit Service =====
 export const auditService = {
   getAllLogs: async (params = {}) => {
-    if (!params.pageSize) params.pageSize = 1000;
     const query = new URLSearchParams(cleanQueryParams(params)).toString();
     const data = await apiRequest(`/audit-logs?${query}`);
     return { logs: data.logs || [], total: data.total || 0 };

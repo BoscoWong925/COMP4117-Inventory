@@ -152,6 +152,7 @@
         v-model:currentPage="currentPage"
         v-model:pageSize="pageSize"
         :total-items="totalHistory"
+        :page-size-options="[20, 50, 100]"
         :disabled="showHistorySkeleton"
         item-label="records"
       />
@@ -222,7 +223,7 @@ export default {
     const sortDir = ref('desc')
     // Note: sorting UI removed; sortField/sortDir kept for API default ordering
     const currentPage = ref(1)
-    const pageSize = ref(10)
+    const pageSize = ref(50)
     const selectedHistoryIds = ref([])
     const showDeleteConfirm = ref(false)
     const statusTabs = ['All', 'Approved', 'Returned', 'Pending', 'Rejected']

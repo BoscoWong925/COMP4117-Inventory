@@ -85,6 +85,7 @@
               <th>Request Date</th>
               <th>Waiting</th>
               <th>Reason</th>
+              <th class="text-center">Attachments</th>
               <th class="text-center">Actions</th>
             </tr>
           </thead>
@@ -110,14 +111,14 @@
           <tbody>
             <template v-if="showRequestsSkeleton">
               <tr>
-                <td colspan="8" class="table-spinner-cell">
+                <td colspan="9" class="table-spinner-cell">
                   <Spinner size="lg" label="Loading requests..." />
                 </td>
               </tr>
             </template>
 
             <tr v-else-if="requestsErrorMessage" class="request-empty-row">
-              <td colspan="8" class="request-empty-cell">{{ requestsErrorMessage }}</td>
+              <td colspan="9" class="request-empty-cell">{{ requestsErrorMessage }}</td>
             </tr>
 
             <template v-else-if="activeTab === 'pending' && pendingGroups.length > 0">
@@ -143,6 +144,14 @@
                   <td>{{ formatDate(group.parent.requestDate) }}</td>
                   <td class="request-waiting-text">{{ waitingTime(group.parent.requestDate) }}</td>
                   <td class="request-cell-reason">{{ group.parent.reason || '-' }}</td>
+                  <td class="text-center">
+                    <button
+                      v-if="group.parent.attachments && group.parent.attachments.length > 0"
+                      class="attachment-yes-btn"
+                      @click.stop="openAttachmentsModal(group.parent)"
+                    >Yes ({{ group.parent.attachments.length }})</button>
+                    <span v-else class="text-muted text-xs">No</span>
+                  </td>
                   <td class="text-center request-action-cell">
                     <DropdownMenu align="end">
                       <template #trigger>
@@ -177,6 +186,7 @@
                   <td class="request-child-cell">{{ formatDate(child.requestDate) }}</td>
                   <td class="request-child-cell">{{ waitingTime(child.requestDate) }}</td>
                   <td class="request-child-cell">{{ child.reason || '-' }}</td>
+                  <td class="request-child-cell text-center">-</td>
                   <td class="request-child-cell text-center">Auto with parent</td>
                 </tr>
               </template>
@@ -245,7 +255,7 @@
             </template>
 
             <tr v-else class="request-empty-row">
-              <td colspan="8" class="request-empty-cell">
+              <td colspan="9" class="request-empty-cell">
                 {{ activeTab === 'pending' ? 'No pending requests' : 'No items pending check-out' }}
               </td>
             </tr>
@@ -288,7 +298,10 @@
           />
         </div>
         <div class="flex gap-2">
-          <Button variant="success" class="flex-1" @click="handleApprove(selectedRequest)">Approve</Button>
+          <Button variant="success" class="flex-1" :disabled="!!actionLoading" @click="handleApprove(selectedRequest)">
+            <span v-if="actionLoading === 'approve'">Approving...</span>
+            <span v-else>Approve</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="closeApproveModal">Cancel</Button>
         </div>
       </div>
@@ -302,7 +315,10 @@
           <Textarea v-model="rejectReason" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <Button variant="destructive" class="flex-1" @click="handleReject(showRejectForm)">Reject</Button>
+          <Button variant="destructive" class="flex-1" :disabled="!!actionLoading" @click="handleReject(showRejectForm)">
+            <span v-if="actionLoading === 'reject'">Rejecting...</span>
+            <span v-else>Reject</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showRejectForm = null; rejectReason = ''">Cancel</Button>
         </div>
       </div>
@@ -319,7 +335,10 @@
           <Textarea v-model="denyReason" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
-          <Button variant="destructive" class="flex-1" @click="handleDeny(showDenyForm)">Deny</Button>
+          <Button variant="destructive" class="flex-1" :disabled="!!actionLoading" @click="handleDeny(showDenyForm)">
+            <span v-if="actionLoading === 'deny'">Denying...</span>
+            <span v-else>Deny</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showDenyForm = null; denyReason = ''">Cancel</Button>
         </div>
       </div>
@@ -349,7 +368,10 @@
           />
         </div>
         <div class="flex gap-2">
-          <Button variant="success" class="flex-1" @click="handleBulkApprove">Approve All</Button>
+          <Button variant="success" class="flex-1" :disabled="!!actionLoading" @click="handleBulkApprove">
+            <span v-if="actionLoading === 'bulkApprove'">Approving...</span>
+            <span v-else>Approve All</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showBulkApproveForm = false; bulkReturnDate = ''; bulkApproveRemark = ''; bulkApproveLocation = locationOptions[0]">Cancel</Button>
         </div>
       </div>
@@ -363,7 +385,10 @@
           <Textarea v-model="bulkRejectReason" rows="4" placeholder="Enter rejection reason..." />
         </div>
         <div class="flex gap-2">
-          <Button variant="destructive" class="flex-1" @click="handleBulkReject">Reject All</Button>
+          <Button variant="destructive" class="flex-1" :disabled="!!actionLoading" @click="handleBulkReject">
+            <span v-if="actionLoading === 'bulkReject'">Rejecting...</span>
+            <span v-else>Reject All</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showBulkRejectForm = false; bulkRejectReason = ''">Cancel</Button>
         </div>
       </div>
@@ -374,7 +399,10 @@
         <h3 class="modal-title">Mark {{ selectedCheckoutIds.length }} Item(s) as Borrowed Out</h3>
         <p class="text-sm text-secondary mb-4">This will mark all selected approved requests as checked out.</p>
         <div class="flex gap-2">
-          <Button class="flex-1" @click="handleBulkCheckout">Borrowed Out All</Button>
+          <Button class="flex-1" :disabled="!!actionLoading" @click="handleBulkCheckout">
+            <span v-if="actionLoading === 'bulkCheckout'">Processing...</span>
+            <span v-else>Borrowed Out All</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showBulkCheckoutForm = false">Cancel</Button>
         </div>
       </div>
@@ -389,8 +417,53 @@
           <Textarea v-model="bulkDenyReason" rows="4" placeholder="Enter reason for denying check-out..." />
         </div>
         <div class="flex gap-2">
-          <Button variant="destructive" class="flex-1" @click="handleBulkDeny">Deny All</Button>
+          <Button variant="destructive" class="flex-1" :disabled="!!actionLoading" @click="handleBulkDeny">
+            <span v-if="actionLoading === 'bulkDeny'">Denying...</span>
+            <span v-else>Deny All</span>
+          </Button>
           <Button variant="outline" class="flex-1" @click="showBulkDenyForm = false; bulkDenyReason = ''">Cancel</Button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showAttachmentsModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-[200]" @click.self="showAttachmentsModal = false">
+      <div class="modal-card max-w-2xl w-full">
+        <h3 class="modal-title">Upload Approval / Screenshots</h3>
+        <div v-if="viewingAttachments.length === 0" class="text-sm text-muted py-4 text-center">No attachments found.</div>
+        <div class="space-y-4 overflow-y-auto" style="max-height:70vh;">
+          <div
+            v-for="(att, idx) in viewingAttachments"
+            :key="idx"
+            class="flex flex-col gap-2 p-3 rounded border border-[color:var(--border)] bg-[color:var(--muted)]"
+          >
+            <div class="flex items-center gap-2 text-sm font-medium">
+              <span class="truncate">{{ att.originalname || att.filename }}</span>
+              <span class="text-xs text-muted ml-auto flex-shrink-0">{{ att.size ? '(' + (att.size / 1024).toFixed(1) + ' KB)' : '' }}</span>
+              <a :href="getAttachmentUrl(att)" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-500 underline flex-shrink-0">Open ↗</a>
+            </div>
+            <!-- Image preview -->
+            <img
+              v-if="isImage(att)"
+              :src="getAttachmentUrl(att)"
+              class="max-w-full rounded border border-[color:var(--border)] bg-white"
+              style="max-height:400px;object-fit:contain;"
+            />
+            <!-- PDF preview -->
+            <iframe
+              v-else-if="isPdf(att)"
+              :src="getAttachmentUrl(att)"
+              class="w-full rounded border border-[color:var(--border)]"
+              style="height:500px;"
+            ></iframe>
+            <!-- Other file types -->
+            <div v-else class="flex items-center gap-2 text-sm text-muted">
+              <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              <a :href="getAttachmentUrl(att)" target="_blank" rel="noopener noreferrer" class="underline text-blue-500 truncate">{{ att.originalname || att.filename }}</a>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end mt-4">
+          <Button variant="outline" @click="showAttachmentsModal = false">Close</Button>
         </div>
       </div>
     </div>
@@ -475,9 +548,29 @@ export default {
     const bulkDenyReason = ref('')
     const showEmailModal = ref(false)
     const emailTarget = ref(null)
+    const showAttachmentsModal = ref(false)
+    const viewingAttachments = ref([])
+
+    const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'
+    const getAttachmentUrl = (att) => `${BACKEND_BASE}/uploads/${att.filename}`
+    const isImage = (att) => {
+      if (att.mimetype && att.mimetype.startsWith('image/')) return true
+      const ext = (att.filename || '').split('.').pop().toLowerCase()
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
+    }
+    const isPdf = (att) => {
+      if (att.mimetype === 'application/pdf') return true
+      return (att.filename || '').toLowerCase().endsWith('.pdf')
+    }
+
+    const openAttachmentsModal = (request) => {
+      viewingAttachments.value = request.attachments || []
+      showAttachmentsModal.value = true
+    }
 
     const pendingCount = ref(0)
     const checkoutCount = ref(0)
+    const actionLoading = ref('')
 
     const requestsLoadState = reactive({
       isInitialLoading: true,
@@ -703,6 +796,7 @@ export default {
     }
 
     const handleApprove = async (requestId) => {
+      if (actionLoading.value) return
       const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
       if (!canActOnRequest(targetRequest)) {
         alert('You do not have permission to approve this item request.')
@@ -715,6 +809,7 @@ export default {
       }
 
       const returnDatetime = `${returnDate.value}T17:00:00Z`
+      actionLoading.value = 'approve'
       try {
         const req = await borrowingService.approveRequest(requestId, returnDatetime)
         if (req) {
@@ -728,6 +823,8 @@ export default {
       } catch (error) {
         console.error('Failed to approve request:', error)
         alert('Failed to approve: ' + error.message)
+      } finally {
+        actionLoading.value = ''
       }
 
       closeApproveModal()
@@ -735,6 +832,7 @@ export default {
     }
 
     const handleReject = async (requestId) => {
+      if (actionLoading.value) return
       const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
       if (!canActOnRequest(targetRequest)) {
         alert('You do not have permission to reject this item request.')
@@ -745,10 +843,13 @@ export default {
         alert('Please provide a rejection reason')
         return
       }
+      actionLoading.value = 'reject'
       try {
         await borrowingService.rejectRequest(requestId, rejectReason.value)
       } catch (error) {
         console.error('Failed to reject request:', error)
+      } finally {
+        actionLoading.value = ''
       }
       showRejectForm.value = null
       rejectReason.value = ''
@@ -756,33 +857,41 @@ export default {
     }
 
     const handleCheckout = async (requestId) => {
+      if (actionLoading.value) return
       const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
       if (!canActOnRequest(targetRequest)) {
         alert('You do not have permission to check out this item request.')
         return
       }
 
+      actionLoading.value = 'checkout'
       try {
         await borrowingService.checkoutRequest(requestId)
       } catch (error) {
         console.error('Failed to checkout request:', error)
         alert('Failed to checkout: ' + error.message)
+      } finally {
+        actionLoading.value = ''
       }
       loadPendingRequests()
     }
 
     const handleDeny = async (requestId) => {
+      if (actionLoading.value) return
       const targetRequest = requests.value.find(r => (r.id || r.requestId) === requestId)
       if (!canActOnRequest(targetRequest)) {
         alert('You do not have permission to deny this item request.')
         return
       }
 
+      actionLoading.value = 'deny'
       try {
         await borrowingService.denyCheckout(requestId, denyReason.value || '')
       } catch (error) {
         console.error('Failed to deny checkout:', error)
         alert('Failed to deny: ' + error.message)
+      } finally {
+        actionLoading.value = ''
       }
       showDenyForm.value = null
       denyReason.value = ''
@@ -790,12 +899,14 @@ export default {
     }
 
     const handleBulkApprove = async () => {
+      if (actionLoading.value) return
       if (!bulkReturnDate.value) {
         alert('Please set a return date')
         return
       }
 
       const returnDatetime = `${bulkReturnDate.value}T17:00:00Z`
+      actionLoading.value = 'bulkApprove'
       try {
         for (const requestId of selectedPendingIds.value) {
           try {
@@ -823,14 +934,18 @@ export default {
         loadPendingRequests()
       } catch (error) {
         console.error('Failed to bulk approve:', error)
+      } finally {
+        actionLoading.value = ''
       }
     }
 
     const handleBulkReject = async () => {
+      if (actionLoading.value) return
       if (!bulkRejectReason.value) {
         alert('Please provide a rejection reason')
         return
       }
+      actionLoading.value = 'bulkReject'
       try {
         for (const requestId of selectedPendingIds.value) {
           try {
@@ -848,10 +963,14 @@ export default {
         loadPendingRequests()
       } catch (error) {
         console.error('Failed to bulk reject:', error)
+      } finally {
+        actionLoading.value = ''
       }
     }
 
     const handleBulkCheckout = async () => {
+      if (actionLoading.value) return
+      actionLoading.value = 'bulkCheckout'
       try {
         for (const requestId of selectedCheckoutIds.value) {
           try {
@@ -867,10 +986,14 @@ export default {
         loadPendingRequests()
       } catch (error) {
         console.error('Failed to bulk checkout:', error)
+      } finally {
+        actionLoading.value = ''
       }
     }
 
     const handleBulkDeny = async () => {
+      if (actionLoading.value) return
+      actionLoading.value = 'bulkDeny'
       try {
         for (const requestId of selectedCheckoutIds.value) {
           try {
@@ -887,6 +1010,8 @@ export default {
         loadPendingRequests()
       } catch (error) {
         console.error('Failed to bulk deny:', error)
+      } finally {
+        actionLoading.value = ''
       }
     }
 
@@ -1008,12 +1133,35 @@ export default {
       isCheckoutExpiringSoon,
       formatDate,
       waitingTime,
+      actionLoading,
+      showAttachmentsModal,
+      viewingAttachments,
+      openAttachmentsModal,
+      getAttachmentUrl,
+      isImage,
+      isPdf,
     }
   }
 }
 </script>
 
 <style scoped>
+.attachment-yes-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--success, #22c55e);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.attachment-yes-btn:hover {
+  opacity: 0.8;
+}
 .table-spinner-cell {
   text-align: center;
   padding: 3rem 1rem !important;

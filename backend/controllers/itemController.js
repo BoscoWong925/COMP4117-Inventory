@@ -278,6 +278,7 @@ exports.getLentOutItems = catchAsync(async (req, res) => {
   const direction = sortDir === 'desc' ? -1 : 1;
   const normalizeSortValue = (value) => {
     if (value === undefined || value === null) return '';
+    if (value instanceof Date) return value.getTime();
     if (typeof value === 'number') return value;
     return String(value).toLowerCase();
   };

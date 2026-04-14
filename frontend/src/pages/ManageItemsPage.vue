@@ -174,7 +174,14 @@
                     @update:checked="toggleSelectAll"
                   />
                 </th>
-                <th v-for="col in visibleColumns" :key="col.key">{{ col.label }}</th>
+                <th v-for="col in visibleColumns" :key="col.key"
+                    :class="{ 'sortable-th': col.key === 'warrantyEnd' }"
+                    :style="col.key === 'warrantyEnd' ? 'cursor:pointer;user-select:none' : ''"
+                    @click="col.key === 'warrantyEnd' && toggleWarrantySort()"
+                >
+                  {{ col.label }}
+                  <span v-if="col.key === 'warrantyEnd'" class="sort-arrow">{{ warrantySortDir === 'asc' ? '▲' : '▼' }}</span>
+                </th>
                 <th style="text-align:center">Actions</th>
               </tr>
             </thead>
@@ -726,9 +733,10 @@ export default {
     const selectedItemIds = ref([])
     const showDeleteConfirm = ref(false)
     const singleDeleteTarget = ref(null)
-    const sortField = ref('')
-    const sortDir = ref('asc')
+    const sortField = ref('createdAt')
+    const sortDir = ref('desc')
     // Note: sorting UI removed; sortField/sortDir kept for API default ordering
+    const warrantySortDir = ref('')  // '' = not active, 'asc' or 'desc'
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
     const mutableCategories = ref(loadSavedList('inv_custom_categories', itemCategories))
     const teachers = ref([])
@@ -980,6 +988,18 @@ export default {
         isItemsFetching.value = false
         isItemsLoaded.value = true
       }
+    }
+
+    const toggleWarrantySort = () => {
+      if (warrantySortDir.value === '' || warrantySortDir.value === 'desc') {
+        warrantySortDir.value = 'asc'
+      } else {
+        warrantySortDir.value = 'desc'
+      }
+      sortField.value = 'warrantyEnd'
+      sortDir.value = warrantySortDir.value
+      currentPage.value = 1
+      loadItems()
     }
 
     const handleTeacherStatusChange = async (item, nextStatus) => {
@@ -1771,6 +1791,8 @@ export default {
       formatDate,
       normalizeItemStatus,
       activeStatusFilter,
+      warrantySortDir,
+      toggleWarrantySort,
       teachers,
       getOwnerName,
       allColumns,
@@ -1796,6 +1818,18 @@ export default {
 </script>
 
 <style scoped>
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable-th:hover {
+  color: var(--primary);
+}
+.sort-arrow {
+  font-size: 0.7em;
+  margin-left: 2px;
+  opacity: 0.7;
+}
 .table-spinner-cell {
   text-align: center;
   padding: 3rem 1rem !important;
@@ -2264,5 +2298,42 @@ thead th:hover .sort-icon {
 .bulk-bar-leave-from {
   max-height: 4rem;
   opacity: 1;
+}
+
+/* ── Mobile: Quick Filter Bar ───────────────────── */
+@media (max-width: 768px) {
+  .quick-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .quick-filter-fields {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+    flex: unset;
+  }
+
+  .qf-search {
+    max-width: 100%;
+    flex: unset;
+  }
+
+  .qf-select {
+    width: 100%;
+  }
+
+  .qf-select :deep(select) {
+    width: 100%;
+  }
+
+  .quick-filter-actions {
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
 }
 </style>

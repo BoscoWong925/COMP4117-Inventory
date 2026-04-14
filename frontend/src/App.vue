@@ -11,6 +11,7 @@
   <template v-else>
     <div :class="['app-shell', darkMode ? '' : 'light-mode', compactMode ? 'compact-mode' : '', reduceMotion ? 'reduce-motion' : '']" v-if="isAuthenticated">
     <div class="shell-layout">
+      <div v-if="!sidebarCollapsed && isMobile" class="sidebar-mobile-overlay" @click="sidebarCollapsed = true"></div>
       <aside :class="['left-sidebar', sidebarCollapsed ? 'left-sidebar-collapsed' : '']">
         <div class="sidebar-brand" @click="handleNavigate('home')">
           <img v-if="darkMode" :src="logoWhite" alt="Department Logo" class="sidebar-logo" />
@@ -59,6 +60,9 @@
       <section class="shell-main-pane">
         <header class="content-topbar">
           <div class="content-topbar-left">
+            <button class="hamburger-btn" @click="toggleSidebar" :aria-label="sidebarCollapsed ? 'Open menu' : 'Close menu'">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             <div>
               <h1 class="content-title">Inventory System</h1>
               <p class="content-subtitle">{{ headerDateTimeLabel }}</p>
@@ -273,7 +277,8 @@ export default {
     let headerClockTimer = null
     const activeGroup = ref('dashboard')
     const expandedGroup = ref(null)
-    const sidebarCollapsed = ref(localStorage.getItem('inventory_sidebar_collapsed') === 'true')
+    const isMobile = ref(window.innerWidth <= 768)
+    const sidebarCollapsed = ref(isMobile.value ? true : (localStorage.getItem('inventory_sidebar_collapsed') === 'true'))
 
     // Notification state
     const showNotifPanel = ref(false)
@@ -394,19 +399,10 @@ export default {
         expandedGroup.value = null
         handleNavigate(group.page, group.params || {})
       } else if (group.children?.length) {
-        if (group.children.length === 1) {
-          expandedGroup.value = null
-          const target = group.children[0]
-          handleNavigate(target.page, target.params || {})
-          return
-        }
-
-        if (expandedGroup.value === group.key) {
-          expandedGroup.value = null
-          return
-        }
-
-        expandedGroup.value = group.key
+        // Always navigate to first child immediately
+        expandedGroup.value = null
+        const target = group.children[0]
+        handleNavigate(target.page, target.params || {})
       }
     }
 
@@ -571,6 +567,7 @@ export default {
       activeGroup.value = findGroupForPage(page, params || {})
       const currentGroup = navGroups.value.find((group) => group.key === activeGroup.value)
       expandedGroup.value = currentGroup?.children?.length > 1 ? currentGroup.key : null
+      if (isMobile.value) sidebarCollapsed.value = true
     }
 
     const afterLoginSetup = async () => {
@@ -607,8 +604,20 @@ export default {
       return ok
     }
 
+    const handleResize = () => {
+      isMobile.value = window.innerWidth <= 768
+      if (!isMobile.value && localStorage.getItem('inventory_sidebar_collapsed') === 'true') {
+        sidebarCollapsed.value = true
+      } else if (!isMobile.value && localStorage.getItem('inventory_sidebar_collapsed') !== 'true') {
+        sidebarCollapsed.value = false
+      } else if (isMobile.value) {
+        sidebarCollapsed.value = true
+      }
+    }
+
     onMounted(async () => {
       applyThemePreference()
+      window.addEventListener('resize', handleResize)
       headerClockTimer = setInterval(() => {
         headerNow.value = new Date()
       }, 1000)
@@ -694,6 +703,7 @@ export default {
       if (pollTimer) clearInterval(pollTimer)
       if (notifPollTimer) clearInterval(notifPollTimer)
       if (headerClockTimer) clearInterval(headerClockTimer)
+      window.removeEventListener('resize', handleResize)
     })
 
     watch(themePreference, (value) => {
@@ -715,7 +725,7 @@ export default {
     })
 
     watch(sidebarCollapsed, (value) => {
-      localStorage.setItem('inventory_sidebar_collapsed', value ? 'true' : 'false')
+      if (!isMobile.value) localStorage.setItem('inventory_sidebar_collapsed', value ? 'true' : 'false')
     })
 
     return {
@@ -737,6 +747,7 @@ export default {
       navGroups,
       activeGroup,
       sidebarCollapsed,
+      isMobile,
       expandedGroup,
       getBadgeCountForGroup,
       getBadgeCountForItem,
@@ -1382,7 +1393,41 @@ export default {
 .compact-mode .sidebar-subnav-btn { padding: 0.3rem 0.45rem; }
 .compact-mode .main-content { padding-bottom: 0.5rem; }
 
-@media (max-width: 980px) {
+/* ===== Hamburger button (mobile only) ===== */
+.hamburger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.hamburger-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+/* ===== Sidebar mobile backdrop ===== */
+.sidebar-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 768px) {
+  .sidebar-mobile-overlay {
+    display: block;
+  }
+
   .left-sidebar {
     position: fixed;
     left: 0;
@@ -1390,6 +1435,7 @@ export default {
     bottom: 0;
     z-index: 45;
     box-shadow: var(--shadow-xl);
+    transition: transform 0.25s ease, width 0.2s ease;
   }
 
   .left-sidebar-collapsed {
@@ -1399,6 +1445,23 @@ export default {
 
   .shell-main-pane {
     width: 100%;
+  }
+
+  .content-subtitle {
+    display: none;
+  }
+
+  .notif-panel {
+    width: calc(100vw - 2.5rem);
+    max-width: 22rem;
+  }
+
+  .notif-overlay {
+    padding: 3.5rem 0.75rem 0;
+  }
+
+  .user-dropdown {
+    padding: 3.5rem 0.75rem 0;
   }
 }
 

@@ -403,7 +403,7 @@ export default {
         if (isTeacher.value && activeTab.value === 'owned') {
           const ownerId = getOwnerId()
           if (ownerId) {
-            const params = { page: currentPage.value, pageSize }
+            const params = { page: currentPage.value, pageSize: pageSizeRef.value }
             if (searchText.value) params.search = searchText.value
             if (statusFilter.value) params.status = statusFilter.value
             
@@ -416,7 +416,7 @@ export default {
 
         // Load borrowed items (both teacher and student)
         if (currentUser && activeTab.value === 'borrowed') {
-          const params = { page: currentPage.value, pageSize, status: 'Approved' }
+          const params = { page: currentPage.value, pageSize: pageSizeRef.value, status: 'Approved' }
           if (searchText.value) params.search = searchText.value
 
           const userId = currentUser.userId || currentUser.id
@@ -436,6 +436,14 @@ export default {
       searchTimer = setTimeout(() => {
         loadData()
       }, 400)
+    })
+
+    watch(pageSizeRef, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      } else {
+        loadData()
+      }
     })
 
     const showDetail = (item) => {

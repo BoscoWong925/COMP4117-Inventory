@@ -82,6 +82,7 @@ const borrowRequestSchema = new mongoose.Schema({
   },
   attachments: [{
     filename: String,
+    originalname: String,
     mimetype: String,
     size: Number,
     path: String

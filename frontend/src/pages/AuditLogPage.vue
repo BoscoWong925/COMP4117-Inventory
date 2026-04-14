@@ -302,7 +302,7 @@ export default {
       try {
         const params = {
           page: currentPage.value,
-          pageSize: pageSize,
+          pageSize: pageSizeRef.value,
           sortField: sortField.value,
           sortDir: sortDir.value
         }
@@ -386,6 +386,14 @@ export default {
     // Watch all filters and reload from DB
     watch([selectedAction, selectedTimeRange, currentPage, sortField, sortDir], () => {
       loadLogs()
+    })
+
+    watch(pageSizeRef, () => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1
+      } else {
+        loadLogs()
+      }
     })
 
     // Debounced watch for text inputs
