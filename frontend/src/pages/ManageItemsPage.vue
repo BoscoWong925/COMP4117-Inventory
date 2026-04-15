@@ -144,7 +144,7 @@
 
       <Card class="items-table-card">
         <Transition name="bulk-bar">
-          <div v-if="isAdmin && selectedItemIds.length > 0" class="bulk-toolbar">
+          <div v-if="canManageInventory && selectedItemIds.length > 0" class="bulk-toolbar">
             <div class="bulk-toolbar-left">
               <span class="bulk-chip">{{ selectedItemIds.length }} selected</span>
               <DropdownMenu align="start">
@@ -167,7 +167,7 @@
           <table class="table-striped theme-table">
             <thead>
               <tr>
-                <th v-if="isAdmin" style="width:2.5rem;text-align:center">
+                <th v-if="canManageInventory" style="width:2.5rem;text-align:center">
                   <Checkbox
                     :checked="allSelected"
                     :indeterminate="selectedItemIds.length > 0 && !allSelected"
@@ -194,7 +194,7 @@
 
               <template v-else-if="items.length > 0">
                 <tr v-for="item in items" :key="item.id">
-                  <td v-if="isAdmin" style="text-align:center">
+                  <td v-if="canManageInventory" style="text-align:center">
                     <Checkbox
                       :checked="selectedItemIds.includes(item.id)"
                       @update:checked="toggleItemSelection(item.id, $event)"
@@ -862,7 +862,7 @@ export default {
 
     const tableColumnSpan = computed(() => {
       let columns = visibleColumns.value.length + 1 // visible data columns + Actions
-      if (isAdmin.value) columns += 1 // checkbox column
+      if (canManageInventory.value) columns += 1 // checkbox column
       return columns
     })
 

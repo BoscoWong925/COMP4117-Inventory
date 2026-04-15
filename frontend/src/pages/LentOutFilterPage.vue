@@ -85,7 +85,7 @@
         </button>
       </div>
       <Transition name="bulk-bar">
-        <div v-if="returnViewTab === 'department' && selectedReturnIds.length > 0" class="bulk-toolbar">
+        <div v-if="selectedReturnIds.length > 0" class="bulk-toolbar">
           <div class="bulk-toolbar-left">
             <span class="bulk-chip">{{ selectedReturnIds.length }} selected</span>
             <DropdownMenu align="start">
@@ -110,7 +110,6 @@
             <tr>
               <th class="text-center" style="width:3rem">
                 <Checkbox
-                  v-if="returnViewTab === 'department'"
                   :checked="allReturnSelected"
                   :indeterminate="selectedReturnIds.length > 0 && !allReturnSelected"
                   @update:checked="toggleSelectAllReturn"
@@ -216,7 +215,13 @@
             <template v-else>
             <template v-for="group in paginatedGroups" :key="'t-' + group.parent.id">
               <tr class="row-parent row-teacher-owned">
-                <td></td>
+                <td class="text-center">
+                  <Checkbox
+                    v-if="canReturnItem(group.parent)"
+                    :checked="selectedReturnIds.includes(group.parent.id)"
+                    @update:checked="toggleReturnItem(group.parent.id, $event)"
+                  />
+                </td>
                 <td class="checked-parent-id">{{ group.parent.id }}</td>
                 <td class="checked-parent-name">
                   {{ group.parent.name }}
@@ -240,7 +245,10 @@
                       </button>
                     </template>
                     <template #default="{ close }">
-                      <DropdownMenuItem disabled>
+                      <DropdownMenuItem v-if="canReturnItem(group.parent)" success @click="handleReturnItem(group.parent); close()">
+                        <RotateCcw :size="12" /> Return{{ group.children.length > 0 ? ' All' : '' }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem v-else disabled>
                         <RotateCcw :size="12" /> View only (teacher-owned)
                       </DropdownMenuItem>
                       <DropdownMenuItem v-if="group.parent.currentBorrower" @click="openEmailForBorrower(group.parent); close()">
@@ -439,8 +447,8 @@ export default {
     })
 
     const allReturnSelected = computed(() => {
-      const parentCount = paginatedGroups.value.length
-      return parentCount > 0 && paginatedGroups.value.every(g => selectedReturnIds.value.includes(g.parent.id))
+      const returnableGroups = paginatedGroups.value.filter(g => canReturnItem(g.parent))
+      return returnableGroups.length > 0 && returnableGroups.every(g => selectedReturnIds.value.includes(g.parent.id))
     })
 
     const checkedOutSummaryText = computed(() => {
@@ -479,7 +487,9 @@ export default {
       const shouldSelect = typeof checkedOrEvent === 'boolean'
         ? checkedOrEvent
         : Boolean(checkedOrEvent?.target?.checked)
-      const pageIds = paginatedGroups.value.map(g => g.parent.id)
+      const pageIds = paginatedGroups.value
+        .filter(g => canReturnItem(g.parent))
+        .map(g => g.parent.id)
 
       if (shouldSelect) {
         const newSet = new Set([...selectedReturnIds.value, ...pageIds])

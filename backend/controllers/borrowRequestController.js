@@ -5,7 +5,7 @@ const Counter = require('../models/Counter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const addAuditLog = require('../utils/auditLogger');
-const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendRequestSubmittedEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail } = require('../utils/emailService');
+const { sendApprovalEmail, sendRejectionEmail, sendNewRequestEmail, sendRequestSubmittedEmail, sendCheckoutEmail, sendCheckoutDeniedEmail, sendReturnEmail, sendReturnConfirmationEmail } = require('../utils/emailService');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -1020,13 +1020,17 @@ exports.returnRequest = catchAsync(async (req, res, next) => {
 
   await addAuditLog(req.user.userId, 'ITEM_RETURNED', `Item returned: ${request.itemID}`, request.itemID);
 
-  // Email: notify owner/operators about return
+  // Email: notify borrower and owner/operators about return
   if (!request.parentRequestId) {
     try {
       const borrower = await User.findOne({ userId: request.borrowerID }).lean();
+      const operator = await User.findOne({ userId: req.user.userId }).lean();
+      // 1. Student-facing confirmation email
+      await sendReturnConfirmationEmail({ request, borrower, item, operator });
+      // 2. Staff notification email (owner + operators)
       const recipients = await getItemNotifyRecipients(request.itemID);
-      const emailResult = await sendReturnEmail({ request, borrower, item, recipients });
-      if (emailResult?.sent) {
+      const staffResult = await sendReturnEmail({ request, borrower, item, recipients });
+      if (staffResult?.sent) {
         await addAuditLog(req.user.userId, 'EMAIL_SENT', `Return email sent for ${request.requestId}`, request.itemID);
       }
     } catch (emailErr) {

@@ -219,6 +219,28 @@ const sendCheckoutDeniedEmail = async ({ request, borrower, item, operator, reas
   return sendEmail({ to: borrower.email, subject, text });
 };
 
+/** Notify borrower: item successfully returned */
+const sendReturnConfirmationEmail = async ({ request, borrower, item, operator }) => {
+  const subject = `[Inventory] Item Returned Successfully - ${request.requestId}`;
+  const text = [
+    `Hello ${borrower?.name || borrower?.userId},`,
+    '',
+    'Your borrowed item has been returned successfully.',
+    `Request ID: ${request.requestId}`,
+    `Item: ${request.itemID} - ${item?.name || 'Unknown'}`,
+    `Condition: ${request.condition || 'Not specified'}`,
+    `Return notes: ${request.returnNotes || 'None'}`,
+    `Return date: ${formatDate(request.returnedDate)}`,
+    '',
+    'Thank you for returning the item.',
+    '',
+    'Inventory System'
+  ].join('\n');
+  await createNotification({ recipientId: borrower?.userId, type: 'item_returned', subject, message: text, relatedRequestId: request.requestId, relatedItemId: request.itemID, senderName: operator?.name || 'Operator' });
+  if (!borrower?.email) return { skipped: true, reason: 'Borrower email missing' };
+  return sendEmail({ to: borrower.email, subject, text });
+};
+
 /** Notify owner / operators: item returned */
 const sendReturnEmail = async ({ request, borrower, item, recipients }) => {
   if (!recipients || recipients.length === 0) return { skipped: true, reason: 'No recipients' };
@@ -363,6 +385,7 @@ module.exports = {
   sendCheckoutEmail,
   sendCheckoutDeniedEmail,
   sendReturnEmail,
+  sendReturnConfirmationEmail,
   sendItemStatusChangeEmail,
   sendWelcomeEmail,
   sendAccountDeactivatedEmail,
