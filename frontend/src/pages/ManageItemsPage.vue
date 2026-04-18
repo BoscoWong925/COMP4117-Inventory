@@ -335,265 +335,319 @@
           {{ editingItem ? 'Edit Item' : 'Add New Item' }}
         </h2>
 
-        <!-- Invoice Scanner Header -->
-        <div class="mb-6 p-4 rounded-lg border-2" style="background:var(--warning-light);border-color:var(--warning)">
-          <h4 class="text-lg font-bold mb-3" style="color:var(--warning-dark)">
-            <svg class="inline w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Invoice Scanner
-          </h4>
-          
-          <!-- Invoice Input Mode Selection -->
-          <div class="flex gap-3">
-            <button
-              type="button"
-              @click="invoiceMode = 'upload'"
-              :class="`flex-1 px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 ${invoiceMode === 'upload' ? 'btn-outline-primary shadow-lg' : 'theme-card border-2'}`"
-            >
-              <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> Upload Invoice
-            </button>
-            <button
-              type="button"
-              @click="invoiceMode = 'camera'"
-              :class="`flex-1 px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 ${invoiceMode === 'camera' ? 'btn-outline-primary shadow-lg' : 'theme-card border-2'}`"
-            >
-              <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg> Take Photo
-            </button>
-          </div>
-        </div>
-
-        <!-- Invoice Upload Section -->
-        <div v-if="invoiceMode === 'upload'" class="mb-6 p-6 border-2 rounded-lg theme-card">
-          <label class="form-label font-semibold mb-4">Upload Invoice File</label>
-          
-          <div 
-            @drop.prevent="handleInvoiceDrop"
-            @dragover.prevent="isDraggingInvoice = true"
-            @dragleave="isDraggingInvoice = false"
-            :class="`p-8 border-3 border-dashed rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-[color:var(--accent)]' : ''}`"
-            :style="isDraggingInvoice ? 'background:var(--accent-surface)' : 'border-color:var(--border);background:var(--filter-bg)'"
-          >
-            <input 
-              type="file" 
-              ref="invoiceInput"
-              @change="handleInvoiceUpload"
-              accept="image/*,.pdf"
-              class="hidden"
-            />
-            <div @click="$refs.invoiceInput.click()">
-              <svg class="w-10 h-10 mx-auto mb-3 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <p class="font-semibold mb-2">{{ isDraggingInvoice ? 'Drop invoice here' : 'Click to upload or drag & drop' }}</p>
-              <p class="text-sm text-muted mb-4">PNG, JPG, PDF (Max 10MB)</p>
-              <div class="p-3 theme-card inline-block">
-                <Button type="button" variant="outline">Browse Files</Button>
+        <form @submit.prevent="handleSubmit">
+          <!-- ── Section: Item Identification ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Item Identification</h3>
+            <div class="form-section-grid">
+              <div>
+                <label class="form-label">Name <span class="form-required">*</span></label>
+                <Input type="text" required v-model="formData.name" />
+              </div>
+              <div>
+                <label class="form-label">University ID <span class="form-required">*</span></label>
+                <Input type="text" required v-model="formData.universityID" />
+              </div>
+              <div>
+                <label class="form-label">Type</label>
+                <Select v-model="formData.type">
+                  <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
+                </Select>
+              </div>
+              <div>
+                <label class="form-label">Category</label>
+                <DropdownWithOther
+                  v-model="formData.category"
+                  :options="mutableCategories"
+                  placeholder="Enter new category..."
+                  @add-option="addCategory"
+                />
+              </div>
+              <div class="col-span-2">
+                <label class="form-label">Description</label>
+                <Textarea v-model="formData.description" rows="2" />
               </div>
             </div>
           </div>
 
-          <!-- Upload Preview -->
-          <div v-if="uploadedImage" class="mt-6 p-4 border-2 rounded-lg" style="border-color:var(--success);background:var(--success-light)">
-            <p class="text-sm font-semibold mb-3" style="color:var(--success-dark)">
-              <svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Invoice Preview:
-            </p>
-            <img :src="uploadedImage" class="w-full max-h-72 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
-            <p v-if="invoiceFileData" class="text-xs text-secondary mt-2">{{ invoiceFileData.name }} &bull; {{ (invoiceFileData.size / 1024).toFixed(2) }} KB</p>
-          </div>
-        </div>
-
-        <!-- Invoice Camera Section -->
-        <div v-if="invoiceMode === 'camera'" class="mb-6 p-6 border-2 rounded-lg theme-card">
-          <label class="form-label font-semibold mb-4">Capture Invoice with Camera</label>
-          
-          <!-- Camera Feed with Large Display -->
-          <div class="rounded-lg overflow-hidden mb-4 border-4" style="aspect-ratio: 4/3; max-height: 500px;border-color:var(--accent);background:#000">
-            <video
-              v-if="cameraActive"
-              ref="invoiceVideoElement"
-              class="w-full h-full object-cover"
-              autoplay
-              playsinline
-            ></video>
-            <div v-else class="w-full h-full flex items-center justify-center" style="background:#1a1a2e">
-              <div class="text-center">
-                <svg class="w-10 h-10 mx-auto mb-3 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <p class="text-muted text-lg">Camera ready</p>
+          <!-- ── Section: Classification & Location ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Classification &amp; Location</h3>
+            <div class="form-section-grid">
+              <div>
+                <label class="form-label">Status</label>
+                <Select v-model="formData.status">
+                  <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                </Select>
+              </div>
+              <div>
+                <label class="form-label">Location</label>
+                <DropdownWithOther
+                  v-model="formData.location"
+                  :options="mutableLocations"
+                  placeholder="Enter new location..."
+                  @add-option="addLocationOption"
+                />
+              </div>
+              <div>
+                <label class="form-label">Department ID</label>
+                <Input type="text" v-model="formData.departmentID" placeholder="e.g. COMP" />
+              </div>
+              <div>
+                <label class="form-label">Mother ID</label>
+                <Input type="text" v-model="formData.motherID" placeholder="Parent item ID (components only)" />
               </div>
             </div>
           </div>
 
-          <!-- Camera Controls with Box -->
-          <div class="mb-4 p-4 border-2 rounded-lg" style="border-color:var(--accent);background:var(--filter-bg)">
-            <p class="text-sm font-semibold mb-3" style="color:var(--accent)">Camera Controls:</p>
-            <div class="flex gap-2">
-              <button
-                v-if="!cameraActive"
-                type="button"
-                @click="startInvoiceCamera"
-                class="flex-1 btn btn-outline-primary px-4 py-3 font-semibold shadow-md hover:shadow-lg"
-                :disabled="invoiceCameraStarting"
-              >
-                {{ invoiceCameraStarting ? 'Starting...' : 'Start Camera' }}
-              </button>
-              <button
-                v-else
-                type="button"
-                @click="stopInvoiceCamera"
-                class="flex-1 btn btn-outline-danger px-4 py-3 font-semibold shadow-md hover:shadow-lg"
-              >
-                Stop Camera
-              </button>
-              <button
-                v-if="cameraActive"
-                type="button"
-                @click="captureInvoicePhoto"
-                class="flex-1 btn btn-outline-success px-4 py-3 font-semibold shadow-md hover:shadow-lg"
-                :disabled="ocrProcessing"
-              >
-                {{ ocrProcessing ? 'Processing...' : 'Capture' }}
-              </button>
+          <!-- ── Section: Procurement & Financial ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Procurement &amp; Financial</h3>
+            <div class="form-section-grid">
+              <div>
+                <label class="form-label">Supplier</label>
+                <Input type="text" v-model="formData.supplier" placeholder="Supplying company" />
+              </div>
+              <div>
+                <label class="form-label">Vendor</label>
+                <Input type="text" v-model="formData.vendor" placeholder="Sales vendor" />
+              </div>
+              <div>
+                <label class="form-label">Invoice #</label>
+                <Input type="text" v-model="formData.invoiceNumber" />
+              </div>
+              <div>
+                <label class="form-label">Price ($)</label>
+                <Input type="number" step="0.01" min="0" v-model="formData.price" placeholder="0.00" />
+              </div>
+              <div>
+                <label class="form-label">Purchase Date</label>
+                <Input type="date" v-model="formData.purchaseDate" />
+              </div>
+              <div>
+                <label class="form-label">Supplier Status</label>
+                <Select v-model="formData.supplierStatus">
+                  <option value="">— None —</option>
+                  <option value="Delivered">Delivered</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Backordered">Backordered</option>
+                </Select>
+              </div>
+              <div>
+                <label class="form-label">FO Request ID</label>
+                <Input type="text" v-model="formData.foRequestID" placeholder="Financial Office ref" />
+              </div>
+              <div>
+                <label class="form-label">Order ID</label>
+                <Input type="text" v-model="formData.orderID" placeholder="Purchase order ref" />
+              </div>
+              <div>
+                <label class="form-label">Funding Source</label>
+                <Input type="text" v-model="formData.fundingSource" placeholder="e.g. Department Budget" />
+              </div>
+              <div>
+                <label class="form-label">Project Linked</label>
+                <Input type="text" v-model="formData.projectLinked" placeholder="Associated project" />
+              </div>
             </div>
           </div>
 
-          <!-- Captured Image Preview -->
-          <div v-if="uploadedImage" class="p-4 border-2 rounded-lg" style="border-color:var(--success);background:var(--success-light)">
-            <p class="text-sm font-semibold mb-3" style="color:var(--success-dark)"><svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Captured Invoice Preview:</p>
-            <img :src="uploadedImage" class="w-full max-h-72 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
-          </div>
-        </div>
-
-        <!-- Processing Status -->
-        <div v-if="ocrProcessing" class="mb-6 p-6 border-2 rounded-lg" style="border-color:var(--info);background:var(--info-light)">
-          <div class="flex items-center justify-center gap-3 mb-4">
-            <div class="animate-spin h-6 w-6 border-3 rounded-full" style="border-color:var(--info);border-top-color:transparent"></div>
-            <span class="text-lg font-semibold" style="color:var(--info-dark)">Processing Invoice... {{ ocrProgress }}%</span>
-          </div>
-          <div class="w-full rounded-full h-3" style="background:var(--filter-bg)">
-            <div class="h-3 rounded-full transition-all duration-300" style="background:var(--info)" :style="{ width: ocrProgress + '%' }"></div>
-          </div>
-        </div>
-
-        <!-- Success/Error Message -->
-        <div v-if="ocrMessage && !ocrProcessing" class="mb-6 p-4 rounded-lg border-2 font-semibold" :style="ocrSuccess ? 'background:var(--success-light);border-color:var(--success);color:var(--success-dark)' : 'background:var(--danger-light);border-color:var(--danger);color:var(--danger-dark)'">
-          {{ ocrMessage }}
-        </div>
-
-        <!-- Invoice Preview (when editing) -->
-        <div v-if="editingItem && invoiceFileData" class="mb-6 p-4 border-2 rounded-lg" style="border-color:var(--info);background:var(--info-light)">
-          <p class="text-sm font-semibold mb-3" style="color:var(--info-dark)"><svg class="inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg> Invoice Attached:</p>
-          <img 
-            v-if="uploadedImage" 
-            :src="uploadedImage" 
-            class="w-full max-h-64 rounded border-2 object-contain mb-4" style="border-color:var(--info);background:var(--modal-bg)" 
-          />
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-secondary font-medium">{{ invoiceFileData.name }}</span>
-              <span class="text-xs text-muted">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
-            </div>
-            <div class="flex gap-2 p-3 border-2 rounded-lg theme-card">
-              <Button variant="outline" size="sm" @click="viewInvoice">View</Button>
-              <Button variant="success" size="sm" @click="downloadInvoice">Download</Button>
+          <!-- ── Section: Warranty ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Warranty</h3>
+            <div class="form-section-grid">
+              <div>
+                <label class="form-label">Warranty Start</label>
+                <Input type="date" v-model="formData.warrantyStartDate" />
+              </div>
+              <div>
+                <label class="form-label">Warranty End</label>
+                <Input type="date" v-model="formData.warrantyEnd" />
+              </div>
+              <div>
+                <label class="form-label">Warranty Vendor</label>
+                <Input type="text" v-model="formData.warrantyVendor" placeholder="Warranty service provider" />
+              </div>
+              <div class="flex items-center pt-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <Checkbox v-model="formData.warrantyOnsite" />
+                  <span class="form-label mb-0">Onsite Warranty</span>
+                </label>
+              </div>
             </div>
           </div>
-        </div>
 
-        <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4 pr-2">
-          <div>
-            <label class="form-label">Name *</label>
-            <Input type="text" required v-model="formData.name" />
+          <!-- ── Section: Ownership & Availability ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Ownership &amp; Availability</h3>
+            <div class="form-section-grid">
+              <div>
+                <label class="form-label">Owner</label>
+                <Select v-model="formData.owner">
+                  <option value="department">Department</option>
+                  <option v-for="t in teachers" :key="t.userId" :value="t.userId">
+                    {{ t.name }} ({{ t.userId }})
+                  </option>
+                </Select>
+              </div>
+              <div class="flex items-center pt-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <Checkbox v-model="formData.canBorrow" />
+                  <span class="form-label mb-0">Can be Borrowed</span>
+                </label>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label class="form-label">University ID *</label>
-            <Input type="text" required v-model="formData.universityID" />
+          <!-- ── Section: Invoice / Documents (collapsible) ── -->
+          <div class="form-section">
+            <button type="button" class="form-section-toggle" @click="showInvoiceSection = !showInvoiceSection">
+              <h3 class="form-section-title" style="margin:0">Invoice &amp; Documents</h3>
+              <span class="form-section-chevron" :class="{ 'form-section-chevron--open': showInvoiceSection }">
+                <ChevronDown :size="14" />
+              </span>
+            </button>
+
+            <template v-if="showInvoiceSection">
+              <!-- Invoice Scanner -->
+              <div class="form-invoice-modes">
+                <button
+                  type="button"
+                  @click="invoiceMode = 'upload'"
+                  class="form-invoice-mode-btn"
+                  :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'upload' }"
+                >
+                  Upload Invoice
+                </button>
+                <button
+                  type="button"
+                  @click="invoiceMode = 'camera'"
+                  class="form-invoice-mode-btn"
+                  :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'camera' }"
+                >
+                  Take Photo
+                </button>
+              </div>
+
+              <!-- Invoice Upload Section -->
+              <div v-if="invoiceMode === 'upload'" class="mb-4 p-4 border rounded-lg theme-card">
+                <div 
+                  @drop.prevent="handleInvoiceDrop"
+                  @dragover.prevent="isDraggingInvoice = true"
+                  @dragleave="isDraggingInvoice = false"
+                  :class="`p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-[color:var(--accent)]' : ''}`"
+                  :style="isDraggingInvoice ? 'background:var(--accent-surface)' : 'border-color:var(--border);background:var(--filter-bg)'"
+                >
+                  <input 
+                    type="file" 
+                    ref="invoiceInput"
+                    @change="handleInvoiceUpload"
+                    accept="image/*,.pdf"
+                    class="hidden"
+                  />
+                  <div @click="$refs.invoiceInput.click()">
+                    <p class="font-semibold mb-1 text-sm">{{ isDraggingInvoice ? 'Drop invoice here' : 'Click to upload or drag & drop' }}</p>
+                    <p class="text-xs text-muted mb-3">PNG, JPG, PDF (Max 10MB)</p>
+                    <Button type="button" variant="outline" size="sm">Browse Files</Button>
+                  </div>
+                </div>
+
+                <div v-if="uploadedImage" class="mt-4 p-3 border rounded-lg" style="border-color:var(--success);background:var(--success-light)">
+                  <p class="text-xs font-semibold mb-2" style="color:var(--success-dark)">Invoice Preview:</p>
+                  <img :src="uploadedImage" class="w-full max-h-48 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
+                  <p v-if="invoiceFileData" class="text-xs text-secondary mt-2">{{ invoiceFileData.name }} &bull; {{ (invoiceFileData.size / 1024).toFixed(2) }} KB</p>
+                </div>
+              </div>
+
+              <!-- Invoice Camera Section -->
+              <div v-if="invoiceMode === 'camera'" class="mb-4 p-4 border rounded-lg theme-card">
+                <div class="rounded-lg overflow-hidden mb-3 border-2" style="aspect-ratio: 4/3; max-height: 320px;border-color:var(--accent);background:#000">
+                  <video
+                    v-if="cameraActive"
+                    ref="invoiceVideoElement"
+                    class="w-full h-full object-cover"
+                    autoplay
+                    playsinline
+                  ></video>
+                  <div v-else class="w-full h-full flex items-center justify-center" style="background:#1a1a2e">
+                    <p class="text-muted text-sm">Camera ready</p>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    v-if="!cameraActive"
+                    type="button"
+                    @click="startInvoiceCamera"
+                    class="flex-1 btn btn-outline-primary px-3 py-2 text-sm font-semibold"
+                    :disabled="invoiceCameraStarting"
+                  >
+                    {{ invoiceCameraStarting ? 'Starting...' : 'Start Camera' }}
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    @click="stopInvoiceCamera"
+                    class="flex-1 btn btn-outline-danger px-3 py-2 text-sm font-semibold"
+                  >
+                    Stop Camera
+                  </button>
+                  <button
+                    v-if="cameraActive"
+                    type="button"
+                    @click="captureInvoicePhoto"
+                    class="flex-1 btn btn-outline-success px-3 py-2 text-sm font-semibold"
+                    :disabled="ocrProcessing"
+                  >
+                    {{ ocrProcessing ? 'Processing...' : 'Capture' }}
+                  </button>
+                </div>
+                <div v-if="uploadedImage" class="mt-3 p-3 border rounded-lg" style="border-color:var(--success);background:var(--success-light)">
+                  <p class="text-xs font-semibold mb-2" style="color:var(--success-dark)">Captured Preview:</p>
+                  <img :src="uploadedImage" class="w-full max-h-48 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
+                </div>
+              </div>
+
+              <!-- Processing Status -->
+              <div v-if="ocrProcessing" class="mb-4 p-4 border rounded-lg" style="border-color:var(--info);background:var(--info-light)">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="animate-spin h-4 w-4 border-2 rounded-full" style="border-color:var(--info);border-top-color:transparent"></div>
+                  <span class="text-sm font-semibold" style="color:var(--info-dark)">Processing Invoice... {{ ocrProgress }}%</span>
+                </div>
+                <div class="w-full rounded-full h-2" style="background:var(--filter-bg)">
+                  <div class="h-2 rounded-full transition-all duration-300" style="background:var(--info)" :style="{ width: ocrProgress + '%' }"></div>
+                </div>
+              </div>
+
+              <!-- OCR Message -->
+              <div v-if="ocrMessage && !ocrProcessing" class="mb-4 p-3 rounded-lg border text-sm font-semibold" :style="ocrSuccess ? 'background:var(--success-light);border-color:var(--success);color:var(--success-dark)' : 'background:var(--danger-light);border-color:var(--danger);color:var(--danger-dark)'">
+                {{ ocrMessage }}
+              </div>
+
+              <!-- Invoice Preview (when editing existing item) -->
+              <div v-if="editingItem && invoiceFileData" class="mb-4 p-3 border rounded-lg" style="border-color:var(--info);background:var(--info-light)">
+                <p class="text-xs font-semibold mb-2" style="color:var(--info-dark)">Invoice Attached:</p>
+                <img 
+                  v-if="uploadedImage" 
+                  :src="uploadedImage" 
+                  class="w-full max-h-40 rounded border object-contain mb-3" style="border-color:var(--info);background:var(--modal-bg)" 
+                />
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-secondary font-medium">{{ invoiceFileData.name }}</span>
+                    <span class="text-xs text-muted">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <Button variant="outline" size="sm" @click="viewInvoice">View</Button>
+                    <Button variant="success" size="sm" @click="downloadInvoice">Download</Button>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
-          <div>
-            <label class="form-label">Type</label>
-            <Select v-model="formData.type">
-              <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
-            </Select>
-          </div>
-
-          <div>
-            <label class="form-label">Category</label>
-            <DropdownWithOther
-              v-model="formData.category"
-              :options="mutableCategories"
-              placeholder="Enter new category..."
-              @add-option="addCategory"
-            />
-          </div>
-
-          <div>
-            <label class="form-label">Status</label>
-            <Select v-model="formData.status">
-              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-            </Select>
-          </div>
-
-          <div>
-            <label class="form-label">Location</label>
-            <DropdownWithOther
-              v-model="formData.location"
-              :options="mutableLocations"
-              placeholder="Enter new location..."
-              @add-option="addLocationOption"
-            />
-          </div>
-
-          <div>
-            <label class="form-label">Department ID</label>
-            <Input type="text" v-model="formData.departmentID" placeholder="e.g. COMP" />
-          </div>
-
-          <div>
-            <label class="form-label">Mother ID</label>
-            <Input type="text" v-model="formData.motherID" placeholder="For components only" />
-          </div>
-
-          <div>
-            <label class="form-label">Supplier</label>
-            <Input type="text" v-model="formData.supplier" />
-          </div>
-
-          <div>
-            <label class="form-label">Invoice #</label>
-            <Input type="text" v-model="formData.invoiceNumber" />
-          </div>
-
-          <div>
-            <label class="form-label">Warranty Start</label>
-            <Input type="date" v-model="formData.warrantyStartDate" />
-          </div>
-
-          <div>
-            <label class="form-label">Warranty End</label>
-            <Input type="date" v-model="formData.warrantyEnd" />
-          </div>
-
-          <div>
-            <label class="form-label">Owner</label>
-            <Select v-model="formData.owner">
-              <option value="department">Department</option>
-              <option v-for="t in teachers" :key="t.userId" :value="t.userId">
-                {{ t.name }} ({{ t.userId }})
-              </option>
-            </Select>
-          </div>
-
-          <div class="flex items-center pt-6">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <Checkbox v-model="formData.canBorrow" />
-              <span class="form-label mb-0">Can be Borrowed</span>
-            </label>
-          </div>
-
-          <div class="col-span-2">
-            <label class="form-label">Description</label>
-            <Textarea v-model="formData.description" rows="3" />
-          </div>
-
-          <div class="col-span-2 flex gap-3 justify-end p-4 form-action-bar">
+          <!-- ── Form Actions ── -->
+          <div class="form-actions">
             <Button type="submit" variant="success">{{ editingItem ? 'Update' : 'Add' }} Item</Button>
             <Button type="button" variant="outline" @click="showForm = false; resetForm()">Cancel</Button>
           </div>
@@ -673,9 +727,19 @@ const defaultFormData = {
   motherID: '',
   universityID: '',
   supplier: '',
+  vendor: '',
   invoiceNumber: '',
+  price: '',
+  purchaseDate: '',
+  supplierStatus: '',
+  foRequestID: '',
+  orderID: '',
+  fundingSource: '',
+  projectLinked: '',
   warrantyStartDate: '',
   warrantyEnd: '',
+  warrantyVendor: '',
+  warrantyOnsite: false,
   invoiceFile: null,
   departmentID: 'COMP',
   owner: 'department',
@@ -730,6 +794,7 @@ export default {
     const ocrMessage = ref('')
     const ocrSuccess = ref(false)
     const invoiceFileData = ref(null)
+    const showInvoiceSection = ref(false)
     const currentPage = ref(1)
     const pageSize = ref(10)
     const totalItems = ref(0)
@@ -1113,7 +1178,7 @@ export default {
       await runAction(editingItem.value ? 'Updating item...' : 'Adding item...', async () => {
         try {
           if (editingItem.value) {
-            // Build a clean payload with only the editable fields for the backend
+            // Build a clean payload with all editable fields for the backend
             const updatePayload = {
               name: formData.value.name,
               universityID: formData.value.universityID,
@@ -1124,9 +1189,19 @@ export default {
               description: formData.value.description,
               motherID: formData.value.motherID,
               supplier: formData.value.supplier,
+              vendor: formData.value.vendor,
               invoiceNumber: formData.value.invoiceNumber,
+              price: formData.value.price !== '' ? Number(formData.value.price) : 0,
+              purchaseDate: formData.value.purchaseDate,
+              supplierStatus: formData.value.supplierStatus,
+              foRequestID: formData.value.foRequestID,
+              orderID: formData.value.orderID,
+              fundingSource: formData.value.fundingSource,
+              projectLinked: formData.value.projectLinked,
               warrantyStartDate: formData.value.warrantyStartDate,
               warrantyEnd: formData.value.warrantyEnd,
+              warrantyVendor: formData.value.warrantyVendor,
+              warrantyOnsite: formData.value.warrantyOnsite,
               departmentID: formData.value.departmentID,
               owner: formData.value.owner,
               canBorrow: formData.value.canBorrow,
@@ -1147,7 +1222,14 @@ export default {
               }
             }
           } else {
-            await inventoryService.addItem(formData.value)
+            // Normalize price for add
+            const addPayload = { ...formData.value }
+            if (addPayload.price !== '' && addPayload.price != null) {
+              addPayload.price = Number(addPayload.price)
+            } else {
+              addPayload.price = 0
+            }
+            await inventoryService.addItem(addPayload)
             // Reload full list to pick up the new item with server-generated ID
             await loadItems()
           }
@@ -1163,7 +1245,7 @@ export default {
     }
 
     const handleEdit = (item) => {
-      // Copy only editable fields to formData, avoiding MongoDB internal fields
+      // Copy all editable fields to formData, avoiding MongoDB internal fields
       formData.value = {
         name: item.name || '',
         universityID: item.universityID || '',
@@ -1174,9 +1256,19 @@ export default {
         description: item.description || '',
         motherID: item.motherID || '',
         supplier: item.supplier || '',
+        vendor: item.vendor || '',
         invoiceNumber: item.invoiceNumber || '',
+        price: item.price != null && item.price !== 0 ? item.price : '',
+        purchaseDate: item.purchaseDate || '',
+        supplierStatus: item.supplierStatus || '',
+        foRequestID: item.foRequestID || '',
+        orderID: item.orderID || '',
+        fundingSource: item.fundingSource || '',
+        projectLinked: item.projectLinked || '',
         warrantyStartDate: item.warrantyStartDate || '',
         warrantyEnd: item.warrantyEnd || '',
+        warrantyVendor: item.warrantyVendor || '',
+        warrantyOnsite: item.warrantyOnsite === true,
         departmentID: item.departmentID || 'COMP',
         owner: item.owner || 'department',
         canBorrow: item.canBorrow !== false,
@@ -1189,10 +1281,12 @@ export default {
         invoiceFileData.value = item.invoiceFile
         ocrMessage.value = `Invoice ${item.invoiceFile.name} loaded`
         ocrSuccess.value = true
+        showInvoiceSection.value = true
       } else {
         invoiceFileData.value = null
         ocrMessage.value = ''
         ocrSuccess.value = false
+        showInvoiceSection.value = false
       }
       
       showForm.value = true
@@ -1358,10 +1452,24 @@ export default {
                 status: row.status || row.Status || 'Available',
                 location: row.location || row.Location || 'Other',
                 description: row.description || row.Description || '',
-                supplier: row.supplier || row.Supplier || row.Vendor || '',
+                supplier: row.supplier || row.Supplier || '',
+                vendor: row.vendor || row.Vendor || '',
                 motherID: row.motherID || row['Mother ID'] || null,
-                invoiceNumber: row.invoiceNumber || row['Invoice Number'] || '',
-                warrantyEnd: row.warrantyEnd || row['Warranty End'] || null
+                invoiceNumber: row.invoiceNumber || row['Invoice Number'] || row['Invoice #'] || '',
+                price: parseFloat(row.price || row.Price || '0') || 0,
+                purchaseDate: row.purchaseDate || row['Purchase Date'] || '',
+                supplierStatus: row.supplierStatus || row['Supplier Status'] || '',
+                foRequestID: row.foRequestID || row['FO Request ID'] || '',
+                orderID: row.orderID || row['Order ID'] || '',
+                fundingSource: row.fundingSource || row['Funding Source'] || '',
+                projectLinked: row.projectLinked || row['Project Linked'] || '',
+                warrantyStartDate: row.warrantyStartDate || row['Warranty Start'] || '',
+                warrantyEnd: row.warrantyEnd || row['Warranty End'] || '',
+                warrantyVendor: row.warrantyVendor || row['Warranty Vendor'] || '',
+                warrantyOnsite: row.warrantyOnsite === true || row.warrantyOnsite === 'Yes' || row['Warranty Onsite'] === 'Yes' || false,
+                departmentID: row.departmentID || row['Department ID'] || row.Department || '',
+                owner: row.owner || row.Owner || row.Ownership || 'department',
+                canBorrow: row.canBorrow !== false && row.canBorrow !== 'No' && row['Can Borrow'] !== 'No',
               }
 
               if (newItem.name) {
@@ -1757,6 +1865,7 @@ export default {
       cameraActive,
       invoiceCameraStarting,
       invoiceFileData,
+      showInvoiceSection,
       isDraggingInvoice,
       ocrProcessing,
       ocrProgress,
@@ -1831,6 +1940,91 @@ export default {
 </script>
 
 <style scoped>
+/* ── Form Sections ──────────────────────────────── */
+.form-section {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.form-section-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  margin-bottom: 0.75rem;
+}
+
+.form-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem 1rem;
+}
+
+.form-section-grid .col-span-2 {
+  grid-column: span 2;
+}
+
+.form-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.form-section-chevron {
+  color: var(--muted-foreground);
+  transition: transform 0.2s;
+}
+.form-section-chevron--open {
+  transform: rotate(180deg);
+}
+
+.form-invoice-modes {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-invoice-mode-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.form-invoice-mode-btn:hover {
+  background: var(--surface-100);
+}
+.form-invoice-mode-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-surface);
+}
+
+.form-required {
+  color: var(--danger);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1rem 0 0.5rem;
+}
+
 .table-spinner-cell {
   padding: 3rem 0.5rem !important;
   background: var(--card);
