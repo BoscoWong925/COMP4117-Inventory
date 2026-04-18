@@ -11,17 +11,41 @@
         <div class="request-search">
           <Input v-model="searchKeyword" type="text" placeholder="Search request ID, item, borrower..." />
         </div>
-        <div class="request-sort-group">
-          <select v-model="sortBy" class="request-sort-select">
-            <option value="requestDate">Request Date</option>
-            <option value="approvalDate">Approved Date</option>
-            <option value="returnDate">Return Date</option>
-          </select>
-          <select v-model="sortDir" class="request-sort-select">
-            <option value="desc">Latest First</option>
-            <option value="asc">Oldest First</option>
-          </select>
-        </div>
+        <DropdownMenu align="end">
+          <template #trigger>
+            <button :class="['toolbar-btn', { 'toolbar-btn--active': isSortFilterActive }]">
+              <Filter :size="12" /> Filter
+              <span v-if="isSortFilterActive" class="toolbar-dot"></span>
+            </button>
+          </template>
+          <template #default="{ close }">
+            <DropdownMenuItem label>Sort Field</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="sortBy === 'requestDate'" @click="sortBy = 'requestDate'; close()">Request Date</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="sortBy === 'approvalDate'" @click="sortBy = 'approvalDate'; close()">Approved Date</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="sortBy === 'returnDate'" @click="sortBy = 'returnDate'; close()">Return Date</DropdownMenuItem>
+            <DropdownMenuItem separator />
+            <DropdownMenuItem label>Order</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="sortDir === 'desc'" @click="sortDir = 'desc'; close()">Latest First</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="sortDir === 'asc'" @click="sortDir = 'asc'; close()">Oldest First</DropdownMenuItem>
+            <template v-if="isSortFilterActive">
+              <DropdownMenuItem separator />
+              <DropdownMenuItem destructive @click="sortBy = 'requestDate'; sortDir = 'desc'; close()">
+                <XCircle :size="12" /> Clear Sort Filter
+              </DropdownMenuItem>
+            </template>
+          </template>
+        </DropdownMenu>
+      </div>
+
+      <div v-if="isSortFilterActive" class="request-active-filters">
+        <span class="filter-tag">
+          Sort: {{ sortBy === 'requestDate' ? 'Request Date' : sortBy === 'approvalDate' ? 'Approved Date' : 'Return Date' }}
+          <button @click="sortBy = 'requestDate'" class="filter-tag-x">&times;</button>
+        </span>
+        <span class="filter-tag">
+          Order: {{ sortDir === 'desc' ? 'Latest First' : 'Oldest First' }}
+          <button @click="sortDir = 'desc'" class="filter-tag-x">&times;</button>
+        </span>
       </div>
 
       <div v-if="!hideInternalTabs" class="request-tabs">
@@ -42,28 +66,36 @@
       </div>
 
       <Transition name="bulk-bar">
-        <div v-if="selectedCount > 0" class="request-toolbar">
-          <div class="request-toolbar-info">
-            <span class="request-selected-chip">{{ selectedCount }} selected</span>
+        <div v-if="selectedCount > 0" class="bulk-toolbar">
+          <div class="bulk-toolbar-left">
+            <span class="bulk-chip">{{ selectedCount }} selected</span>
             <span v-if="requestsLoadState.isFetching" class="request-fetch-chip">Updating...</span>
-          </div>
-          <div class="request-toolbar-actions">
-            <template v-if="activeTab === 'pending' && selectedPendingIds.length > 0">
-              <Button variant="success" size="sm" @click="showBulkApproveForm = true">
-                <CheckCircle2 :size="14" /> Approve ({{ selectedPendingIds.length }})
-              </Button>
-              <Button variant="destructive" size="sm" @click="showBulkRejectForm = true">
-                <XCircle :size="14" /> Reject ({{ selectedPendingIds.length }})
-              </Button>
-            </template>
-            <template v-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0">
-              <Button size="sm" @click="showBulkCheckoutForm = true">
-                <Package :size="14" /> Borrowed Out ({{ selectedCheckoutIds.length }})
-              </Button>
-              <Button variant="destructive" size="sm" @click="showBulkDenyForm = true">
-                <XCircle :size="14" /> Deny ({{ selectedCheckoutIds.length }})
-              </Button>
-            </template>
+            <DropdownMenu align="start">
+              <template #trigger>
+                <button class="toolbar-btn">
+                  <Zap :size="12" /> Actions <ChevronDown :size="10" />
+                </button>
+              </template>
+              <template #default="{ close }">
+                <template v-if="activeTab === 'pending' && selectedPendingIds.length > 0">
+                  <DropdownMenuItem success @click="showBulkApproveForm = true; close()">
+                    <CheckCircle2 :size="12" /> Approve ({{ selectedPendingIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive @click="showBulkRejectForm = true; close()">
+                    <XCircle :size="12" /> Reject ({{ selectedPendingIds.length }})
+                  </DropdownMenuItem>
+                </template>
+                <template v-else-if="activeTab === 'checkout' && selectedCheckoutIds.length > 0">
+                  <DropdownMenuItem success @click="showBulkCheckoutForm = true; close()">
+                    <Package :size="12" /> Borrowed Out ({{ selectedCheckoutIds.length }})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive @click="showBulkDenyForm = true; close()">
+                    <XCircle :size="12" /> Deny ({{ selectedCheckoutIds.length }})
+                  </DropdownMenuItem>
+                </template>
+              </template>
+            </DropdownMenu>
+            <button class="bulk-clear-btn" @click="clearCurrentSelection">Clear</button>
           </div>
         </div>
       </Transition>
@@ -417,7 +449,7 @@
 
 <script>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { Download, MoreVertical, Mail, CheckCircle2, XCircle, Package } from 'lucide-vue-next'
+import { Download, MoreVertical, Mail, CheckCircle2, XCircle, Package, Zap, ChevronDown, Filter } from 'lucide-vue-next'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, exportToExcel, waitingTime, isOverdue } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
@@ -449,7 +481,7 @@ export default {
     Button, Card, Badge, Checkbox, DropdownMenu, DropdownMenuItem,
     ModulePageHeader, TablePaginationBar, Spinner, Input, Textarea,
     DropdownWithOther, RemarkBox, SendEmailModal,
-    Download, MoreVertical, Mail, CheckCircle2, XCircle, Package
+    Download, MoreVertical, Mail, CheckCircle2, XCircle, Package, Zap, ChevronDown, Filter
   },
   setup(props) {
     const currentUser = authService.getCurrentUser()
@@ -549,6 +581,8 @@ export default {
     const selectedCount = computed(() =>
       activeTab.value === 'pending' ? selectedPendingIds.value.length : selectedCheckoutIds.value.length
     )
+
+    const isSortFilterActive = computed(() => sortBy.value !== 'requestDate' || sortDir.value !== 'desc')
 
     const isCurrentAllSelected = computed(() => {
       if (currentGroups.value.length === 0) return false
@@ -1006,6 +1040,7 @@ export default {
       sortDir,
       currentTotal,
       selectedCount,
+      isSortFilterActive,
       isCurrentAllSelected,
       selectedPendingIds,
       selectedCheckoutIds,
@@ -1035,6 +1070,7 @@ export default {
       overdueTooltipStyle,
       showOverdueTooltip,
       hideOverdueTooltip,
+      clearCurrentSelection,
       toggleSelectAllCurrent,
       togglePendingSelection,
       toggleCheckoutSelection,
@@ -1073,9 +1109,10 @@ export default {
 
 .request-controls {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface-50);
 }
@@ -1085,18 +1122,38 @@ export default {
   min-width: 14rem;
 }
 
-.request-sort-group {
+.request-active-filters {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 1rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.request-sort-select {
-  border: 1px solid var(--border);
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  background: var(--accent-surface);
+  color: var(--accent);
   border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  padding: 0.4rem 0.5rem;
+}
+
+.filter-tag-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--accent);
+  padding: 0;
+  line-height: 1;
+}
+
+.filter-tag-x:hover {
+  opacity: 0.7;
 }
 
 .request-tabs {
@@ -1137,15 +1194,14 @@ export default {
   text-align: center;
 }
 
-.request-toolbar {
+.bulk-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  flex-wrap: wrap;
-  min-height: 2.5rem;
-  padding: 0.625rem 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
 }
 
 /* Bulk bar slide animation */
@@ -1165,15 +1221,14 @@ export default {
   opacity: 1;
 }
 
-.request-toolbar-info,
-.request-toolbar-actions {
-  display: inline-flex;
+.bulk-toolbar-left {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   flex-wrap: wrap;
 }
 
-.request-selected-chip {
+.bulk-chip {
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
@@ -1182,6 +1237,59 @@ export default {
   color: var(--accent);
   background: var(--accent-surface);
   border-radius: 999px;
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+  position: relative;
+}
+
+.toolbar-btn:hover {
+  background: var(--surface-100);
+  color: var(--text-secondary);
+}
+
+.toolbar-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toolbar-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.bulk-clear-btn {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bulk-clear-btn:hover {
+  color: var(--text-primary);
 }
 
 .request-fetch-chip {

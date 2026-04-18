@@ -33,58 +33,60 @@
       </div>
     </ModuleFilterPanel>
 
-    <!-- Filter Dropdown Bar -->
-    <div class="mb-4">
-      <div class="flex gap-2 flex-wrap relative">
-        <!-- All button -->
-        <button
-          @click="selectedAction = 'All'; selectedTimeRange = 'all'; currentPage = 1; closeDropdowns()"
-          :class="`pill ${selectedAction === 'All' && selectedTimeRange === 'all' ? 'pill-active' : ''}`"
-        >
-          All
-        </button>
-
-        <!-- Time Range Dropdown -->
-        <div class="relative">
-          <button
-            @click.stop="toggleDropdown('time')"
-            :class="`pill ${selectedTimeRange !== 'all' ? 'pill-active' : ''}`"
-          >
-            {{ selectedTimeRangeLabel }}
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+    <!-- Filter Toolbar -->
+    <div class="audit-filter-tools mb-4">
+      <DropdownMenu align="start">
+        <template #trigger>
+          <button :class="['toolbar-btn', { 'toolbar-btn--active': hasActiveAuditFilters }]">
+            <Filter :size="12" /> Filter
+            <span v-if="hasActiveAuditFilters" class="toolbar-dot"></span>
           </button>
-          <div v-if="openDropdown === 'time'" class="dropdown-menu">
-            <button
-              v-for="opt in timeRangeOptions"
-              :key="opt.value"
-              @click="selectTimeRange(opt.value)"
-              :class="`dropdown-item ${selectedTimeRange === opt.value ? 'dropdown-item-active' : ''}`"
-            >
-              {{ opt.label }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Action Dropdown -->
-        <div class="relative">
-          <button
-            @click.stop="toggleDropdown('action')"
-            :class="`pill ${selectedAction !== 'All' ? 'pill-active' : ''}`"
+        </template>
+        <template #default="{ close }">
+          <DropdownMenuItem label>Time Range</DropdownMenuItem>
+          <DropdownMenuItem
+            v-for="opt in timeRangeOptions"
+            :key="opt.value"
+            checkable
+            :checked="selectedTimeRange === opt.value"
+            @click="selectedTimeRange = opt.value; currentPage = 1; close()"
           >
-            {{ selectedAction === 'All' ? 'Action' : selectedAction }}
-            <svg class="inline-block w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <div v-if="openDropdown === 'action'" class="dropdown-menu">
-            <button
-              v-for="cat in actionCategories"
-              :key="cat.label"
-              @click="selectAction(cat.label)"
-              :class="`dropdown-item ${selectedAction === cat.label ? 'dropdown-item-active' : ''}`"
-            >
-              {{ cat.label }} ({{ getCategoryCount(cat) }})
-            </button>
-          </div>
-        </div>
+            {{ opt.label }}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem separator />
+          <DropdownMenuItem label>Action Category</DropdownMenuItem>
+          <DropdownMenuItem checkable :checked="selectedAction === 'All'" @click="selectedAction = 'All'; currentPage = 1; close()">
+            All Actions
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            v-for="cat in actionCategories"
+            :key="cat.label"
+            checkable
+            :checked="selectedAction === cat.label"
+            @click="selectedAction = cat.label; currentPage = 1; close()"
+          >
+            {{ cat.label }} ({{ getCategoryCount(cat) }})
+          </DropdownMenuItem>
+
+          <template v-if="hasActiveAuditFilters">
+            <DropdownMenuItem separator />
+            <DropdownMenuItem destructive @click="selectedAction = 'All'; selectedTimeRange = 'all'; currentPage = 1; close()">
+              <XCircle :size="12" /> Clear All Filters
+            </DropdownMenuItem>
+          </template>
+        </template>
+      </DropdownMenu>
+
+      <div v-if="hasActiveAuditFilters" class="audit-active-filters">
+        <span v-if="selectedTimeRange !== 'all'" class="filter-tag">
+          Time: {{ selectedTimeRangeLabel }}
+          <button @click="selectedTimeRange = 'all'; currentPage = 1" class="filter-tag-x">&times;</button>
+        </span>
+        <span v-if="selectedAction !== 'All'" class="filter-tag">
+          Action: {{ selectedAction }}
+          <button @click="selectedAction = 'All'; currentPage = 1" class="filter-tag-x">&times;</button>
+        </span>
       </div>
     </div>
 
@@ -183,10 +185,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { auditService, authService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
-import { Zap, ChevronDown, Trash2 } from 'lucide-vue-next'
+import { useActionLock } from '../hooks/useActionLock'
+import { Zap, ChevronDown, Trash2, Filter, XCircle } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
   UiModuleFilterPanel as ModuleFilterPanel,
@@ -204,9 +207,10 @@ export default {
   components: {
     ModulePageHeader, ModuleFilterPanel, TablePaginationBar,
     DropdownMenu, DropdownMenuItem, Checkbox, Badge, Card, Button, Input,
-    Zap, ChevronDown, Trash2
+    Zap, ChevronDown, Trash2, Filter, XCircle
   },
   setup() {
+    const { runAction } = useActionLock()
     const logs = ref([])
     const totalLogs = ref(0)
     const loading = ref(false)
@@ -231,8 +235,6 @@ export default {
       return user?.role === 'admin'
     })
 
-    // Dropdown state
-    const openDropdown = ref(null)
     const selectedTimeRange = ref('all')
 
     const timeRangeOptions = [
@@ -252,45 +254,12 @@ export default {
       return opt ? opt.label : 'Time range'
     })
 
-    const toggleDropdown = (name) => {
-      openDropdown.value = openDropdown.value === name ? null : name
-    }
-
-    const closeDropdowns = () => {
-      openDropdown.value = null
-    }
-
-    const selectTimeRange = (value) => {
-      selectedTimeRange.value = value
-      currentPage.value = 1
-      closeDropdowns()
-    }
-
-    const selectAction = (label) => {
-      selectedAction.value = label
-      currentPage.value = 1
-      closeDropdowns()
-    }
-
-    // Close dropdown on click outside
-    const handleClickOutside = () => {
-      closeDropdowns()
-    }
-
-    onMounted(() => {
-      document.addEventListener('click', handleClickOutside)
-    })
-
-    onUnmounted(() => {
-      document.removeEventListener('click', handleClickOutside)
-    })
-
     // Action categories for grouping
     const actionCategories = [
-      { label: 'Login / Logout', actions: ['LOGIN', 'LOGOUT'], activeClass: 'pill-active' },
-      { label: 'Borrow Requests', actions: ['BORROW_REQUEST_CREATED', 'BORROW_REQUEST_APPROVED', 'BORROW_REQUEST_REJECTED'], activeClass: 'pill-active' },
-      { label: 'Item Returns', actions: ['ITEM_RETURNED'], activeClass: 'pill-active' },
-      { label: 'Item Changes', actions: ['ITEM_ADDED', 'ITEM_DELETED', 'ITEM_STATUS_CHANGE', 'INVENTORY_ITEM_ADDED'], activeClass: 'pill-active' }
+      { label: 'Login / Logout', actions: ['LOGIN', 'LOGOUT'] },
+      { label: 'Borrow Requests', actions: ['BORROW_REQUEST_CREATED', 'BORROW_REQUEST_APPROVED', 'BORROW_REQUEST_REJECTED'] },
+      { label: 'Item Returns', actions: ['ITEM_RETURNED'] },
+      { label: 'Item Changes', actions: ['ITEM_ADDED', 'ITEM_DELETED', 'ITEM_STATUS_CHANGE', 'INVENTORY_ITEM_ADDED'] }
     ]
 
     // Debounce timer for text inputs
@@ -377,6 +346,10 @@ export default {
     const getCategoryCount = (cat) => {
       return categoryCounts.value[cat.label] ?? '...'
     }
+
+    const hasActiveAuditFilters = computed(() => {
+      return selectedTimeRange.value !== 'all' || selectedAction.value !== 'All'
+    })
 
     const paginatedLogs = computed(() => {
       // Server already paginates, so just return logs directly
@@ -476,15 +449,21 @@ export default {
     }
 
     const handleDeleteLogs = async () => {
-      try {
-        await auditService.deleteLogs(selectedLogIds.value)
-        selectedLogIds.value = []
-        showDeleteConfirm.value = false
-        await loadLogs()
-      } catch (e) {
-        console.error('Failed to delete logs:', e)
-        alert('Failed to delete logs: ' + e.message)
-      }
+      const ids = [...selectedLogIds.value]
+      if (ids.length === 0) return
+
+      showDeleteConfirm.value = false
+
+      await runAction('Deleting logs...', async () => {
+        try {
+          await auditService.deleteLogs(ids)
+          selectedLogIds.value = []
+          await loadLogs()
+        } catch (e) {
+          console.error('Failed to delete logs:', e)
+          alert('Failed to delete logs: ' + e.message)
+        }
+      })
     }
 
     const exportLogs = async () => {
@@ -551,14 +530,10 @@ export default {
       toggleSelectAll,
       toggleLogSelection,
       handleDeleteLogs,
-      openDropdown,
+      hasActiveAuditFilters,
       selectedTimeRange,
       selectedTimeRangeLabel,
       timeRangeOptions,
-      toggleDropdown,
-      closeDropdowns,
-      selectTimeRange,
-      selectAction,
     }
   }
 }
@@ -589,54 +564,69 @@ thead th:hover .sort-icon {
   font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
   border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
 }
+.audit-filter-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 .toolbar-btn {
-  display: inline-flex; align-items: center; gap: 0.25rem;
-  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; font-weight: 600; padding: 0.28rem 0.6rem;
+  border-radius: 0.5rem; border: 1px solid var(--border);
   background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
 }
 .toolbar-btn:hover { background: var(--surface-100); }
+.toolbar-btn--active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--surface-100);
+}
+.toolbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
 .bulk-clear-btn {
   font-size: 0.7rem; color: var(--muted-foreground); background: none;
   border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
 }
 .bulk-clear-btn:hover { color: var(--text-primary); }
 
+.audit-active-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--surface-100) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  color: var(--text-primary);
+}
+
+.filter-tag-x {
+  border: 0;
+  background: transparent;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.filter-tag-x:hover {
+  color: var(--text-primary);
+}
+
 .bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
 .bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
 .bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
-
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  min-width: 200px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  box-shadow: var(--shadow-lg);
-  z-index: 50;
-  overflow: hidden;
-}
-.dropdown-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-.dropdown-item:hover {
-  background: var(--surface-100);
-}
-.dropdown-item-active {
-  background: var(--accent-surface);
-  font-weight: 600;
-}
 </style>

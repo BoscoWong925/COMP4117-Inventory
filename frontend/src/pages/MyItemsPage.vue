@@ -18,20 +18,32 @@
       <button @click="statusFilter = ''" class="text-accent hover:underline font-medium">Clear Filter &times;</button>
     </div>
 
-    <!-- Tabs for teacher -->
-    <div v-if="isTeacher" class="flex gap-2 mb-4">
-      <button
-        :class="`pill ${activeTab === 'owned' ? 'pill-active' : ''}`"
-        @click="activeTab = 'owned'; currentPage = 1"
-      >
-        Owned ({{ allOwnedItems.length }})
-      </button>
-      <button
-        :class="`pill ${activeTab === 'borrowed' ? 'pill-active' : ''}`"
-        @click="activeTab = 'borrowed'; currentPage = 1"
-      >
-        Borrowed ({{ borrowedItems.length }})
-      </button>
+    <!-- View Filter for teacher -->
+    <div v-if="isTeacher" class="items-filter-tools mb-4">
+      <DropdownMenu align="start">
+        <template #trigger>
+          <button :class="['toolbar-btn', { 'toolbar-btn--active': isViewFilterActive }]">
+            <Filter :size="12" /> Filter
+            <span v-if="isViewFilterActive" class="toolbar-dot"></span>
+          </button>
+        </template>
+        <template #default="{ close }">
+          <DropdownMenuItem label>Item View</DropdownMenuItem>
+          <DropdownMenuItem checkable :checked="activeTab === 'owned'" @click="activeTab = 'owned'; currentPage = 1; close()">
+            Owned ({{ allOwnedItems.length }})
+          </DropdownMenuItem>
+          <DropdownMenuItem checkable :checked="activeTab === 'borrowed'" @click="activeTab = 'borrowed'; currentPage = 1; close()">
+            Borrowed ({{ borrowedItems.length }})
+          </DropdownMenuItem>
+        </template>
+      </DropdownMenu>
+
+      <div v-if="isViewFilterActive" class="items-active-filters">
+        <span class="filter-tag">
+          View: {{ activeTabLabel }}
+          <button @click="activeTab = 'owned'; currentPage = 1" class="filter-tag-x">&times;</button>
+        </span>
+      </div>
     </div>
 
     <!-- Stats for teacher owned tab -->
@@ -291,7 +303,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, isOverdue } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
-import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown } from 'lucide-vue-next'
+import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown, Filter } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
   UiTablePaginationBar as TablePaginationBar,
@@ -308,7 +320,7 @@ export default {
   components: {
     ModulePageHeader, TablePaginationBar, DropdownMenu, DropdownMenuItem,
     Checkbox, Badge, Card, Button, Input,
-    MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown
+    MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown, Filter
   },
   props: {
     pageParams: { type: Object, default: () => ({}) }
@@ -333,6 +345,8 @@ export default {
     const currentUser = authService.getCurrentUser()
     const isTeacher = computed(() => currentUser?.subRole === 'teacher')
     const activeTab = ref(isTeacher.value ? 'owned' : 'borrowed')
+    const activeTabLabel = computed(() => activeTab.value === 'borrowed' ? 'Borrowed' : 'Owned')
+    const isViewFilterActive = computed(() => isTeacher.value && activeTab.value !== 'owned')
 
     const getOwnerId = () => currentUser ? (currentUser.userId || currentUser.id) : null
 
@@ -608,6 +622,7 @@ export default {
     return {
       allOwnedItems, borrowedItems, searchText, statusFilter, selectedItem, loading,
       currentPage, pageSize, pageSizeRef, activeTab, isTeacher,
+      activeTabLabel, isViewFilterActive,
       ownedCount, borrowedCount,
       filteredOwnedItems, filteredBorrowedItems,
       dueSoonCount, overdueCount,
@@ -645,13 +660,60 @@ export default {
   font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
   border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
 }
+.items-filter-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 .toolbar-btn {
-  display: inline-flex; align-items: center; gap: 0.25rem;
-  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; font-weight: 600; padding: 0.28rem 0.6rem;
+  border-radius: 0.5rem; border: 1px solid var(--border);
   background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
 }
 .toolbar-btn:hover { background: var(--surface-100); }
+.toolbar-btn--active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--surface-100);
+}
+.toolbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+.items-active-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--surface-100) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  color: var(--text-primary);
+}
+
+.filter-tag-x {
+  border: 0;
+  background: transparent;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.filter-tag-x:hover { color: var(--text-primary); }
 .bulk-clear-btn {
   font-size: 0.7rem; color: var(--muted-foreground); background: none;
   border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;

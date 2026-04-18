@@ -25,18 +25,86 @@
             <Search :size="14" class="qf-search-icon" />
             <Input v-model="searchFilters.name" type="text" placeholder="Search name or ID..." class="qf-search-input" />
           </div>
-          <Select v-model="searchFilters.status" class="qf-select">
-            <option value="">All Statuses</option>
-            <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-          </Select>
-          <Select v-model="searchFilters.type" class="qf-select">
-            <option value="">All Types</option>
-            <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
-          </Select>
-          <Select v-model="searchFilters.location" class="qf-select">
-            <option value="">All Locations</option>
-            <option v-for="l in mutableLocations.filter(x => x !== 'Other')" :key="l" :value="l">{{ l }}</option>
-          </Select>
+          <DropdownMenu align="start">
+            <template #trigger>
+              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.status !== '' }]">
+                Status <ChevronDown :size="10" />
+                <span v-if="searchFilters.status !== ''" class="toolbar-dot"></span>
+              </button>
+            </template>
+            <template #default="{ close }">
+              <DropdownMenuItem label>Status</DropdownMenuItem>
+              <DropdownMenuItem checkable :checked="searchFilters.status === ''" @click="searchFilters.status = ''; close()">All Statuses</DropdownMenuItem>
+              <DropdownMenuItem
+                v-for="s in statuses"
+                :key="s"
+                checkable
+                :checked="searchFilters.status === s"
+                @click="searchFilters.status = s; close()"
+              >
+                {{ s }}
+              </DropdownMenuItem>
+            </template>
+          </DropdownMenu>
+
+          <DropdownMenu align="start">
+            <template #trigger>
+              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.type !== '' }]">
+                Type <ChevronDown :size="10" />
+                <span v-if="searchFilters.type !== ''" class="toolbar-dot"></span>
+              </button>
+            </template>
+            <template #default="{ close }">
+              <DropdownMenuItem label>Type</DropdownMenuItem>
+              <DropdownMenuItem checkable :checked="searchFilters.type === ''" @click="searchFilters.type = ''; close()">All Types</DropdownMenuItem>
+              <DropdownMenuItem
+                v-for="t in itemTypes"
+                :key="t"
+                checkable
+                :checked="searchFilters.type === t"
+                @click="searchFilters.type = t; close()"
+              >
+                {{ t }}
+              </DropdownMenuItem>
+            </template>
+          </DropdownMenu>
+
+          <DropdownMenu align="start">
+            <template #trigger>
+              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.location !== '' }]">
+                Location <ChevronDown :size="10" />
+                <span v-if="searchFilters.location !== ''" class="toolbar-dot"></span>
+              </button>
+            </template>
+            <template #default="{ close }">
+              <DropdownMenuItem label>Location</DropdownMenuItem>
+              <DropdownMenuItem checkable :checked="searchFilters.location === ''" @click="searchFilters.location = ''; close()">All Locations</DropdownMenuItem>
+              <DropdownMenuItem
+                v-for="l in mutableLocations.filter(x => x !== 'Other')"
+                :key="l"
+                checkable
+                :checked="searchFilters.location === l"
+                @click="searchFilters.location = l; close()"
+              >
+                {{ l }}
+              </DropdownMenuItem>
+            </template>
+          </DropdownMenu>
+
+          <div v-if="searchFilters.status || searchFilters.type || searchFilters.location" class="qf-shortcut-tags">
+            <span v-if="searchFilters.status" class="filter-tag">
+              Status: {{ searchFilters.status }}
+              <button @click="searchFilters.status = ''" class="filter-tag-x">&times;</button>
+            </span>
+            <span v-if="searchFilters.type" class="filter-tag">
+              Type: {{ searchFilters.type }}
+              <button @click="searchFilters.type = ''" class="filter-tag-x">&times;</button>
+            </span>
+            <span v-if="searchFilters.location" class="filter-tag">
+              Location: {{ searchFilters.location }}
+              <button @click="searchFilters.location = ''" class="filter-tag-x">&times;</button>
+            </span>
+          </div>
         </div>
         <div class="quick-filter-actions">
           <button class="qf-toggle-btn" :class="{ 'qf-toggle-btn--active': showAdvancedFilters }" @click="showAdvancedFilters = !showAdvancedFilters">
@@ -183,7 +251,9 @@
               <template v-if="showItemsSkeleton">
                 <tr>
                   <td :colspan="tableColumnSpan" class="table-spinner-cell">
-                    <Spinner size="lg" label="Loading items..." />
+                    <div class="table-spinner-anchor">
+                      <Spinner size="lg" label="Loading items..." />
+                    </div>
                   </td>
                 </tr>
               </template>
@@ -1818,10 +1888,17 @@ export default {
 
 <style scoped>
 .table-spinner-cell {
-  text-align: center;
-  padding: 3rem 1rem !important;
+  padding: 3rem 0.5rem !important;
   background: var(--card);
 }
+
+.table-spinner-anchor {
+  position: sticky;
+  left: 50%;
+  transform: translateX(-50%);
+  width: fit-content;
+}
+
 .items-status-banner {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
@@ -1883,14 +1960,56 @@ export default {
   font-size: 0.8125rem;
 }
 
-.qf-select {
-  width: 8rem;
-  flex-shrink: 0;
+.qf-shortcut-btn {
+  height: 2rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
 }
 
-.qf-select :deep(select) {
-  height: 2rem;
-  font-size: 0.8125rem;
+.toolbar-btn--active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--text-primary);
+  background: var(--surface-100);
+}
+
+.toolbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+.qf-shortcut-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--surface-100) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  color: var(--text-primary);
+}
+
+.filter-tag-x {
+  border: 0;
+  background: transparent;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.filter-tag-x:hover {
+  color: var(--text-primary);
 }
 
 .quick-filter-actions {

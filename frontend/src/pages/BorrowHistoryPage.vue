@@ -2,7 +2,7 @@
   <div class="page-container">
     <ModulePageHeader title="Borrowing History" :subtitle="historySummaryText">
       <Button variant="outline" size="sm" @click="showFilters = !showFilters">
-        {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
+        {{ showFilters ? 'Less Filters' : 'More Filters' }}
       </Button>
       <Button size="sm" @click="exportHistory">
         <Download :size="14" /> Export to Excel
@@ -50,10 +50,48 @@
     </ModuleFilterPanel>
 
     <Card class="history-table-card">
+      <div class="history-filter-tools">
+        <DropdownMenu align="start">
+          <template #trigger>
+            <button :class="['toolbar-btn', { 'toolbar-btn--active': filters.status !== '' }]">
+              <Filter :size="12" /> Status <ChevronDown :size="10" />
+              <span v-if="filters.status !== ''" class="toolbar-dot"></span>
+            </button>
+          </template>
+          <template #default="{ close }">
+            <DropdownMenuItem label>Status</DropdownMenuItem>
+            <DropdownMenuItem checkable :checked="filters.status === ''" @click="filters.status = ''; close()">All Statuses</DropdownMenuItem>
+            <DropdownMenuItem
+              v-for="status in statusTabs.filter(s => s !== 'All')"
+              :key="status"
+              checkable
+              :checked="filters.status === status"
+              @click="filters.status = status; close()"
+            >
+              {{ status }}
+            </DropdownMenuItem>
+            <template v-if="filters.status !== ''">
+              <DropdownMenuItem separator />
+              <DropdownMenuItem destructive @click="filters.status = ''; close()">
+                <XCircle :size="12" /> Clear Status Filter
+              </DropdownMenuItem>
+            </template>
+          </template>
+        </DropdownMenu>
+      </div>
+
+      <div v-if="filters.status" class="history-active-filters">
+        <span class="filter-tag">
+          Status: {{ filters.status }}
+          <button @click="filters.status = ''" class="filter-tag-x">&times;</button>
+        </span>
+      </div>
+
       <Transition name="bulk-bar">
         <div v-if="isAdmin && selectedHistoryIds.length > 0" class="bulk-toolbar">
           <div class="bulk-toolbar-left">
             <span class="bulk-chip">{{ selectedHistoryIds.length }} selected</span>
+            <span v-if="historyLoadState.isFetching" class="history-fetch-chip">Updating...</span>
             <DropdownMenu align="start">
               <template #trigger>
                 <button class="toolbar-btn">
@@ -70,22 +108,6 @@
           </div>
         </div>
       </Transition>
-
-      <div class="history-tabs">
-        <button
-          v-for="status in statusTabs"
-          :key="status"
-          :class="['history-tab', { active: (filters.status === '' && status === 'All') || filters.status === status }]"
-          @click="filters.status = status === 'All' ? '' : status"
-        >
-          {{ status }}
-        </button>
-      </div>
-
-      <div class="history-toolbar">
-        <span v-if="selectedHistoryIds.length > 0" class="history-selected-chip">{{ selectedHistoryIds.length }} selected</span>
-        <span v-if="historyLoadState.isFetching" class="history-fetch-chip">Updating...</span>
-      </div>
 
       <div class="table-responsive">
         <table class="table-striped theme-table history-table">
@@ -174,7 +196,7 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { Download, Zap, ChevronDown, Trash2 } from 'lucide-vue-next'
+import { Download, Zap, ChevronDown, Trash2, Filter, XCircle } from 'lucide-vue-next'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, exportToExcel } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
@@ -198,7 +220,7 @@ export default {
     Button, Card, Badge, Checkbox, Input, Select,
     ModulePageHeader, ModuleFilterPanel, TablePaginationBar, Spinner,
     DropdownMenu, DropdownMenuItem,
-    Download, Zap, ChevronDown, Trash2
+    Download, Zap, ChevronDown, Trash2, Filter, XCircle
   },
   props: {
     pageParams: {
@@ -517,56 +539,21 @@ export default {
   overflow: hidden;
 }
 
-.history-tabs {
-  display: flex;
-  gap: 0.125rem;
-  border-bottom: 1px solid var(--border);
-  padding: 0.75rem 1rem 0;
-  overflow-x: auto;
-}
-
-.history-tab {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.12s, border-color 0.12s;
-}
-
-.history-tab:hover {
-  color: var(--text-secondary);
-}
-
-.history-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-}
-
-.history-toolbar {
+.history-filter-tools {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 2.25rem;
+  gap: 0.375rem;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
 }
 
-.history-selected-chip {
-  display: inline-flex;
+.history-active-filters {
+  display: flex;
   align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--danger);
-  background: var(--danger-light);
-  border-radius: 999px;
+  gap: 0.375rem;
+  padding: 0.375rem 1rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .history-fetch-chip {
@@ -646,30 +633,105 @@ export default {
 }
 
 .bulk-toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 0.5rem; padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border); background: var(--surface-50);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-50);
 }
-.bulk-toolbar-left { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.bulk-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
 .bulk-chip {
-  display: inline-flex; align-items: center;
-  font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
-  border-radius: 9999px; background: var(--accent-surface); color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-surface);
+  border-radius: 999px;
 }
 .toolbar-btn {
-  display: inline-flex; align-items: center; gap: 0.25rem;
-  font-size: 0.7rem; font-weight: 500; padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--card); color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+  white-space: nowrap;
 }
-.toolbar-btn:hover { background: var(--surface-100); }
+.toolbar-btn:hover {
+  background: var(--surface-100);
+  color: var(--text-secondary);
+}
+
+.toolbar-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toolbar-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.filter-tag-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--accent);
+  padding: 0;
+  line-height: 1;
+}
+
+.filter-tag-x:hover {
+  opacity: 0.7;
+}
 .bulk-clear-btn {
-  font-size: 0.7rem; color: var(--muted-foreground); background: none;
-  border: none; cursor: pointer; text-decoration: underline; padding: 0.2rem 0.35rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .bulk-clear-btn:hover { color: var(--text-primary); }
 
 .bulk-bar-enter-active, .bulk-bar-leave-active { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
 .bulk-bar-enter-from, .bulk-bar-leave-to { max-height: 0; opacity: 0; }
-.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 3.5rem; opacity: 1; }
+.bulk-bar-enter-to, .bulk-bar-leave-from { max-height: 4rem; opacity: 1; }
 </style>

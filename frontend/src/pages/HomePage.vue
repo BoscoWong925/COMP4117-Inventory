@@ -29,11 +29,11 @@
             <span v-if="!isCardsInitialLoading" class="ops-card-value">{{ pendingRequestsCount }}</span>
             <span v-else class="ops-skeleton-line ops-skeleton-line--value"></span>
           </div>
-          <p class="ops-card-label">Requests Waiting</p>
+          <p class="ops-card-label">Request Queue</p>
           <div v-if="!isCardsInitialLoading" class="ops-card-metrics">
-            <span>New <strong>{{ pendingPureCount }}</strong></span>
-            <span>Ready for pickup <strong>{{ pendingCheckoutCount }}</strong></span>
-            <span v-if="longWaitCount > 0" class="metric-danger">Waiting &gt;3d <strong>{{ longWaitCount }}</strong></span>
+            <span>Pending approval <strong>{{ pendingPureCount }}</strong></span>
+            <span>Pending check-out <strong>{{ pendingCheckoutCount }}</strong></span>
+            <span v-if="longWaitCount > 0" class="metric-danger">Stuck &gt;3 days <strong>{{ longWaitCount }}</strong></span>
           </div>
           <div v-else class="ops-card-metrics ops-card-metrics-skeleton">
             <span class="ops-skeleton-line ops-skeleton-line--metric"></span>
@@ -51,11 +51,11 @@
             <span v-if="!isCardsInitialLoading" class="ops-card-value">{{ overdueCount + dueSoonCount }}</span>
             <span v-else class="ops-skeleton-line ops-skeleton-line--value"></span>
           </div>
-          <p class="ops-card-label">Returns Follow-up</p>
+          <p class="ops-card-label">Return Follow-up</p>
           <div v-if="!isCardsInitialLoading" class="ops-card-metrics">
             <span class="metric-danger">Overdue <strong>{{ overdueCount }}</strong></span>
             <span>Due today <strong>{{ dueTodayCount }}</strong></span>
-            <span>Due within 7d <strong>{{ dueSoonCount }}</strong></span>
+            <span>Due in next 7 days <strong>{{ dueSoonCount }}</strong></span>
           </div>
           <div v-else class="ops-card-metrics ops-card-metrics-skeleton">
             <span class="ops-skeleton-line ops-skeleton-line--metric"></span>
@@ -64,20 +64,20 @@
           </div>
         </Card>
 
-        <!-- Inventory Availability -->
+        <!-- Inventory Readiness -->
         <Card class="ops-summary-card" @click="$emit('navigate', 'manage-items')">
           <div class="ops-card-header">
             <div class="ops-card-icon ops-card-icon--success">
               <Package :size="18" />
             </div>
-            <span v-if="!isCardsInitialLoading" class="ops-card-value">{{ availabilityRate }}%</span>
+            <span v-if="!isCardsInitialLoading" class="ops-card-value">{{ readyForNewRequestCount }}</span>
             <span v-else class="ops-skeleton-line ops-skeleton-line--value"></span>
           </div>
-          <p class="ops-card-label">Availability Rate</p>
+          <p class="ops-card-label">Ready for New Requests</p>
           <div v-if="!isCardsInitialLoading" class="ops-card-metrics">
-            <span>Available <strong>{{ stats.availableItems ?? 0 }}</strong></span>
+            <span>In stock <strong>{{ stats.availableItems ?? 0 }}</strong></span>
+            <span>Reserved pickup <strong>{{ pendingCheckoutCount }}</strong></span>
             <span>In-use <strong>{{ stats.lentOutItems ?? 0 }}</strong></span>
-            <span>Other <strong>{{ notAvailableCount }}</strong></span>
           </div>
           <div v-else class="ops-card-metrics ops-card-metrics-skeleton">
             <span class="ops-skeleton-line ops-skeleton-line--metric"></span>
@@ -95,7 +95,7 @@
             <span v-if="!isCardsInitialLoading" class="ops-card-value">{{ stats.missingItems ?? 0 }}</span>
             <span v-else class="ops-skeleton-line ops-skeleton-line--value"></span>
           </div>
-          <p class="ops-card-label">Missing Items</p>
+          <p class="ops-card-label">Inventory Exceptions</p>
           <div v-if="!isCardsInitialLoading" class="ops-card-metrics">
             <span>Disposed <strong>{{ stats.disposedItems ?? 0 }}</strong></span>
             <span>Transferred <strong>{{ transferredCount }}</strong></span>
@@ -1278,11 +1278,10 @@ export default {
     const warrantyExpiredCount = computed(() => stats.value.warrantyExpiredItems || attentionCounts.value.inventory.warrantyExpired || 0)
     const warrantyExpiringSoonCount = computed(() => stats.value.warrantyExpiringSoonItems || attentionCounts.value.inventory.warrantyExpiringSoon || 0)
     const warrantyAlertCount = computed(() => warrantyExpiredCount.value + warrantyExpiringSoonCount.value)
-    const availabilityRate = computed(() => {
-      if (!dashboardLoadState.stats.isLoaded) return null
-      const total = Number(stats.value.totalItems) || 0
-      if (total === 0) return 0
-      return Math.round(((Number(stats.value.availableItems) || 0) / total) * 100)
+    const readyForNewRequestCount = computed(() => {
+      const available = Number(stats.value.availableItems) || 0
+      const reservedForPickup = Number(pendingCheckoutCount.value) || 0
+      return Math.max(available - reservedForPickup, 0)
     })
     const summaryText = computed(() => {
       if (isStatsInitialLoading.value || isQueueInitialLoading.value) return 'Loading dashboard data...'
@@ -2344,7 +2343,7 @@ export default {
       pendingRequestsCount, overdueCount, dueSoonCount, todayLabel,
       summaryText, dueTodayCount, pendingPureCount, pendingCheckoutCount,
       longWaitCount, notAvailableCount, transferredCount,
-      warrantyAlertCount, availabilityRate,
+      warrantyAlertCount, readyForNewRequestCount,
       inventoryStatusBars, attentionRows, attentionTotal, attentionCounts,
       attentionActiveTab, attentionFilterTabs,
       attentionPage, attentionPageSize, attentionTotalPages,

@@ -17,14 +17,35 @@
       </button>
     </div>
 
-    <!-- Status Tabs -->
-    <div class="status-tabs">
-      <button v-for="tab in statusTabs" :key="tab.key"
-        class="status-tab" :class="{ active: activeStatusTab === tab.key }"
-        @click="activeStatusTab = tab.key; currentPage = 1">
-        {{ tab.label }}
-        <span v-if="tab.count > 0" class="tab-count" :class="tab.countClass">{{ tab.count }}</span>
-      </button>
+    <!-- Status Filter -->
+    <div class="record-filter-tools mb-4">
+      <DropdownMenu align="start">
+        <template #trigger>
+          <button :class="['toolbar-btn', { 'toolbar-btn--active': isStatusFilterActive }]">
+            <Filter :size="12" /> Filter
+            <span v-if="isStatusFilterActive" class="toolbar-dot"></span>
+          </button>
+        </template>
+        <template #default="{ close }">
+          <DropdownMenuItem label>Status</DropdownMenuItem>
+          <DropdownMenuItem
+            v-for="tab in statusTabs"
+            :key="tab.key"
+            checkable
+            :checked="activeStatusTab === tab.key"
+            @click="activeStatusTab = tab.key; currentPage = 1; close()"
+          >
+            {{ tab.label }}
+          </DropdownMenuItem>
+        </template>
+      </DropdownMenu>
+
+      <div v-if="isStatusFilterActive" class="record-active-filters">
+        <span class="filter-tag">
+          Status: {{ activeStatusLabel }}
+          <button @click="activeStatusTab = 'all'; currentPage = 1" class="filter-tag-x">&times;</button>
+        </span>
+      </div>
     </div>
 
     <div v-if="loadError" class="empty-state" style="color:var(--danger)">
@@ -137,16 +158,30 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, getStatusColor, isOverdue } from '../utils/helpers'
-import { ArrowUpDown, CheckCircle2, XCircle, RotateCcw } from 'lucide-vue-next'
+import { ArrowUpDown, CheckCircle2, XCircle, RotateCcw, Filter } from 'lucide-vue-next'
 import PaginationControl from '../components/PaginationControl.vue'
 import {
   UiModulePageHeader as ModulePageHeader,
   UiButton as Button,
   UiInput as Input,
+  UiDropdownMenu as DropdownMenu,
+  UiDropdownMenuItem as DropdownMenuItem,
 } from '../components/ui'
 
 export default {
-  components: { PaginationControl, Button, Input, ModulePageHeader, ArrowUpDown, CheckCircle2, XCircle, RotateCcw },
+  components: {
+    PaginationControl,
+    Button,
+    Input,
+    ModulePageHeader,
+    DropdownMenu,
+    DropdownMenuItem,
+    ArrowUpDown,
+    CheckCircle2,
+    XCircle,
+    RotateCcw,
+    Filter
+  },
   props: {
     pageParams: { type: Object, default: () => ({}) },
   },
@@ -233,6 +268,13 @@ export default {
       { key: 'rejected', label: 'Rejected', count: 0, countClass: '' },
       { key: 'returned', label: 'Returned', count: 0, countClass: '' },
     ]
+
+    const activeStatusLabel = computed(() => {
+      const tab = statusTabs.find(t => t.key === activeStatusTab.value)
+      return tab ? tab.label : 'All'
+    })
+
+    const isStatusFilterActive = computed(() => activeStatusTab.value !== 'all')
 
     // Server handles all filtering; groupedRecords just reconstructs parent-child structure
     const groupedRecords = computed(() => {
@@ -326,6 +368,7 @@ export default {
       records, loadError, loading,
       searchText, activeStatusTab, sortOrder, toggleSort,
       statusTabs, groupedRecords, paginatedGroups,
+      activeStatusLabel, isStatusFilterActive,
       currentPage, pageSize, totalItems,
       normalizedStatus, isRecordOverdue,
       getDaysLeft, getDaysLeftClass, getDaysLeftLabel,
@@ -365,48 +408,72 @@ export default {
 }
 .sort-toggle:hover { background: var(--surface-100); }
 
-.status-tabs {
-  display: flex;
-  gap: 0.125rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1rem;
-  overflow-x: auto;
-}
-.status-tab {
-  position: relative;
+.record-filter-tools {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.12s, border-color 0.12s;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
-.status-tab:hover { color: var(--text-secondary); }
-.status-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
 
-.tab-count {
+.toolbar-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.375rem;
-  border-radius: 9999px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  background: var(--surface-100);
-  color: var(--muted-foreground);
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.28rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.12s;
 }
-.tab-count--warning { background: var(--warning-light); color: var(--warning-dark); }
-.tab-count--success { background: var(--success-light); color: var(--success); }
-.tab-count--danger { background: var(--danger-light); color: var(--danger); }
+
+.toolbar-btn:hover { background: var(--surface-100); }
+
+.toolbar-btn--active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--surface-100);
+}
+
+.toolbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+.record-active-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--surface-100) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  color: var(--text-primary);
+}
+
+.filter-tag-x {
+  border: 0;
+  background: transparent;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.filter-tag-x:hover { color: var(--text-primary); }
 
 .record-card {
   transition: border-color 0.12s;
