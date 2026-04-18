@@ -303,6 +303,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, isOverdue } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import { MoreVertical, AlertCircle, CircleCheck, Zap, ChevronDown, Filter } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
@@ -343,7 +344,7 @@ export default {
     let searchTimer = null
 
     const currentUser = authService.getCurrentUser()
-    const isTeacher = computed(() => currentUser?.subRole === 'teacher')
+    const { isTeacher } = usePermissions()
     const activeTab = ref(isTeacher.value ? 'owned' : 'borrowed')
     const activeTabLabel = computed(() => activeTab.value === 'borrowed' ? 'Borrowed' : 'Owned')
     const isViewFilterActive = computed(() => isTeacher.value && activeTab.value !== 'owned')

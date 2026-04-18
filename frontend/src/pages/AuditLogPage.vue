@@ -189,6 +189,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { auditService, authService } from '../utils/services'
 import { formatDateTime, exportToExcel } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import { Zap, ChevronDown, Trash2, Filter, XCircle } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
@@ -231,10 +232,7 @@ export default {
     const pageSizeRef = ref(pageSize)
     const selectedLogIds = ref([])
     const showDeleteConfirm = ref(false)
-    const isAdmin = computed(() => {
-      const user = authService.getCurrentUser()
-      return user?.role === 'admin'
-    })
+    const { isAdmin } = usePermissions()
 
     const selectedTimeRange = ref('all')
 

@@ -691,6 +691,16 @@ exports.createRequest = catchAsync(async (req, res, next) => {
 exports.approveRequest = catchAsync(async (req, res, next) => {
   const { returnDate, location, remark } = req.body;
 
+  // Validate return date is not in the past
+  if (returnDate) {
+    const rd = new Date(returnDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (rd < today) {
+      return next(ApiError.badRequest('Return date cannot be in the past'));
+    }
+  }
+
   const request = await BorrowRequest.findOne({ requestId: req.params.id });
   if (!request) {
     return next(ApiError.notFound(`Request ${req.params.id} not found`));

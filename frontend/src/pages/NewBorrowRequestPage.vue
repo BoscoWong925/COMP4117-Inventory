@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <h2 class="page-title mb-4">New Borrow Request</h2>
+    <UiModulePageHeader title="New Borrow Request" subtitle="Select an available item and submit a request" />
 
     <div v-if="submitted" class="mb-4 p-4 alert-success">
       Request submitted successfully! Please wait for admin approval.
@@ -15,25 +15,34 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
-        <div class="mb-4">
-          <label class="form-label">Search Available Computer Items</label>
-          <input
-            type="text"
-            placeholder="Search by name or ID..."
-            v-model="searchText"
-            class="form-input"
-          />
+        <UiModuleFilterPanel :showClear="!!searchText || !!ownerFilter" @clear="searchText = ''; ownerFilter = ''">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <span class="filter-label">Search</span>
+              <UiInput
+                placeholder="Search by name or ID..."
+                v-model="searchText"
+              />
+            </div>
+            <div>
+              <span class="filter-label">Filter by Owner</span>
+              <UiFilterSelect
+                v-model="ownerFilter"
+                :options="ownerOptions"
+                emptyLabel="All Owners"
+                label="Owner"
+                @update:modelValue="loadAvailableItems"
+              />
+            </div>
+          </div>
+        </UiModuleFilterPanel>
+
+        <!-- Loading state -->
+        <div v-if="loadingItems" class="flex flex-col items-center justify-center py-12">
+          <UiSpinner size="lg" label="Loading available items..." />
         </div>
 
-        <div class="mb-4">
-          <label class="form-label">Filter by Owner</label>
-          <select v-model="ownerFilter" class="form-select" @change="loadAvailableItems">
-            <option value="">All Owners</option>
-            <option v-for="o in owners" :key="o.id" :value="o.id">{{ o.name }}</option>
-          </select>
-        </div>
-
-        <div v-if="availableItems.length === 0" class="empty-state">
+        <div v-else-if="availableItems.length === 0" class="empty-state">
           No available computer items found
         </div>
         <div v-else class="space-y-2 max-h-96 overflow-y-auto">
@@ -58,16 +67,19 @@
                     {{ item.fixedComponents.length }} linked component(s) — will be auto-borrowed
                   </p>
                 </div>
-                <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
+                <UiBadge :variant="item.status === 'Available' ? 'success' : 'default'">
                   {{ item.status }}
-                </span>
+                </UiBadge>
               </div>
             </div>
             
             <!-- Component Viewer - shown right under clicked item -->
             <div v-if="showComponentViewer && selectedItem?.id === item.id" class="mt-2 mb-2 p-4 theme-section border border-[color:var(--border)] rounded-lg">
               <h4 class="text-md font-bold mb-3">Components of {{ item.name }}</h4>
-              <div v-if="linkedComponents.length === 0" class="text-muted text-sm">No linked components</div>
+              <div v-if="componentLoadError" class="mb-2 p-2 rounded text-sm font-medium" style="background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626);">
+                Failed to load some components. <UiButton variant="link" size="sm" @click="selectItem(item)">Retry</UiButton>
+              </div>
+              <div v-if="linkedComponents.length === 0 && !componentLoadError" class="text-muted text-sm">No linked components</div>
               <div v-if="unavailableComponents.length > 0" class="mb-2 p-2 rounded text-sm font-medium" style="background: var(--color-error-bg, #fee2e2); color: var(--color-error, #dc2626);">
                 Cannot borrow: {{ unavailableComponents.length }} component(s) not available
               </div>
@@ -77,7 +89,7 @@
                     <p class="font-medium text-sm">{{ comp.name }}</p>
                     <p class="field-label">{{ comp.id }} · {{ comp.category }}</p>
                   </div>
-                  <span :class="`px-2 py-0.5 rounded text-xs ${getStatusColor(comp.status)}`">{{ comp.status }}</span>
+                  <UiBadge :variant="comp.status === 'Available' ? 'success' : 'warning'" class="text-xs">{{ comp.status }}</UiBadge>
                 </div>
               </div>
             </div>
@@ -86,7 +98,7 @@
       </div>
 
       <div class="lg:col-span-1">
-        <div class="theme-section p-4 border border-[color:var(--border)]">
+        <UiCard class="p-4">
           <h3 class="text-lg font-bold mb-4">Request Details</h3>
           <template v-if="selectedItem">
             <div class="mb-4 p-4 theme-card">
@@ -97,10 +109,9 @@
             </div>
 
             <div class="mb-4">
-              <label class="form-label">Reason for Borrowing</label>
-              <textarea
+              <label class="form-label">Reason for Borrowing <span class="text-danger">*</span></label>
+              <UiTextarea
                 v-model="reason"
-                class="form-input"
                 rows="4"
                 placeholder="Explain why you need this item..."
               />
@@ -110,6 +121,7 @@
             <div class="mb-4">
               <label class="form-label">Upload Approval/Screenshots</label>
               <input
+                ref="fileInputRef"
                 type="file"
                 multiple
                 accept="image/*,.pdf"
@@ -137,17 +149,16 @@
               </div>
             </div>
 
-            <button
+            <UiButton
               @click="handleSubmitRequest"
-              :disabled="unavailableComponents.length > 0"
-              :title="unavailableComponents.length > 0 ? 'Some linked components are not available' : ''"
-              class="btn btn-outline-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="unavailableComponents.length > 0 || !reason"
+              class="w-full"
             >
               Submit Request
-            </button>
+            </UiButton>
           </template>
-          <p v-else class="text-muted text-center">Select an item to request</p>
-        </div>
+          <p v-else class="text-muted text-center py-4">Select an item to request</p>
+        </UiCard>
       </div>
     </div>
   </div>
@@ -158,8 +169,30 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { getStatusColor } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import {
+  UiModulePageHeader,
+  UiModuleFilterPanel,
+  UiInput,
+  UiFilterSelect,
+  UiButton,
+  UiBadge,
+  UiCard,
+  UiTextarea,
+  UiSpinner,
+} from '../components/ui'
 
 export default {
+  components: {
+    UiModulePageHeader,
+    UiModuleFilterPanel,
+    UiInput,
+    UiFilterSelect,
+    UiButton,
+    UiBadge,
+    UiCard,
+    UiTextarea,
+    UiSpinner,
+  },
   setup() {
     const { runAction } = useActionLock()
     const availableItems = ref([])
@@ -171,12 +204,20 @@ export default {
     const linkedComponents = ref([])
     const showComponentViewer = ref(false)
     const uploadedFiles = ref([])
+    const rawFiles = ref([])
     const filePreviews = ref([])
     const autoBorrowedComponents = ref([])
     const unavailableComponents = computed(() => linkedComponents.value.filter(c => c.status !== 'Available'))
     const ownerFilter = ref('')
     const owners = ref([])
+    const loadingItems = ref(false)
+    const componentLoadError = ref('')
+    const fileInputRef = ref(null)
     let searchDebounceTimer = null
+
+    const ownerOptions = computed(() =>
+      owners.value.map(o => ({ value: o.id, label: o.name }))
+    )
 
     const loadOwners = async () => {
       try {
@@ -187,6 +228,7 @@ export default {
     }
 
     const loadAvailableItems = async () => {
+      loadingItems.value = true
       try {
         const params = { pageSize: 9999 }
         if (ownerFilter.value) {
@@ -199,6 +241,8 @@ export default {
         availableItems.value = result.items
       } catch (e) {
         console.error('Failed to load available items:', e)
+      } finally {
+        loadingItems.value = false
       }
     }
 
@@ -212,6 +256,7 @@ export default {
 
     const selectItem = async (item) => {
       selectedItem.value = item
+      componentLoadError.value = ''
       // Load linked components
       if (item.fixedComponents && item.fixedComponents.length > 0) {
         try {
@@ -220,6 +265,9 @@ export default {
           showComponentViewer.value = true
         } catch (e) {
           console.error('Failed to load linked components:', e)
+          componentLoadError.value = e.message || 'Failed to load components'
+          linkedComponents.value = []
+          showComponentViewer.value = true
         }
       } else {
         linkedComponents.value = []
@@ -230,6 +278,7 @@ export default {
     const handleFileUpload = (event) => {
       const files = Array.from(event.target.files)
       files.forEach(file => {
+        rawFiles.value.push(file)
         uploadedFiles.value.push({
           name: file.name,
           size: file.size,
@@ -244,12 +293,11 @@ export default {
           reader.readAsDataURL(file)
         }
       })
-      // Store in localStorage simulation
-      localStorage.setItem('requestUploadedFiles', JSON.stringify(uploadedFiles.value.map(f => f.name)))
     }
 
     const removeFile = (idx) => {
       uploadedFiles.value.splice(idx, 1)
+      rawFiles.value.splice(idx, 1)
       if (idx < filePreviews.value.length) {
         filePreviews.value.splice(idx, 1)
       }
@@ -272,8 +320,11 @@ export default {
           const currentUser = await authService.getCurrentUser()
           const borrowerID = currentUser?.userId || currentUser?.id || 'UNKNOWN'
 
-          // Create main request
-          const mainReq = await borrowingService.createRequest(selectedItem.value.id, borrowerID, reason.value)
+          // Create main request (with attachments if any)
+          const mainReq = await borrowingService.createRequest(
+            selectedItem.value.id, borrowerID, reason.value,
+            null, rawFiles.value
+          )
 
           // Auto-borrow linked components in parallel
           autoBorrowedComponents.value = []
@@ -290,10 +341,12 @@ export default {
             reason.value = ''
             submitted.value = false
             uploadedFiles.value = []
+            rawFiles.value = []
             filePreviews.value = []
             autoBorrowedComponents.value = []
             linkedComponents.value = []
             showComponentViewer.value = false
+            componentLoadError.value = ''
             loadAvailableItems()
           }, 3000)
         } catch (e) {
@@ -323,6 +376,10 @@ export default {
       unavailableComponents,
       ownerFilter,
       owners,
+      ownerOptions,
+      loadingItems,
+      componentLoadError,
+      fileInputRef,
       selectItem,
       loadAvailableItems,
       handleFileUpload,

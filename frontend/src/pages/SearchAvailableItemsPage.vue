@@ -144,13 +144,29 @@
             <p class="field-label">Location</p>
             <p class="font-medium">{{ selectedItem.location }}</p>
           </div>
+          <div v-if="selectedItem.vendor">
+            <p class="field-label">Vendor</p>
+            <p class="font-medium">{{ selectedItem.vendor }}</p>
+          </div>
           <div>
             <p class="field-label">Supplier</p>
             <p class="font-medium">{{ selectedItem.supplier || 'N/A' }}</p>
           </div>
+          <div v-if="selectedItem.price">
+            <p class="field-label">Price</p>
+            <p class="font-medium">${{ selectedItem.price }}</p>
+          </div>
+          <div v-if="selectedItem.purchaseDate">
+            <p class="field-label">Purchase Date</p>
+            <p class="font-medium">{{ formatDate(selectedItem.purchaseDate) }}</p>
+          </div>
           <div>
             <p class="field-label">Warranty End</p>
             <p class="font-medium">{{ formatDate(selectedItem.warrantyEnd) }}</p>
+          </div>
+          <div v-if="selectedItem.owner">
+            <p class="field-label">Owner</p>
+            <p class="font-medium">{{ selectedItem.owner }}</p>
           </div>
         </div>
 

@@ -364,6 +364,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { exportToExcel, getUniqueVendors, formatDate } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import { MoreVertical, Zap, ChevronDown, Mail, RotateCcw } from 'lucide-vue-next'
 import SendEmailModal from '../components/SendEmailModal.vue'
 import {
@@ -551,10 +552,11 @@ export default {
 
     const canReturnItem = (item) => {
       if (!item) return false
-      if (currentUser?.role === 'admin') return true
-      if (currentUser?.role === 'operator') return item.owner === 'department'
-      if (currentUser?.role === 'user' && currentUser?.subRole === 'teacher') {
-        return item.owner === currentUser.userId
+      const { isAdmin, isOperator, isTeacher, user } = usePermissions()
+      if (isAdmin.value) return true
+      if (isOperator.value) return item.owner === 'department'
+      if (isTeacher.value) {
+        return item.owner === user.value?.userId
       }
       return false
     }

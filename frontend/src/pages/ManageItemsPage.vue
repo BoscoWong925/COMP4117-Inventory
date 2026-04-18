@@ -672,6 +672,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, Columns3 } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
@@ -915,20 +916,7 @@ export default {
       f.description = ''
     }
 
-    const isAdmin = computed(() => {
-      const user = authService.getCurrentUser()
-      return user?.role === 'admin'
-    })
-
-    const isTeacher = computed(() => {
-      const user = authService.getCurrentUser()
-      return user?.role === 'user' && user?.subRole === 'teacher'
-    })
-
-    const canManageInventory = computed(() => {
-      const user = authService.getCurrentUser()
-      return user?.role === 'admin' || user?.role === 'operator'
-    })
+    const { isAdmin, isTeacher, canManageItems: canManageInventory } = usePermissions()
 
     const allSelected = computed(() => {
       return items.value.length > 0 && items.value.every(item => selectedItemIds.value.includes(item.id))

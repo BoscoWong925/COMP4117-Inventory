@@ -202,6 +202,7 @@ import { Download, Zap, ChevronDown, Trash2, Filter, XCircle } from 'lucide-vue-
 import { borrowingService, authService } from '../utils/services'
 import { formatDate, formatDateTime, exportToExcel } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import {
   UiButton as Button,
   UiCard as Card,
@@ -286,10 +287,7 @@ export default {
       }
     }
 
-    const isAdmin = computed(() => {
-      const user = authService.getCurrentUser()
-      return user?.role === 'admin'
-    })
+    const { isAdmin } = usePermissions()
 
     const allSelected = computed(() =>
       history.value.length > 0 && history.value.every(record => selectedHistoryIds.value.includes(record.id))
