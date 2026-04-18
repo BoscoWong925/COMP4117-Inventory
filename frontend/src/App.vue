@@ -210,9 +210,8 @@ import BorrowHistoryPage from './pages/BorrowHistoryPage.vue'
 import ManageItemsPage from './pages/ManageItemsPage.vue'
 import LentOutFilterPage from './pages/LentOutFilterPage.vue'
 import AuditLogPage from './pages/AuditLogPage.vue'
-import NewBorrowRequestPage from './pages/NewBorrowRequestPage.vue'
+import BorrowItemsPage from './pages/BorrowItemsPage.vue'
 import MyBorrowingRecordPage from './pages/MyBorrowingRecordPage.vue'
-import SearchAvailableItemsPage from './pages/SearchAvailableItemsPage.vue'
 import HandOverToolPage from './pages/HandOverToolPage.vue'
 import HomePage from './pages/HomePage.vue'
 import ApiStatusPage from './pages/ApiStatusPage.vue'
@@ -250,9 +249,8 @@ export default {
     ManageItemsPage,
     LentOutFilterPage,
     AuditLogPage,
-    NewBorrowRequestPage,
+    BorrowItemsPage,
     MyBorrowingRecordPage,
-    SearchAvailableItemsPage,
     HandOverToolPage,
     HomePage,
     ApiStatusPage,
@@ -338,10 +336,7 @@ export default {
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
-          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, children: [
-            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
-            { page: 'search-available', label: 'Search Available', icon: NAV_ICONS.items },
-          ]},
+          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, page: 'borrow-items' },
           { key: 'requests', label: 'Requests', icon: NAV_ICONS.requests, children: [
             { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
             { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
@@ -358,10 +353,7 @@ export default {
       } else if (user.value?.role === 'user') {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
-          { key: 'requests', label: 'Requests', icon: NAV_ICONS.newRequest, children: [
-            { page: 'new-borrow-request', label: 'Request Borrow', icon: NAV_ICONS.newRequest },
-            { page: 'search-available', label: 'Search Available', icon: NAV_ICONS.items },
-          ]},
+          { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, page: 'borrow-items' },
           { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
             { page: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems },
           ]},
@@ -657,12 +649,12 @@ export default {
           return LentOutFilterPage
         case 'audit-log':
           return AuditLogPage
+        case 'borrow-items':
         case 'new-borrow-request':
-          return NewBorrowRequestPage
+        case 'search-available':
+          return BorrowItemsPage
         case 'my-borrowing-record':
           return MyBorrowingRecordPage
-        case 'search-available':
-          return SearchAvailableItemsPage
         case 'hand-over-tool':
           return HandOverToolPage
         case 'my-items':

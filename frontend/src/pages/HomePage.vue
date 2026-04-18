@@ -637,7 +637,7 @@
           </div>
           <div class="role-header-actions">
             <Button size="sm" @click="$emit('navigate', 'teacher-requests')">Review Requests</Button>
-            <Button variant="outline" size="sm" @click="$emit('navigate', 'search-available')">Search Available Items</Button>
+            <Button variant="outline" size="sm" @click="$emit('navigate', 'borrow-items')">Browse & Borrow Items</Button>
           </div>
         </div>
 
@@ -707,17 +707,13 @@
                 <span class="role-shortcut-title">Items</span>
                 <span class="role-shortcut-meta">View all owned assets</span>
               </button>
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
-                <span class="role-shortcut-title">Request Borrow</span>
-                <span class="role-shortcut-meta">Create a new borrow request</span>
+              <button class="role-shortcut-btn" @click="$emit('navigate', 'borrow-items')">
+                <span class="role-shortcut-title">Borrow Items</span>
+                <span class="role-shortcut-meta">Browse & request items</span>
               </button>
               <button class="role-shortcut-btn" @click="$emit('navigate', 'my-borrowing-record')">
                 <span class="role-shortcut-title">Borrow Records</span>
                 <span class="role-shortcut-meta">Track your request history</span>
-              </button>
-              <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
-                <span class="role-shortcut-title">Search Available</span>
-                <span class="role-shortcut-meta">Find borrowable items</span>
               </button>
             </div>
           </div>
@@ -782,8 +778,7 @@
             <p class="role-subtitle">{{ todayLabel }} · Track your items, requests, and return schedules.</p>
           </div>
           <div class="role-header-actions">
-            <Button size="sm" @click="$emit('navigate', 'new-borrow-request')">Request Borrow</Button>
-            <Button variant="outline" size="sm" @click="$emit('navigate', 'search-available')">Search Available Items</Button>
+            <Button size="sm" @click="$emit('navigate', 'borrow-items')">Browse & Borrow Items</Button>
           </div>
         </div>
 
@@ -1066,13 +1061,9 @@
                   <span class="role-shortcut-title">Borrow Records</span>
                   <span class="role-shortcut-meta">View all request history</span>
                 </button>
-                <button class="role-shortcut-btn" @click="$emit('navigate', 'new-borrow-request')">
-                  <span class="role-shortcut-title">Request Borrow</span>
-                  <span class="role-shortcut-meta">Submit a new request</span>
-                </button>
-                <button class="role-shortcut-btn" @click="$emit('navigate', 'search-available')">
-                  <span class="role-shortcut-title">Search Available</span>
-                  <span class="role-shortcut-meta">Browse inventory</span>
+                <button class="role-shortcut-btn" @click="$emit('navigate', 'borrow-items')">
+                  <span class="role-shortcut-title">Borrow Items</span>
+                  <span class="role-shortcut-meta">Browse & request items</span>
                 </button>
               </div>
             </Card>
