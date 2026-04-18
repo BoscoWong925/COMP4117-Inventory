@@ -305,7 +305,7 @@
         </p>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <Input type="date" v-model="returnDate" />
+          <Input type="date" v-model="returnDate" :min="todayStr" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -366,7 +366,7 @@
         <h3 class="modal-title">Approve {{ selectedPendingIds.length }} Request(s)</h3>
         <div class="mb-4">
           <label class="modal-label">Return Date</label>
-          <Input type="date" v-model="bulkReturnDate" />
+          <Input type="date" v-model="bulkReturnDate" :min="todayStr" />
         </div>
         <div class="mb-4">
           <label class="modal-label">Location</label>
@@ -517,6 +517,11 @@ export default {
     const bulkDenyReason = ref('')
     const showEmailModal = ref(false)
     const emailTarget = ref(null)
+
+    const todayStr = computed(() => {
+      const d = new Date()
+      return d.toISOString().slice(0, 10)
+    })
 
     const pendingCount = ref(0)
     const checkoutCount = ref(0)
@@ -774,6 +779,10 @@ export default {
         alert('Please set a return date')
         return
       }
+      if (returnDate.value < todayStr.value) {
+        alert('Return date must be today or later')
+        return
+      }
 
       await runAction('Approving request...', async () => {
         const returnDatetime = `${returnDate.value}T17:00:00Z`
@@ -861,6 +870,10 @@ export default {
     const handleBulkApprove = async () => {
       if (!bulkReturnDate.value) {
         alert('Please set a return date')
+        return
+      }
+      if (bulkReturnDate.value < todayStr.value) {
+        alert('Return date must be today or later')
         return
       }
 
@@ -1089,6 +1102,7 @@ export default {
       canActOnRequest,
       exportRequests,
       isCheckoutExpiringSoon,
+      todayStr,
       formatDate,
       waitingTime,
     }

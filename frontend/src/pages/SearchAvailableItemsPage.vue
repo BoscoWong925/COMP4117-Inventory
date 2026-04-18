@@ -1,44 +1,66 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h2 class="page-title">Search Available Items</h2>
+    <UiModulePageHeader title="Search Available Items" subtitle="Browse items available to borrow">
+      <UiButton variant="outline" size="sm" @click="exportItems">
+        <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Export
+      </UiButton>
+    </UiModulePageHeader>
+
+    <UiModuleFilterPanel :showClear="hasActiveFilters" @clear="clearFilters">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <span class="filter-label">Search</span>
+          <UiInput
+            placeholder="Search by name, ID, or description..."
+            v-model="searchText"
+          />
+        </div>
+        <div>
+          <span class="filter-label">Category</span>
+          <UiFilterSelect
+            v-model="categoryFilter"
+            :options="categories"
+            emptyLabel="All"
+            label="Category"
+          />
+        </div>
+        <div>
+          <span class="filter-label">Location</span>
+          <UiFilterSelect
+            v-model="locationFilter"
+            :options="locations"
+            emptyLabel="All"
+            label="Location"
+          />
+        </div>
+      </div>
+    </UiModuleFilterPanel>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="flex flex-col items-center justify-center py-16">
+      <UiSpinner size="lg" label="Loading available items..." />
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      <div>
-        <label class="form-label">Search</label>
-        <input
-          type="text"
-          placeholder="Search by name, ID, or description..."
-          v-model="searchText"
-          class="form-input"
-        />
-      </div>
-
-      <div>
-        <label class="form-label">Category</label>
-        <select v-model="categoryFilter" class="form-select">
-          <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="form-label">Location</label>
-        <select v-model="locationFilter" class="form-select">
-          <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
-        </select>
-      </div>
+    <!-- Error State -->
+    <div v-else-if="loadError" class="empty-state">
+      <p class="text-danger font-medium mb-2">Failed to load items</p>
+      <p class="text-sm text-muted mb-3">{{ loadError }}</p>
+      <UiButton size="sm" @click="loadAvailableItems">Retry</UiButton>
     </div>
 
-    <div v-if="items.length === 0" class="empty-state">
+    <!-- Empty State -->
+    <div v-else-if="items.length === 0" class="empty-state">
       No items match your search
     </div>
+
+    <!-- Results -->
     <div v-else class="space-y-3">
-      <div 
-        v-for="item in items" 
-        :key="item.id" 
+      <div
+        v-for="item in items"
+        :key="item.id"
         @click="showItemDetail(item)"
-        class="theme-card p-4 cursor-pointer"
+        class="theme-card p-4 cursor-pointer hover:border-[color:var(--accent)] transition-colors"
       >
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -58,9 +80,9 @@
             </div>
             <div>
               <p class="field-label">Status</p>
-              <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(item.status)}`">
+              <UiBadge :variant="item.status === 'Available' ? 'success' : 'default'">
                 {{ item.status }}
-              </span>
+              </UiBadge>
             </div>
             <div>
               <p class="field-label">Location</p>
@@ -79,7 +101,12 @@
         </div>
       </div>
 
-      <PaginationControl v-model:currentPage="currentPage" :totalItems="totalItems" :pageSize="pageSize" />
+      <UiTablePaginationBar
+        :currentPage="currentPage"
+        :pageSize="pageSize"
+        :totalItems="totalItems"
+        @update:currentPage="currentPage = $event"
+      />
     </div>
 
     <!-- Item Detail Modal -->
@@ -109,9 +136,9 @@
           </div>
           <div>
             <p class="field-label">Status</p>
-            <span :class="`px-2 py-1 rounded text-sm ${getStatusColor(selectedItem.status)}`">
+            <UiBadge :variant="selectedItem.status === 'Available' ? 'success' : 'default'">
               {{ selectedItem.status }}
-            </span>
+            </UiBadge>
           </div>
           <div>
             <p class="field-label">Location</p>
@@ -146,17 +173,21 @@
                 <p class="font-medium">{{ comp.name }}</p>
                 <p class="field-label">{{ comp.id }} - {{ comp.category }}</p>
               </div>
-              <span :class="`px-2 py-1 rounded text-xs ${getStatusColor(comp.status)}`">
+              <UiBadge :variant="comp.status === 'Available' ? 'success' : 'default'" class="text-xs">
                 {{ comp.status }}
-              </span>
+              </UiBadge>
             </div>
           </div>
         </div>
 
-        <div class="flex justify-end">
-          <button @click="selectedItem = null" class="px-4 py-2 btn-close-neutral">
+        <div class="flex justify-end gap-2">
+          <UiButton variant="outline" @click="selectedItem = null">
             Close
-          </button>
+          </UiButton>
+          <UiButton v-if="selectedItem.canBorrow !== false && selectedItem.status === 'Available'" @click="handleBorrowRequest">
+            <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Request to Borrow
+          </UiButton>
         </div>
       </div>
     </div>
@@ -164,42 +195,79 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
-import PaginationControl from '../components/PaginationControl.vue'
+import {
+  UiModulePageHeader,
+  UiModuleFilterPanel,
+  UiInput,
+  UiFilterSelect,
+  UiButton,
+  UiBadge,
+  UiSpinner,
+  UiTablePaginationBar,
+} from '../components/ui'
 
 export default {
-  components: { PaginationControl },
-  setup() {
+  components: {
+    UiModulePageHeader,
+    UiModuleFilterPanel,
+    UiInput,
+    UiFilterSelect,
+    UiButton,
+    UiBadge,
+    UiSpinner,
+    UiTablePaginationBar,
+  },
+  emits: ['navigate'],
+  setup(props, { emit }) {
     const items = ref([])
     const totalItems = ref(0)
     const searchText = ref('')
-    const categoryFilter = ref('All')
-    const locationFilter = ref('All')
+    const categoryFilter = ref('')
+    const locationFilter = ref('')
     const selectedItem = ref(null)
     const linkedComponents = ref([])
     const currentPage = ref(1)
     const pageSize = 10
-    const categories = ref(['All'])
-    const locations = ref(['All'])
+    const categories = ref([])
+    const locations = ref([])
+    const loading = ref(false)
+    const loadError = ref('')
     let searchDebounceTimer = null
 
+    const hasActiveFilters = computed(() => {
+      return searchText.value || categoryFilter.value || locationFilter.value
+    })
+
+    const clearFilters = () => {
+      searchText.value = ''
+      categoryFilter.value = ''
+      locationFilter.value = ''
+      currentPage.value = 1
+    }
+
     const loadAvailableItems = async () => {
+      loading.value = true
+      loadError.value = ''
       try {
         const params = {
           page: currentPage.value,
           pageSize,
         }
         if (searchText.value) params.search = searchText.value
-        if (categoryFilter.value !== 'All') params.category = categoryFilter.value
-        if (locationFilter.value !== 'All') params.location = locationFilter.value
+        if (categoryFilter.value) params.category = categoryFilter.value
+        if (locationFilter.value) params.location = locationFilter.value
 
         const result = await inventoryService.getAvailableItems(params)
         items.value = result.items
         totalItems.value = result.total
       } catch (e) {
         console.error('Failed to load available items:', e)
+        loadError.value = e.message || 'An unexpected error occurred'
+      } finally {
+        loading.value = false
       }
     }
 
@@ -207,8 +275,8 @@ export default {
     const loadFilterOptions = async () => {
       try {
         const result = await inventoryService.getAvailableItems({ pageSize: 9999 })
-        categories.value = ['All', ...new Set(result.items.map(i => i.category))]
-        locations.value = ['All', ...new Set(result.items.map(i => i.location))]
+        categories.value = [...new Set(result.items.map(i => i.category).filter(Boolean))]
+        locations.value = [...new Set(result.items.map(i => i.location).filter(Boolean))]
       } catch (e) { /* ignore */ }
     }
 
@@ -228,19 +296,23 @@ export default {
 
     const showItemDetail = async (item) => {
       selectedItem.value = item
+      linkedComponents.value = []
       // Load linked components if this is a mother item
       if (item.fixedComponents && item.fixedComponents.length > 0) {
-        const comps = []
-        for (const id of item.fixedComponents) {
-          try {
-            const comp = await inventoryService.getItemById(id)
-            if (comp) comps.push(comp)
-          } catch (e) { /* ignore */ }
+        try {
+          const results = await Promise.all(
+            item.fixedComponents.map(id => inventoryService.getItemById(id))
+          )
+          linkedComponents.value = results.filter(Boolean)
+        } catch (e) {
+          console.error('Failed to load linked components:', e)
         }
-        linkedComponents.value = comps
-      } else {
-        linkedComponents.value = []
       }
+    }
+
+    const handleBorrowRequest = () => {
+      selectedItem.value = null
+      emit('navigate', 'new-borrow-request')
     }
 
     const exportItems = () => {
@@ -264,7 +336,12 @@ export default {
       pageSize,
       selectedItem,
       linkedComponents,
+      loading,
+      loadError,
+      hasActiveFilters,
+      clearFilters,
       showItemDetail,
+      handleBorrowRequest,
       exportItems,
       formatDate,
       getStatusColor,
