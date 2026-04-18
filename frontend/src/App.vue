@@ -341,9 +341,7 @@ export default {
             { page: 'pending-approval-page', label: 'Pending Approval', icon: NAV_ICONS.requests, params: { tab: 'pending', hideTabs: true } },
             { page: 'pending-checkout-page', label: 'Pending Check-Out', icon: NAV_ICONS.checkedOut, params: { tab: 'checkout', hideTabs: true } },
           ]},
-          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
-            { page: 'manage-items', label: 'My Items', icon: NAV_ICONS.items },
-          ]},
+          { key: 'inventory', label: 'My Items', icon: NAV_ICONS.myItems, page: 'manage-items' },
           { key: 'return', label: 'Return', icon: NAV_ICONS.checkedOut, page: 'lent-out-filter' },
           { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
             { page: 'my-borrowing-record', label: 'My Borrow Records', icon: NAV_ICONS.myRecords },
@@ -354,9 +352,7 @@ export default {
         return [
           { key: 'dashboard', label: 'Dashboard', icon: NAV_ICONS.home, page: 'home' },
           { key: 'borrow', label: 'Borrow', icon: NAV_ICONS.newRequest, page: 'borrow-items' },
-          { key: 'inventory', label: 'Inventory', icon: NAV_ICONS.items, children: [
-            { page: 'my-items', label: 'My Items', icon: NAV_ICONS.myItems },
-          ]},
+          { key: 'inventory', label: 'My Items', icon: NAV_ICONS.myItems, page: 'my-items' },
           { key: 'history', label: 'History', icon: NAV_ICONS.history, children: [
             { page: 'my-borrowing-record', label: 'Borrow Records', icon: NAV_ICONS.myRecords },
           ]},

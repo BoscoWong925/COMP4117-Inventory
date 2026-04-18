@@ -96,7 +96,7 @@
           <p class="field-label">Description</p>
           <p class="text-sm">{{ item.description }}</p>
         </div>
-        <div v-if="item.warrantyEnd" class="mt-2 text-xs text-secondary">
+        <div v-if="isStaff && item.warrantyEnd" class="mt-2 text-xs text-secondary">
           Warranty ends: {{ formatDate(item.warrantyEnd) }}
         </div>
       </div>
@@ -143,27 +143,27 @@
             <p class="field-label">Location</p>
             <p class="font-medium">{{ selectedItem.location }}</p>
           </div>
-          <div v-if="selectedItem.vendor">
+          <div v-if="isStaff && selectedItem.vendor">
             <p class="field-label">Vendor</p>
             <p class="font-medium">{{ selectedItem.vendor }}</p>
           </div>
-          <div>
+          <div v-if="isStaff">
             <p class="field-label">Supplier</p>
             <p class="font-medium">{{ selectedItem.supplier || 'N/A' }}</p>
           </div>
-          <div v-if="selectedItem.price">
+          <div v-if="isStaff && selectedItem.price">
             <p class="field-label">Price</p>
             <p class="font-medium">${{ selectedItem.price }}</p>
           </div>
-          <div v-if="selectedItem.purchaseDate">
+          <div v-if="isStaff && selectedItem.purchaseDate">
             <p class="field-label">Purchase Date</p>
             <p class="font-medium">{{ formatDate(selectedItem.purchaseDate) }}</p>
           </div>
-          <div>
+          <div v-if="isStaff || isTeacher">
             <p class="field-label">Warranty End</p>
             <p class="font-medium">{{ formatDate(selectedItem.warrantyEnd) }}</p>
           </div>
-          <div v-if="selectedItem.owner">
+          <div v-if="isStaff && selectedItem.owner">
             <p class="field-label">Owner</p>
             <p class="font-medium">{{ selectedItem.owner }}</p>
           </div>
@@ -250,6 +250,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { inventoryService, borrowingService, authService } from '../utils/services'
 import { formatDate, getStatusColor, exportToExcel } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
+import { usePermissions } from '../hooks/usePermissions'
 import {
   UiModulePageHeader,
   UiModuleFilterPanel,
@@ -278,6 +279,7 @@ export default {
   },
   setup() {
     const { runAction } = useActionLock()
+    const { isStaff, isTeacher } = usePermissions()
 
     // Browse state
     const items = ref([])
@@ -481,7 +483,7 @@ export default {
       fileInputRef,
       clearFilters, loadAvailableItems, showItemDetail, closeModal,
       handleFileUpload, removeFile, handleSubmitRequest, exportItems,
-      formatDate, getStatusColor,
+      formatDate, getStatusColor, isStaff, isTeacher,
     }
   }
 }
