@@ -17,21 +17,29 @@
           </div>
           <div>
             <label class="filter-label">Role</label>
-            <Select v-model="filterRole">
-              <option value="">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="operator">Operator</option>
-              <option value="teacher">Teacher</option>
-              <option value="student">Student</option>
-            </Select>
+            <FilterSelect
+              v-model="filterRole"
+              label="Role"
+              empty-label="All Roles"
+              :options="[
+                { value: 'admin', label: 'Admin' },
+                { value: 'operator', label: 'Operator' },
+                { value: 'teacher', label: 'Teacher' },
+                { value: 'student', label: 'Student' }
+              ]"
+            />
           </div>
           <div>
             <label class="filter-label">Status</label>
-            <Select v-model="filterStatus">
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Select>
+            <FilterSelect
+              v-model="filterStatus"
+              label="Status"
+              empty-label="All"
+              :options="[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' }
+              ]"
+            />
           </div>
         </div>
       </ModuleFilterPanel>
@@ -314,6 +322,7 @@ import {
   UiCheckbox as Checkbox,
   UiDropdownMenu as DropdownMenu,
   UiDropdownMenuItem as DropdownMenuItem,
+  UiFilterSelect as FilterSelect,
   UiInput as Input,
   UiModuleFilterPanel as ModuleFilterPanel,
   UiModulePageHeader as ModulePageHeader,
@@ -324,7 +333,7 @@ import {
 export default {
   components: {
     Badge, Button, Card, Checkbox, ChevronDown,
-    DropdownMenu, DropdownMenuItem, Input, Mail,
+    DropdownMenu, DropdownMenuItem, FilterSelect, Input, Mail,
     ModuleFilterPanel, ModulePageHeader, MoreVertical,
     Pencil, Select, SendEmailModal, ShieldCheck, ShieldOff,
     TablePaginationBar, Trash2, Zap,

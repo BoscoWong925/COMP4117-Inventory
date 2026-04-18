@@ -24,11 +24,11 @@
         </div>
         <div>
           <label class="filter-label">Date From</label>
-          <Input v-model="filters.dateFrom" type="date" />
+          <FilterDatePicker v-model="filters.dateFrom" placeholder="Select start date" />
         </div>
         <div>
           <label class="filter-label">Date To</label>
-          <Input v-model="filters.dateTo" type="date" />
+          <FilterDatePicker v-model="filters.dateTo" placeholder="Select end date" />
         </div>
       </div>
     </ModuleFilterPanel>
@@ -193,6 +193,7 @@ import { Zap, ChevronDown, Trash2, Filter, XCircle } from 'lucide-vue-next'
 import {
   UiModulePageHeader as ModulePageHeader,
   UiModuleFilterPanel as ModuleFilterPanel,
+  UiFilterDatePicker as FilterDatePicker,
   UiTablePaginationBar as TablePaginationBar,
   UiDropdownMenu as DropdownMenu,
   UiDropdownMenuItem as DropdownMenuItem,
@@ -205,7 +206,7 @@ import {
 
 export default {
   components: {
-    ModulePageHeader, ModuleFilterPanel, TablePaginationBar,
+    ModulePageHeader, ModuleFilterPanel, FilterDatePicker, TablePaginationBar,
     DropdownMenu, DropdownMenuItem, Checkbox, Badge, Card, Button, Input,
     Zap, ChevronDown, Trash2, Filter, XCircle
   },

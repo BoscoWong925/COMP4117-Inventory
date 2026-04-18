@@ -29,33 +29,39 @@
         </div>
         <div>
           <label class="filter-label">Category</label>
-          <Select v-model="searchFilters.category">
-            <option value="">All Categories</option>
-            <option v-for="c in uniqueCategories" :key="c" :value="c">{{ c }}</option>
-          </Select>
+          <FilterSelect
+            v-model="searchFilters.category"
+            label="Category"
+            empty-label="All Categories"
+            :options="uniqueCategories"
+          />
         </div>
         <div>
           <label class="filter-label">Vendor</label>
-          <Select v-model="searchFilters.vendor">
-            <option value="">All Vendors</option>
-            <option v-for="v in vendors" :key="v" :value="v">{{ v }}</option>
-          </Select>
+          <FilterSelect
+            v-model="searchFilters.vendor"
+            label="Vendor"
+            empty-label="All Vendors"
+            :options="vendors"
+          />
         </div>
         <div>
           <label class="filter-label">Location</label>
-          <Select v-model="searchFilters.location">
-            <option value="">All Locations</option>
-            <option v-for="l in uniqueLocations" :key="l" :value="l">{{ l }}</option>
-          </Select>
+          <FilterSelect
+            v-model="searchFilters.location"
+            label="Location"
+            empty-label="All Locations"
+            :options="uniqueLocations"
+          />
         </div>
         <div>
           <label class="filter-label">Type</label>
-          <Select v-model="searchFilters.type">
-            <option value="">All Types</option>
-            <option value="Component">Component</option>
-            <option value="Hardware">Hardware</option>
-            <option value="Software">Software</option>
-          </Select>
+          <FilterSelect
+            v-model="searchFilters.type"
+            label="Type"
+            empty-label="All Types"
+            :options="['Component', 'Hardware', 'Software']"
+          />
         </div>
         <div>
           <label class="filter-label">Borrower ID</label>
@@ -67,10 +73,12 @@
         </div>
         <div>
           <label class="filter-label">Year</label>
-          <Select v-model="searchFilters.year">
-            <option value="">All Years</option>
-            <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-          </Select>
+          <FilterSelect
+            v-model="searchFilters.year"
+            label="Year"
+            empty-label="All Years"
+            :options="years"
+          />
         </div>
       </div>
     </ModuleFilterPanel>
@@ -364,6 +372,7 @@ import {
   UiCheckbox as Checkbox,
   UiDropdownMenu as DropdownMenu,
   UiDropdownMenuItem as DropdownMenuItem,
+  UiFilterSelect as FilterSelect,
   UiInput as Input,
   UiModuleFilterPanel as ModuleFilterPanel,
   UiModulePageHeader as ModulePageHeader,
@@ -381,6 +390,7 @@ export default {
     ChevronDown,
     DropdownMenu,
     DropdownMenuItem,
+    FilterSelect,
     Input,
     Mail,
     ModuleFilterPanel,

@@ -25,93 +25,38 @@
             <Search :size="14" class="qf-search-icon" />
             <Input v-model="searchFilters.name" type="text" placeholder="Search name or ID..." class="qf-search-input" />
           </div>
-          <DropdownMenu align="start">
-            <template #trigger>
-              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.status !== '' }]">
-                Status <ChevronDown :size="10" />
-                <span v-if="searchFilters.status !== ''" class="toolbar-dot"></span>
-              </button>
-            </template>
-            <template #default="{ close }">
-              <DropdownMenuItem label>Status</DropdownMenuItem>
-              <DropdownMenuItem checkable :checked="searchFilters.status === ''" @click="searchFilters.status = ''; close()">All Statuses</DropdownMenuItem>
-              <DropdownMenuItem
-                v-for="s in statuses"
-                :key="s"
-                checkable
-                :checked="searchFilters.status === s"
-                @click="searchFilters.status = s; close()"
-              >
-                {{ s }}
-              </DropdownMenuItem>
-            </template>
-          </DropdownMenu>
-
-          <DropdownMenu align="start">
-            <template #trigger>
-              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.type !== '' }]">
-                Type <ChevronDown :size="10" />
-                <span v-if="searchFilters.type !== ''" class="toolbar-dot"></span>
-              </button>
-            </template>
-            <template #default="{ close }">
-              <DropdownMenuItem label>Type</DropdownMenuItem>
-              <DropdownMenuItem checkable :checked="searchFilters.type === ''" @click="searchFilters.type = ''; close()">All Types</DropdownMenuItem>
-              <DropdownMenuItem
-                v-for="t in itemTypes"
-                :key="t"
-                checkable
-                :checked="searchFilters.type === t"
-                @click="searchFilters.type = t; close()"
-              >
-                {{ t }}
-              </DropdownMenuItem>
-            </template>
-          </DropdownMenu>
-
-          <DropdownMenu align="start">
-            <template #trigger>
-              <button :class="['toolbar-btn', 'qf-shortcut-btn', { 'toolbar-btn--active': searchFilters.location !== '' }]">
-                Location <ChevronDown :size="10" />
-                <span v-if="searchFilters.location !== ''" class="toolbar-dot"></span>
-              </button>
-            </template>
-            <template #default="{ close }">
-              <DropdownMenuItem label>Location</DropdownMenuItem>
-              <DropdownMenuItem checkable :checked="searchFilters.location === ''" @click="searchFilters.location = ''; close()">All Locations</DropdownMenuItem>
-              <DropdownMenuItem
-                v-for="l in mutableLocations.filter(x => x !== 'Other')"
-                :key="l"
-                checkable
-                :checked="searchFilters.location === l"
-                @click="searchFilters.location = l; close()"
-              >
-                {{ l }}
-              </DropdownMenuItem>
-            </template>
-          </DropdownMenu>
-
-          <div v-if="searchFilters.status || searchFilters.type || searchFilters.location" class="qf-shortcut-tags">
-            <span v-if="searchFilters.status" class="filter-tag">
-              Status: {{ searchFilters.status }}
-              <button @click="searchFilters.status = ''" class="filter-tag-x">&times;</button>
-            </span>
-            <span v-if="searchFilters.type" class="filter-tag">
-              Type: {{ searchFilters.type }}
-              <button @click="searchFilters.type = ''" class="filter-tag-x">&times;</button>
-            </span>
-            <span v-if="searchFilters.location" class="filter-tag">
-              Location: {{ searchFilters.location }}
-              <button @click="searchFilters.location = ''" class="filter-tag-x">&times;</button>
-            </span>
-          </div>
+          <FilterSelect
+            v-model="searchFilters.status"
+            tone="toolbar"
+            class="qf-select"
+            label="Status"
+            empty-label="All Statuses"
+            :options="statuses"
+          />
+          <FilterSelect
+            v-model="searchFilters.type"
+            tone="toolbar"
+            class="qf-select"
+            label="Type"
+            empty-label="All Types"
+            :options="itemTypes"
+          />
+          <FilterSelect
+            v-model="searchFilters.location"
+            tone="toolbar"
+            class="qf-select"
+            label="Location"
+            empty-label="All Locations"
+            :options="mutableLocations.filter(x => x !== 'Other')"
+          />
         </div>
         <div class="quick-filter-actions">
-          <button class="qf-toggle-btn" :class="{ 'qf-toggle-btn--active': showAdvancedFilters }" @click="showAdvancedFilters = !showAdvancedFilters">
-            <SlidersHorizontal :size="13" />
-            More Filters
-            <span v-if="advancedFilterCount > 0" class="qf-badge">{{ advancedFilterCount }}</span>
-          </button>
+          <FilterToggleButton
+            class="qf-toggle-btn"
+            :expanded="showAdvancedFilters"
+            :count="advancedFilterCount"
+            @click="showAdvancedFilters = !showAdvancedFilters"
+          />
           <div class="col-selector-wrapper">
             <button class="qf-toggle-btn" :class="{ 'qf-toggle-btn--active': showColumnSelector }" @click="showColumnSelector = !showColumnSelector">
               <Columns3 :size="13" />
@@ -147,59 +92,53 @@
       <!-- Advanced Filter Panel -->
       <Transition name="adv-panel">
         <Card v-if="showAdvancedFilters" class="adv-filter-card">
-          <div class="adv-filter-header">
-            <span class="adv-filter-title">Advanced Filters</span>
+          <div class="adv-filter-toolbar">
             <button class="qf-clear-btn" @click="clearAdvancedFilters">Clear section</button>
           </div>
           <div class="adv-filter-grid">
-            <div class="adv-filter-group">
-              <span class="adv-group-label">Identification</span>
-              <div class="adv-group-fields">
-                <div>
-                  <label class="adv-field-label">Item ID</label>
-                  <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" />
-                </div>
-                <div>
-                  <label class="adv-field-label">University ID</label>
-                  <Input v-model="searchFilters.universityID" type="text" placeholder="Search uni ID..." />
-                </div>
-                <div>
-                  <label class="adv-field-label">Description</label>
-                  <Input v-model="searchFilters.description" type="text" placeholder="Search description..." />
-                </div>
-              </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Item ID</label>
+              <Input v-model="searchFilters.id" type="text" placeholder="e.g. INV-001" class="adv-control-input" />
             </div>
-            <div class="adv-filter-group">
-              <span class="adv-group-label">Classification</span>
-              <div class="adv-group-fields">
-                <div>
-                  <label class="adv-field-label">Category</label>
-                  <Select v-model="searchFilters.category">
-                    <option value="">All Categories</option>
-                    <option v-for="c in mutableCategories.filter(x => x !== 'Other')" :key="c" :value="c">{{ c }}</option>
-                  </Select>
-                </div>
-                <div>
-                  <label class="adv-field-label">Vendor</label>
-                  <Select v-model="searchFilters.vendor">
-                    <option value="">All Vendors</option>
-                    <option v-for="v in uniqueVendors" :key="v" :value="v">{{ v }}</option>
-                  </Select>
-                </div>
-                <div>
-                  <label class="adv-field-label">Supplier</label>
-                  <Input v-model="searchFilters.supplier" type="text" placeholder="Search supplier..." />
-                </div>
-              </div>
+            <div class="adv-field">
+              <label class="adv-field-label">University ID</label>
+              <Input v-model="searchFilters.universityID" type="text" placeholder="Search uni ID..." class="adv-control-input" />
             </div>
-            <div class="adv-filter-group">
-              <span class="adv-group-label">Warranty</span>
-              <div class="adv-group-fields">
-                <div>
-                  <label class="adv-field-label">Warranty end date</label>
-                  <Input v-model="searchFilters.warrantyEnd" type="date" />
-                </div>
-              </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Description</label>
+              <Input v-model="searchFilters.description" type="text" placeholder="Search description..." class="adv-control-input" />
+            </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Category</label>
+              <FilterSelect
+                v-model="searchFilters.category"
+                class="adv-control-select"
+                label="Category"
+                empty-label="All Categories"
+                :options="mutableCategories.filter(x => x !== 'Other')"
+              />
+            </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Vendor</label>
+              <FilterSelect
+                v-model="searchFilters.vendor"
+                class="adv-control-select"
+                label="Vendor"
+                empty-label="All Vendors"
+                :options="uniqueVendors"
+              />
+            </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Supplier</label>
+              <Input v-model="searchFilters.supplier" type="text" placeholder="Search supplier..." class="adv-control-input" />
+            </div>
+            <div class="adv-field">
+              <label class="adv-field-label">Warranty end date</label>
+              <FilterDatePicker
+                v-model="searchFilters.warrantyEnd"
+                class="adv-control-date"
+                placeholder="Select warranty date"
+              />
             </div>
           </div>
         </Card>
@@ -679,7 +618,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { inventoryService, userService, authService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
-import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, SlidersHorizontal, Columns3 } from 'lucide-vue-next'
+import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, Columns3 } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
 import {
@@ -687,6 +626,9 @@ import {
   UiButton as Button,
   UiCard as Card,
   UiCheckbox as Checkbox,
+  UiFilterDatePicker as FilterDatePicker,
+  UiFilterSelect as FilterSelect,
+  UiFilterToggleButton as FilterToggleButton,
   UiDropdownMenu as DropdownMenu,
   UiDropdownMenuItem as DropdownMenuItem,
   UiInput as Input,
@@ -751,6 +693,9 @@ export default {
     DeleteBlockModal,
     DropdownMenu,
     DropdownMenuItem,
+    FilterDatePicker,
+    FilterSelect,
+    FilterToggleButton,
     DropdownWithOther,
     Input,
     ModulePageHeader,
@@ -758,7 +703,6 @@ export default {
     Pencil,
     Search,
     Select,
-    SlidersHorizontal,
     Spinner,
     Textarea,
     TablePaginationBar,
@@ -1956,60 +1900,14 @@ export default {
 
 .qf-search :deep(input) {
   padding-left: 1.75rem;
-  height: 2rem;
+  height: 2.25rem;
   font-size: 0.8125rem;
 }
 
-.qf-shortcut-btn {
-  height: 2rem;
-  padding: 0.25rem 0.55rem;
-  font-size: 0.75rem;
-}
-
-.toolbar-btn--active {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  color: var(--text-primary);
-  background: var(--surface-100);
-}
-
-.toolbar-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--accent);
-}
-
-.qf-shortcut-tags {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.filter-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.72rem;
-  padding: 0.18rem 0.5rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--surface-100) 70%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  color: var(--text-primary);
-}
-
-.filter-tag-x {
-  border: 0;
-  background: transparent;
-  font-size: 0.78rem;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-}
-
-.filter-tag-x:hover {
-  color: var(--text-primary);
+.qf-select {
+  width: 8.6rem;
+  min-width: 7.6rem;
+  flex-shrink: 0;
 }
 
 .quick-filter-actions {
@@ -2034,6 +1932,7 @@ export default {
   cursor: pointer;
   transition: all 0.12s;
   white-space: nowrap;
+  line-height: 1.1;
 }
 .qf-toggle-btn:hover {
   background: var(--surface-100);
@@ -2042,7 +1941,6 @@ export default {
 .qf-toggle-btn--active {
   border-color: var(--accent);
   color: var(--accent);
-  background: var(--accent-surface);
 }
 
 .qf-badge {
@@ -2144,66 +2042,68 @@ export default {
 
 /* ── Advanced Filter Panel ─────────────────────── */
 .adv-filter-card {
-  margin: 0.75rem 1rem;
+  margin: 0.75rem 1rem 1rem;
   padding: 0;
   overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--card) 96%, var(--surface-50));
+  box-shadow: var(--shadow-sm);
 }
 
-.adv-filter-header {
+.adv-filter-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 1rem;
+  justify-content: flex-end;
+  padding: 0.55rem 0.9rem;
   border-bottom: 1px solid var(--border);
-}
-
-.adv-filter-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-50) 80%, transparent);
 }
 
 .adv-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.65rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+@media (min-width: 768px) {
+  .adv-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .adv-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.adv-field {
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-.adv-filter-group {
-  padding: 0.75rem 1rem;
-}
-.adv-filter-group + .adv-filter-group {
-  border-top: 1px solid var(--border);
-}
-
-.adv-group-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted-foreground);
-}
-
-.adv-group-fields {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0,1fr));
-  gap: 0.625rem;
-}
-
-@media (min-width: 640px) {
-  .adv-group-fields { grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (min-width: 1024px) {
-  .adv-group-fields { grid-template-columns: repeat(3, minmax(0,1fr)); }
-}
-
 .adv-field-label {
   display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.75rem;
+  margin-bottom: 0.32rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted-foreground);
+}
+
+.adv-control-input {
+  width: 100%;
+  height: 2.25rem;
+  font-size: 0.8125rem;
+}
+
+.adv-control-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.adv-control-select,
+.adv-control-date {
+  width: 100%;
 }
 
 /* Advanced panel slide transition */
@@ -2219,7 +2119,7 @@ export default {
 }
 .adv-panel-enter-to,
 .adv-panel-leave-from {
-  max-height: 30rem;
+  max-height: 56rem;
   opacity: 1;
 }
 

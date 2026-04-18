@@ -2,7 +2,7 @@
   <div class="page-container">
     <ModulePageHeader title="Borrowing History" :subtitle="historySummaryText">
       <Button variant="outline" size="sm" @click="showFilters = !showFilters">
-        {{ showFilters ? 'Less Filters' : 'More Filters' }}
+        {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
       </Button>
       <Button size="sm" @click="exportHistory">
         <Download :size="14" /> Export to Excel
@@ -25,26 +25,28 @@
         </div>
         <div>
           <label class="filter-label">Status</label>
-          <Select v-model="filters.status">
-            <option value="">All Statuses</option>
-            <option v-for="status in ['Approved', 'Returned', 'Pending', 'Rejected']" :key="status" :value="status">{{ status }}</option>
-          </Select>
+          <FilterSelect
+            v-model="filters.status"
+            label="Status"
+            empty-label="All Statuses"
+            :options="['Approved', 'Returned', 'Pending', 'Rejected']"
+          />
         </div>
         <div>
           <label class="filter-label">Request Date</label>
-          <Input v-model="filters.requestDate" type="date" />
+          <FilterDatePicker v-model="filters.requestDate" placeholder="Select request date" />
         </div>
         <div>
           <label class="filter-label">Approval Date</label>
-          <Input v-model="filters.approvalDate" type="date" />
+          <FilterDatePicker v-model="filters.approvalDate" placeholder="Select approval date" />
         </div>
         <div>
           <label class="filter-label">Return Date</label>
-          <Input v-model="filters.returnDate" type="date" />
+          <FilterDatePicker v-model="filters.returnDate" placeholder="Select return date" />
         </div>
         <div>
           <label class="filter-label">Returned Date</label>
-          <Input v-model="filters.returnedDate" type="date" />
+          <FilterDatePicker v-model="filters.returnedDate" placeholder="Select returned date" />
         </div>
       </div>
     </ModuleFilterPanel>
@@ -205,8 +207,9 @@ import {
   UiCard as Card,
   UiBadge as Badge,
   UiCheckbox as Checkbox,
+  UiFilterDatePicker as FilterDatePicker,
+  UiFilterSelect as FilterSelect,
   UiInput as Input,
-  UiSelect as Select,
   UiModulePageHeader as ModulePageHeader,
   UiModuleFilterPanel as ModuleFilterPanel,
   UiTablePaginationBar as TablePaginationBar,
@@ -217,7 +220,7 @@ import {
 
 export default {
   components: {
-    Button, Card, Badge, Checkbox, Input, Select,
+    Button, Card, Badge, Checkbox, FilterDatePicker, FilterSelect, Input,
     ModulePageHeader, ModuleFilterPanel, TablePaginationBar, Spinner,
     DropdownMenu, DropdownMenuItem,
     Download, Zap, ChevronDown, Trash2, Filter, XCircle

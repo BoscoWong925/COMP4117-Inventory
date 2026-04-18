@@ -3,7 +3,6 @@ import UiCard from './Card.vue'
 import UiButton from './Button.vue'
 
 defineProps({
-  title: { type: String, default: 'Search & Filter' },
   clearLabel: { type: String, default: 'Clear All' },
   showClear: { type: Boolean, default: true }
 })
@@ -13,9 +12,8 @@ defineEmits(['clear'])
 
 <template>
   <UiCard class="module-filter-panel">
-    <div class="module-filter-panel-header">
-      <h3 class="module-filter-panel-title">{{ title }}</h3>
-      <UiButton v-if="showClear" variant="ghost" size="sm" @click="$emit('clear')">
+    <div v-if="showClear" class="module-filter-panel-toolbar">
+      <UiButton variant="ghost" size="sm" class="module-filter-panel-clear" @click="$emit('clear')">
         {{ clearLabel }}
       </UiButton>
     </div>
@@ -27,29 +25,34 @@ defineEmits(['clear'])
 
 <style scoped>
 .module-filter-panel {
-  padding: 0.875rem 1rem;
+  padding: 0.8rem 0.9rem 0.9rem;
   margin-bottom: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--card) 95%, var(--surface-50));
+  box-shadow: var(--shadow-xs);
 }
 
-.module-filter-panel-header {
+.module-filter-panel-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
 }
 
-.module-filter-panel-title {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.module-filter-panel-clear {
+  font-weight: 600;
+  color: var(--muted-foreground);
 }
 
 .module-filter-panel-body {
   display: block;
+}
+
+.module-filter-panel :deep(.filter-label) {
+  display: block;
+  margin-bottom: 0.32rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
 }
 </style>
