@@ -624,6 +624,33 @@
                 {{ ocrMessage }}
               </div>
 
+              <!-- OCR Review Confirmation Card -->
+              <div v-if="ocrReviewData && !ocrProcessing" class="mb-4 p-4 border rounded-lg" style="border-color:var(--accent);background:var(--accent-surface, var(--filter-bg))">
+                <div class="flex items-center justify-between mb-3">
+                  <p class="text-sm font-semibold" style="color:var(--accent)">Extracted Invoice Data</p>
+                  <span v-if="ocrConfidence" class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :style="ocrConfidence >= 60 ? 'background:var(--success-light);color:var(--success-dark)' : 'background:var(--warning-light, #fef3cd);color:var(--warning-dark, #856404)'">
+                    {{ ocrConfidence }}% confidence
+                  </span>
+                </div>
+                <div class="space-y-1.5 text-xs mb-3" style="color:var(--text-primary)">
+                  <div v-if="ocrReviewData.name" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Item Name:</span><span>{{ ocrReviewData.name }}</span></div>
+                  <div v-if="ocrReviewData.invoiceNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Invoice #:</span><span>{{ ocrReviewData.invoiceNumber }}</span></div>
+                  <div v-if="ocrReviewData.poNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">PO / Order #:</span><span>{{ ocrReviewData.poNumber }}</span></div>
+                  <div v-if="ocrReviewData.supplier" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Supplier:</span><span>{{ ocrReviewData.supplier }}</span></div>
+                  <div v-if="ocrReviewData.price" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Price:</span><span>${{ ocrReviewData.price }}</span></div>
+                  <div v-if="ocrReviewData.purchaseDate" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Purchase Date:</span><span>{{ ocrReviewData.purchaseDate }}</span></div>
+                  <div v-if="ocrReviewData.serialNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Serial #:</span><span>{{ ocrReviewData.serialNumber }}</span></div>
+                  <div v-if="ocrReviewData.warrantyMonths" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Warranty:</span><span>{{ ocrReviewData.warrantyMonths }} months (until {{ ocrReviewData.warrantyEnd }})</span></div>
+                  <div v-if="ocrReviewData.quantity" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Quantity:</span><span>{{ ocrReviewData.quantity }}</span></div>
+                  <div v-if="!ocrReviewData.name && !ocrReviewData.invoiceNumber && !ocrReviewData.supplier && !ocrReviewData.price" class="text-muted">No fields could be extracted from this invoice.</div>
+                </div>
+                <div class="flex gap-2">
+                  <Button type="button" variant="success" size="sm" @click="acceptOCRData">Apply to Form</Button>
+                  <Button type="button" variant="outline" size="sm" @click="dismissOCRData">Dismiss</Button>
+                </div>
+              </div>
+
               <!-- Invoice Preview (when editing existing item) -->
               <div v-if="editingItem && invoiceFileData" class="mb-4 p-3 border rounded-lg" style="border-color:var(--info);background:var(--info-light)">
                 <p class="text-xs font-semibold mb-2" style="color:var(--info-dark)">Invoice Attached:</p>
@@ -813,7 +840,10 @@ export default {
     const mutableLocations = ref(loadSavedList('inv_custom_locations', defaultLocations))
     const mutableCategories = ref(loadSavedList('inv_custom_categories', itemCategories))
     const teachers = ref([])
+    const ocrReviewData = ref(null) // Phase 3: extracted data waiting for user confirmation
+    const ocrConfidence = ref(0)
     let ocrWorker = null
+    let ocrWorkerReady = false
     let invoiceCameraStream = null
     let searchDebounceTimer = null
     let loadRequestToken = 0
@@ -1153,6 +1183,9 @@ export default {
     const resetForm = () => {
       formData.value = { ...defaultFormData }
       editingItem.value = null
+      ocrReviewData.value = null
+      ocrMessage.value = ''
+      ocrConfidence.value = 0
     }
 
     const handleSubmit = async () => {
@@ -1491,6 +1524,50 @@ export default {
       importSuccess.value = true
     }
 
+    // ── Persistent Tesseract Worker ──
+    const getOCRWorker = async () => {
+      if (ocrWorker && ocrWorkerReady) return ocrWorker
+      if (ocrWorker) { try { await ocrWorker.terminate() } catch (_) {} }
+      ocrWorker = await Tesseract.createWorker('eng', 1, {
+        logger: (m) => {
+          if (m.status === 'recognizing text' || m.status === 'recognizing') {
+            ocrProgress.value = Math.round(m.progress * 100)
+            ocrMessage.value = `Scanning invoice... ${Math.round(m.progress * 100)}%`
+          } else if (m.status) {
+            ocrMessage.value = `${m.status}...`
+          }
+        }
+      })
+      ocrWorkerReady = true
+      return ocrWorker
+    }
+
+    // ── Image Preprocessing (grayscale + contrast) ──
+    const preprocessImage = (imageDataUrl) => {
+      return new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const data = imgData.data
+          // Convert to grayscale and boost contrast
+          for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+            // Simple contrast stretch
+            gray = Math.min(255, Math.max(0, (gray - 128) * 1.5 + 128))
+            data[i] = data[i + 1] = data[i + 2] = gray
+          }
+          ctx.putImageData(imgData, 0, 0)
+          resolve(canvas.toDataURL('image/jpeg', 0.95))
+        }
+        img.src = imageDataUrl
+      })
+    }
+
     const extractTextFromImage = async (imageFile) => {
       return new Promise((resolve) => {
         const reader = new FileReader()
@@ -1500,25 +1577,15 @@ export default {
             ocrProgress.value = 0
             ocrMessage.value = 'Loading OCR engine and reading invoice...'
 
-            console.log('[OCR] Starting Tesseract.recognize on image:', imageFile.name, imageFile.type, imageFile.size)
-            const result = await Tesseract.recognize(
-              e.target.result,
-              'eng',
-              {
-                logger: (m) => {
-                  if (m.status === 'recognizing text' || m.status === 'recognizing') {
-                    ocrProgress.value = Math.round(m.progress * 100)
-                    ocrMessage.value = `Scanning invoice... ${Math.round(m.progress * 100)}%`
-                  } else if (m.status) {
-                    ocrMessage.value = `${m.status}...`
-                  }
-                }
-              }
-            )
+            // Preprocess image for better accuracy
+            const processedImage = await preprocessImage(e.target.result)
+
+            const worker = await getOCRWorker()
+            const result = await worker.recognize(processedImage)
 
             const text = result.data.text
-            console.log('[OCR] Raw text extracted:', text.substring(0, 300))
-            console.log('[OCR] Confidence:', result.data.confidence)
+            const confidence = result.data.confidence || 0
+            ocrConfidence.value = Math.round(confidence)
 
             if (!text || text.trim().length === 0) {
               ocrProcessing.value = false
@@ -1528,25 +1595,34 @@ export default {
               return
             }
 
+            // Confidence threshold check
+            if (confidence < 40) {
+              ocrProcessing.value = false
+              ocrSuccess.value = false
+              ocrMessage.value = `Image quality too low for reliable extraction (confidence: ${Math.round(confidence)}%). Invoice is saved but data was not auto-filled. Try a clearer image.`
+              resolve({})
+              return
+            }
+
             const extractedData = smartExtractData(text)
-            console.log('[OCR] Extracted data:', JSON.stringify(extractedData))
-            
             ocrProcessing.value = false
             ocrSuccess.value = true
 
             const filledFields = Object.keys(extractedData).filter(k => extractedData[k])
-            ocrMessage.value = `Invoice scanned! Auto-filled ${filledFields.length} fields: ${filledFields.join(', ')}`
-            
-            // Auto-fill form fields - PRESERVE invoiceFile!
-            formData.value = {
-              ...formData.value,
-              ...extractedData,
-              invoiceFile: invoiceFileData.value // Keep the stored invoice file!
+
+            if (confidence < 60) {
+              // Low confidence — show review card instead of auto-filling
+              ocrReviewData.value = extractedData
+              ocrMessage.value = `Low confidence scan (${Math.round(confidence)}%). Please review extracted data before applying.`
+            } else {
+              // Good confidence — show review card for confirmation
+              ocrReviewData.value = extractedData
+              ocrMessage.value = `Invoice scanned (${Math.round(confidence)}% confidence). ${filledFields.length} fields extracted — please review.`
             }
             
             resolve(extractedData)
           } catch (error) {
-            console.error('[OCR] Error:', error)
+            console.error('OCR image error:', error)
             ocrProcessing.value = false
             ocrSuccess.value = false
             ocrMessage.value = `Could not extract text from image, but invoice is saved. Error: ${error.message}`
@@ -1566,47 +1642,61 @@ export default {
             ocrProgress.value = 0
             ocrMessage.value = 'Reading PDF...'
 
-            console.log('[OCR] Starting PDF text extraction:', pdfFile.name)
             const pdf = await pdfjsLib.getDocument(e.target.result).promise
             let fullText = ''
 
             for (let i = 1; i <= pdf.numPages; i++) {
-              ocrProgress.value = Math.round((i / pdf.numPages) * 100)
+              ocrProgress.value = Math.round((i / pdf.numPages) * 50) // 0-50% for text extraction
               ocrMessage.value = `Reading PDF page ${i}/${pdf.numPages}...`
               const page = await pdf.getPage(i)
               const textContent = await page.getTextContent()
               fullText += textContent.items.map(item => item.str).join(' ') + '\n'
             }
 
-            console.log('[OCR] PDF text extracted:', fullText.substring(0, 300))
+            // If text layer is empty/near-empty, fallback to OCR via page rendering
+            if (!fullText || fullText.trim().length < 20) {
+              ocrMessage.value = 'Scanned PDF detected — using OCR (may take longer)...'
+              let ocrText = ''
+              for (let i = 1; i <= pdf.numPages; i++) {
+                ocrProgress.value = 50 + Math.round((i / pdf.numPages) * 50) // 50-100% for OCR
+                ocrMessage.value = `OCR on page ${i}/${pdf.numPages}...`
+                const page = await pdf.getPage(i)
+                const viewport = page.getViewport({ scale: 2.0 }) // Higher scale = better OCR
+                const canvas = document.createElement('canvas')
+                canvas.width = viewport.width
+                canvas.height = viewport.height
+                const ctx = canvas.getContext('2d')
+                await page.render({ canvasContext: ctx, viewport }).promise
+                // Preprocess and OCR the rendered page
+                const pageImageData = canvas.toDataURL('image/jpeg', 0.95)
+                const processedImage = await preprocessImage(pageImageData)
+                const worker = await getOCRWorker()
+                const result = await worker.recognize(processedImage)
+                ocrText += result.data.text + '\n'
+              }
+              fullText = ocrText
+            }
 
             if (!fullText || fullText.trim().length === 0) {
               ocrProcessing.value = false
               ocrSuccess.value = false
-              ocrMessage.value = 'No text could be extracted from this PDF. It may be a scanned image PDF.'
+              ocrMessage.value = 'No text could be extracted from this PDF. Try a clearer scan.'
               resolve({})
               return
             }
 
             const extractedData = smartExtractData(fullText)
-            console.log('[OCR] Extracted data:', JSON.stringify(extractedData))
-            
             ocrProcessing.value = false
             ocrSuccess.value = true
 
             const filledFields = Object.keys(extractedData).filter(k => extractedData[k])
-            ocrMessage.value = `PDF scanned! Auto-filled ${filledFields.length} fields: ${filledFields.join(', ')}`
-            
-            // Auto-fill form fields - PRESERVE existing data!
-            formData.value = {
-              ...formData.value,
-              ...extractedData,
-              invoiceFile: invoiceFileData.value // Keep the stored invoice file!
-            }
+            // Show review card instead of auto-filling
+            ocrReviewData.value = extractedData
+            ocrMessage.value = `PDF scanned! ${filledFields.length} fields extracted — please review.`
             
             resolve(extractedData)
           } catch (error) {
-            console.error('[OCR] PDF error:', error)
+            console.error('OCR PDF error:', error)
             ocrProcessing.value = false
             ocrSuccess.value = false
             ocrMessage.value = `Could not extract text from PDF, but invoice is saved. Error: ${error.message}`
@@ -1620,42 +1710,113 @@ export default {
     const smartExtractData = (text) => {
       const extracted = {}
 
-      // Invoice Number pattern - require # or : delimiter, or INV- prefix
-      const invoiceMatch = text.match(/(?:invoice\s*[#:]\s*)([A-Z0-9\-]+)/i) || text.match(/\b(INV[- ]?\d[\w\-]*)/i)
+      // Invoice Number — require # or : delimiter, or INV-/REC- prefix
+      const invoiceMatch = text.match(/(?:invoice\s*[#:]\s*)([A-Z0-9\-]+)/i)
+        || text.match(/\b(INV[- ]?\d[\w\-]*)/i)
+        || text.match(/(?:receipt\s*[#:]\s*)([A-Z0-9\-]+)/i)
       if (invoiceMatch) {
         extracted.invoiceNumber = invoiceMatch[1].trim()
       }
 
-      // Supplier/Company name (Look for common patterns)
-      const supplierMatch = text.match(/(?:supplier|vendor|company|from|by)[\s:]+([A-Z][A-Za-z\s&.,'-]+?)(?=\n|$|invoice|date)/i)
-      if (supplierMatch) {
-        extracted.supplier = supplierMatch[1].trim()
+      // PO / Order Number
+      const poMatch = text.match(/(?:p\.?o\.?\s*(?:no\.?|number|#)?|order\s*(?:no\.?|number|#)?)[\s:]+([A-Z0-9\-]+)/i)
+      if (poMatch) {
+        extracted.poNumber = poMatch[1].trim()
       }
 
-      // Price pattern (supports `$, EUR, £) - prefer Total line (not Subtotal)
-      const totalPriceMatch = text.match(/(?:(?:grand\s+)?total|amount\s*due)(?<!sub\s*total)[\s:]*[$€£]\s*([0-9,]+[.][0-9]{2})/i) || text.match(/\btotal[\s:]*[$€£]\s*([0-9,]+[.][0-9]{2})/i)
-      const priceMatch = totalPriceMatch || text.match(/[$€£]\s*([0-9,]+[.][0-9]{2}|[0-9]+)/i)
+      // Supplier/Company name — multiple strategies
+      let supplierFound = false
+      // Strategy 1: labeled supplier/vendor
+      const supplierMatch = text.match(/(?:supplier|vendor|company|sold\s+by|from|bill\s+from)[\s:]+([A-Z][A-Za-z\s&.,'-]+?)(?=\n|$|invoice|date|address|tel|phone|fax)/i)
+      if (supplierMatch) {
+        extracted.supplier = supplierMatch[1].trim()
+        supplierFound = true
+      }
+      // Strategy 2: company name patterns (Co., Ltd., Limited, Inc., Corp.)
+      if (!supplierFound) {
+        const companyMatch = text.match(/([A-Z][A-Za-z\s&.'-]*(?:Co\.\s*,?\s*Ltd\.?|Limited|Inc\.?|Corp\.?|Corporation|Group|Enterprise|Trading))/i)
+        if (companyMatch) {
+          extracted.supplier = companyMatch[1].trim()
+          supplierFound = true
+        }
+      }
+      // Strategy 3: first meaningful line (many invoices start with company name)
+      if (!supplierFound) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3 && l.length < 80)
+        if (lines.length > 0) {
+          const firstLine = lines[0]
+          // Only use if it looks like a name (starts with uppercase, no numbers at start)
+          if (/^[A-Z]/.test(firstLine) && !/^\d/.test(firstLine) && !/invoice|receipt|date|page/i.test(firstLine)) {
+            extracted.supplier = firstLine.substring(0, 60)
+          }
+        }
+      }
+
+      // Price — supports $, €, £, HK$, HKD, ¥, CNY, plain Total
+      const currencySymbol = '(?:HK\\$|HKD|USD|CNY|RMB|[$€£¥])\\s*'
+      const amountPattern = '([0-9,]+[.][0-9]{2}|[0-9,]+)'
+      // Prefer Grand Total / Total / Amount Due (not Subtotal)
+      const totalRegex = new RegExp('(?:(?:grand\\s+)?total|amount\\s*due)(?<!sub\\s*total)[\\s:]*' + currencySymbol + amountPattern, 'i')
+      const totalRegex2 = new RegExp('\\btotal[\\s:]*' + currencySymbol + amountPattern, 'i')
+      const anyCurrencyRegex = new RegExp(currencySymbol + amountPattern, 'i')
+      const totalPriceMatch = text.match(totalRegex) || text.match(totalRegex2)
+      const priceMatch = totalPriceMatch || text.match(anyCurrencyRegex)
       if (priceMatch) {
         extracted.price = priceMatch[1].replace(/,/g, '')
+      }
+
+      // Purchase Date — multiple date formats
+      const datePatterns = [
+        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{4}[-/]\d{1,2}[-/]\d{1,2})/i,
+        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{1,2}[-/]\d{1,2}[-/]\d{4})/i,
+        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4})/i,
+        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4})/i,
+      ]
+      for (const pattern of datePatterns) {
+        const dateMatch = text.match(pattern)
+        if (dateMatch) {
+          const parsed = new Date(dateMatch[1])
+          if (!isNaN(parsed.getTime())) {
+            extracted.purchaseDate = parsed.toISOString().split('T')[0]
+          } else {
+            extracted.purchaseDate = dateMatch[1]
+          }
+          break
+        }
+      }
+
+      // Serial Number
+      const serialMatch = text.match(/(?:s\.?\/?\s*n\.?|serial\s*(?:no\.?|number|#)?)[\s:]+([A-Za-z0-9\-]+)/i)
+      if (serialMatch) {
+        extracted.serialNumber = serialMatch[1].trim()
       }
 
       // Warranty period (months or years)
       const warrantyMatch = text.match(/warranty[\s:]*([0-9]+)\s*(month|year|yr|mo)/i)
       if (warrantyMatch) {
-        const months = warrantyMatch[2].toLowerCase().includes('year') ? parseInt(warrantyMatch[1]) * 12 : parseInt(warrantyMatch[1])
+        const months = warrantyMatch[2].toLowerCase().includes('year') || warrantyMatch[2].toLowerCase().includes('yr')
+          ? parseInt(warrantyMatch[1]) * 12
+          : parseInt(warrantyMatch[1])
         extracted.warrantyMonths = months
         
-        // Calculate warranty end date
-        const today = new Date()
-        const endDate = new Date(today.setMonth(today.getMonth() + months))
+        // Use purchase date if extracted, otherwise today
+        const startDate = extracted.purchaseDate ? new Date(extracted.purchaseDate) : new Date()
+        extracted.warrantyStartDate = startDate.toISOString().split('T')[0]
+        const endDate = new Date(startDate)
+        endDate.setMonth(endDate.getMonth() + months)
         extracted.warrantyEnd = endDate.toISOString().split('T')[0]
-        extracted.warrantyStartDate = new Date().toISOString().split('T')[0]
       }
 
-      // Item description or model - require : delimiter to avoid matching table headers
-      const modelMatch = text.match(/(?:model|product\s*name|description)[\s:]+([^\n]+)/i)
+      // Item description or model — require : or - delimiter
+      const modelMatch = text.match(/(?:model|product\s*name|item\s*name|description|item)[\s:\-]+([^\n]+)/i)
       if (modelMatch) {
         extracted.name = modelMatch[1].trim().substring(0, 100)
+      }
+
+      // Quantity
+      const qtyMatch = text.match(/(?:qty|quantity)[\s:]+(\d+)/i)
+      if (qtyMatch) {
+        extracted.quantity = parseInt(qtyMatch[1])
       }
 
       return extracted
@@ -1718,8 +1879,8 @@ export default {
         invoiceCameraStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
           }
         })
         cameraActive.value = true
@@ -1783,10 +1944,30 @@ export default {
       } catch (error) {
         ocrMessage.value = `Error capturing invoice: ${error.message}`
         ocrSuccess.value = false
-        console.error('Error:', error)
+        console.error('OCR capture error:', error)
       } finally {
         ocrProcessing.value = false
       }
+    }
+
+    // ── OCR Review: Accept or Dismiss extracted data ──
+    const acceptOCRData = () => {
+      if (ocrReviewData.value) {
+        formData.value = {
+          ...formData.value,
+          ...ocrReviewData.value,
+          invoiceFile: invoiceFileData.value
+        }
+        ocrMessage.value = 'Extracted data applied to form.'
+        ocrSuccess.value = true
+        ocrReviewData.value = null
+      }
+    }
+
+    const dismissOCRData = () => {
+      ocrReviewData.value = null
+      ocrMessage.value = 'Extracted data dismissed. Invoice file is still saved.'
+      ocrSuccess.value = true
     }
 
     const handleOutsideClick = (e) => {
@@ -1823,9 +2004,11 @@ export default {
 
     onUnmounted(() => {
       document.removeEventListener('click', handleOutsideClick)
-      // Cleanup OCR worker if needed
+      // Cleanup OCR worker
       if (ocrWorker) {
-        ocrWorker.terminate()
+        try { ocrWorker.terminate() } catch (_) {}
+        ocrWorker = null
+        ocrWorkerReady = false
       }
       clearTimeout(searchDebounceTimer)
       // Cleanup camera stream
@@ -1859,6 +2042,10 @@ export default {
       ocrProgress,
       ocrMessage,
       ocrSuccess,
+      ocrReviewData,
+      ocrConfidence,
+      acceptOCRData,
+      dismissOCRData,
       itemTypes,
       itemCategories,
       defaultLocations,
