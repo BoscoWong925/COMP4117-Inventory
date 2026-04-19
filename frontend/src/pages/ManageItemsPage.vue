@@ -335,7 +335,182 @@
           {{ editingItem ? 'Edit Item' : 'Add New Item' }}
         </h2>
 
-        <form @submit.prevent="handleSubmit">
+        <!-- Mode switcher (hidden during edit) -->
+        <div v-if="!editingItem" class="import-mode-switcher">
+          <button
+            type="button"
+            class="import-mode-btn"
+            :class="{ 'import-mode-btn--active': addMode === 'manual' }"
+            @click="addMode = 'manual'"
+          >Manual Add</button>
+          <button
+            type="button"
+            class="import-mode-btn"
+            :class="{ 'import-mode-btn--active': addMode === 'import' }"
+            @click="addMode = 'import'"
+          >Import from Invoice</button>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- IMPORT FROM INVOICE WIZARD                  -->
+        <!-- ════════════════════════════════════════════ -->
+        <div v-if="addMode === 'import' && !editingItem">
+
+          <!-- Step 1: Upload -->
+          <div v-if="importStep === 1" class="form-section">
+            <h3 class="form-section-title">Upload Invoice</h3>
+            <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.75rem;">
+              Upload an invoice image or PDF. Azure AI Document Intelligence will extract vendor info and line items.
+            </p>
+            <div
+              class="import-dropzone"
+              :class="{ 'import-dropzone--active': importDragOver }"
+              @dragover.prevent="importDragOver = true"
+              @dragleave="importDragOver = false"
+              @drop.prevent="importDragOver = false; handleImportInvoiceDrop($event)"
+            >
+              <template v-if="importAnalyzing">
+                <Spinner :size="32" />
+                <p style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted-foreground)">Analyzing invoice with Azure AI...</p>
+              </template>
+              <template v-else>
+                <p style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem;">Drag &amp; drop invoice here</p>
+                <p style="font-size:0.75rem;color:var(--muted-foreground);margin-bottom:0.75rem;">or</p>
+                <label class="import-browse-btn">
+                  Browse File
+                  <input type="file" accept="image/jpeg,image/png,image/bmp,image/tiff,application/pdf" hidden @change="handleImportInvoiceUpload" />
+                </label>
+                <p style="font-size:0.6875rem;color:var(--muted-foreground);margin-top:0.5rem;">Supported: JPEG, PNG, BMP, TIFF, PDF (max 10MB)</p>
+              </template>
+            </div>
+            <p v-if="importError" class="import-error-msg">{{ importError }}</p>
+          </div>
+
+          <!-- Step 2: Header Review + Line Items + Defaults -->
+          <div v-if="importStep === 2">
+            <!-- Warnings -->
+            <div v-if="importState.warnings.length > 0" class="import-warnings">
+              <p v-for="(w, i) in importState.warnings" :key="i" class="import-warning-line">⚠ {{ w }}</p>
+            </div>
+
+            <!-- Confidence badge -->
+            <div v-if="importState.confidence != null" class="import-confidence-bar">
+              Overall confidence:
+              <span class="import-confidence-val" :class="importConfidenceClass">
+                {{ Math.round(importState.confidence * 100) }}%
+              </span>
+            </div>
+
+            <!-- Invoice Header Card -->
+            <div class="form-section">
+              <h3 class="form-section-title">Invoice Header</h3>
+              <div class="form-section-grid">
+                <div>
+                  <label class="form-label">Supplier / Vendor</label>
+                  <Input type="text" v-model="importState.invoiceMeta.supplier" />
+                </div>
+                <div>
+                  <label class="form-label">Invoice #</label>
+                  <Input type="text" v-model="importState.invoiceMeta.invoiceNumber" />
+                </div>
+                <div>
+                  <label class="form-label">Purchase Date</label>
+                  <Input type="date" v-model="importState.invoiceMeta.purchaseDate" />
+                </div>
+                <div>
+                  <label class="form-label">PO / Order ID</label>
+                  <Input type="text" v-model="importState.invoiceMeta.orderID" />
+                </div>
+                <div>
+                  <label class="form-label">Total Amount</label>
+                  <Input type="number" step="0.01" v-model.number="importState.invoiceMeta.totalAmount" />
+                </div>
+                <div>
+                  <label class="form-label">Currency</label>
+                  <Input type="text" v-model="importState.invoiceMeta.currency" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Line Items Review Table -->
+            <div class="form-section">
+              <h3 class="form-section-title">Line Items</h3>
+              <InvoiceImportReviewTable
+                :rows="importState.draftRows"
+                @addRow="addImportRow"
+                @removeSelected="removeSelectedImportRows"
+              />
+            </div>
+
+            <!-- Shared Defaults -->
+            <InvoiceImportDefaults
+              :defaults="importState.sharedDefaults"
+              :types="itemTypes"
+              :categories="mutableCategories"
+              :locations="mutableLocations"
+              :teachers="teachers"
+            />
+
+            <!-- Actions -->
+            <div class="form-actions">
+              <Button type="button" variant="outline" @click="importStep = 1; importState.draftRows = []">
+                &larr; Re-upload
+              </Button>
+              <Button type="button" variant="success" @click="submitImportItems">
+                Create {{ importState.draftRows.filter(r => r.selected).length }} Items
+              </Button>
+            </div>
+            <p v-if="importError" class="import-error-msg">{{ importError }}</p>
+          </div>
+
+          <!-- Step 3: Creating Progress -->
+          <div v-if="importStep === 3" class="form-section" style="text-align:center;padding:2rem;">
+            <Spinner :size="32" />
+            <p style="font-size:0.875rem;font-weight:600;margin-top:0.75rem;">
+              Creating item {{ importState.createProgress.current }} of {{ importState.createProgress.total }}...
+            </p>
+            <div class="import-progress-bar">
+              <div
+                class="import-progress-fill"
+                :style="{ width: (importState.createProgress.total > 0 ? (importState.createProgress.current / importState.createProgress.total) * 100 : 0) + '%' }"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Step 4: Summary -->
+          <div v-if="importStep === 4" class="form-section">
+            <h3 class="form-section-title">Import Complete</h3>
+            <div class="import-summary">
+              <p class="import-summary-success" v-if="importState.createProgress.successes.length > 0">
+                ✓ {{ importState.createProgress.successes.length }} item(s) created successfully
+              </p>
+              <p class="import-summary-fail" v-if="importState.createProgress.failures.length > 0">
+                ✗ {{ importState.createProgress.failures.length }} item(s) failed
+              </p>
+              <div v-if="importState.createProgress.failures.length > 0" class="import-failure-list">
+                <p v-for="(f, i) in importState.createProgress.failures" :key="i" class="import-failure-item">
+                  "{{ f.name }}" — {{ f.error }}
+                </p>
+              </div>
+            </div>
+            <div class="form-actions">
+              <Button
+                v-if="importState.createProgress.failures.length > 0"
+                type="button"
+                variant="outline"
+                @click="retryFailedImports"
+              >Retry Failed</Button>
+              <Button type="button" variant="success" @click="showForm = false; resetForm()">
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- MANUAL ADD FORM (existing)                  -->
+        <!-- ════════════════════════════════════════════ -->
+        <form v-if="addMode === 'manual' || editingItem" @submit.prevent="handleSubmit">
           <!-- ── Section: Item Identification ── -->
           <div class="form-section">
             <h3 class="form-section-title">Item Identification</h3>
@@ -503,7 +678,7 @@
           <!-- ── Section: Invoice / Documents (collapsible) ── -->
           <div class="form-section">
             <button type="button" class="form-section-toggle" @click="showInvoiceSection = !showInvoiceSection">
-              <h3 class="form-section-title" style="margin:0">Invoice &amp; Documents</h3>
+              <h3 class="form-section-title" style="margin:0">Invoice Assist &amp; Documents</h3>
               <span class="form-section-chevron" :class="{ 'form-section-chevron--open': showInvoiceSection }">
                 <ChevronDown :size="14" />
               </span>
@@ -518,7 +693,7 @@
                   class="form-invoice-mode-btn"
                   :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'upload' }"
                 >
-                  Upload Invoice
+                  Upload Invoice / Receipt
                 </button>
                 <button
                   type="button"
@@ -526,7 +701,7 @@
                   class="form-invoice-mode-btn"
                   :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'camera' }"
                 >
-                  Take Photo
+                  Photo Invoice
                 </button>
               </div>
 
@@ -547,8 +722,8 @@
                     class="hidden"
                   />
                   <div @click="$refs.invoiceInput.click()">
-                    <p class="font-semibold mb-1 text-sm">{{ isDraggingInvoice ? 'Drop invoice here' : 'Click to upload or drag & drop' }}</p>
-                    <p class="text-xs text-muted mb-3">PNG, JPG, PDF (Max 10MB)</p>
+                    <p class="font-semibold mb-1 text-sm">{{ isDraggingInvoice ? 'Drop invoice here' : 'Upload invoice or receipt image / PDF' }}</p>
+                    <p class="text-xs text-muted mb-3">PNG, JPG, PDF (Max 10MB) — text will be auto-extracted</p>
                     <Button type="button" variant="outline" size="sm">Browse Files</Button>
                   </div>
                 </div>
@@ -630,24 +805,54 @@
                   <p class="text-sm font-semibold" style="color:var(--accent)">Extracted Invoice Data</p>
                   <span v-if="ocrConfidence" class="text-xs px-2 py-0.5 rounded-full font-semibold"
                     :style="ocrConfidence >= 60 ? 'background:var(--success-light);color:var(--success-dark)' : 'background:var(--warning-light, #fef3cd);color:var(--warning-dark, #856404)'">
-                    {{ ocrConfidence }}% confidence
+                    {{ ocrConfidence >= 60 ? 'High' : 'Low' }} · {{ ocrConfidence }}%
                   </span>
                 </div>
                 <div class="space-y-1.5 text-xs mb-3" style="color:var(--text-primary)">
-                  <div v-if="ocrReviewData.name" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Item Name:</span><span>{{ ocrReviewData.name }}</span></div>
-                  <div v-if="ocrReviewData.invoiceNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Invoice #:</span><span>{{ ocrReviewData.invoiceNumber }}</span></div>
-                  <div v-if="ocrReviewData.poNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">PO / Order #:</span><span>{{ ocrReviewData.poNumber }}</span></div>
-                  <div v-if="ocrReviewData.supplier" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Supplier:</span><span>{{ ocrReviewData.supplier }}</span></div>
-                  <div v-if="ocrReviewData.price" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Price:</span><span>${{ ocrReviewData.price }}</span></div>
-                  <div v-if="ocrReviewData.purchaseDate" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Purchase Date:</span><span>{{ ocrReviewData.purchaseDate }}</span></div>
-                  <div v-if="ocrReviewData.serialNumber" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Serial #:</span><span>{{ ocrReviewData.serialNumber }}</span></div>
-                  <div v-if="ocrReviewData.warrantyMonths" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Warranty:</span><span>{{ ocrReviewData.warrantyMonths }} months (until {{ ocrReviewData.warrantyEnd }})</span></div>
-                  <div v-if="ocrReviewData.quantity" class="flex gap-2"><span class="font-semibold w-28 shrink-0">Quantity:</span><span>{{ ocrReviewData.quantity }}</span></div>
-                  <div v-if="!ocrReviewData.name && !ocrReviewData.invoiceNumber && !ocrReviewData.supplier && !ocrReviewData.price" class="text-muted">No fields could be extracted from this invoice.</div>
+                  <label v-if="ocrReviewData.name" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.name" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Item Name:</span><span>{{ ocrReviewData.name }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.invoiceNumber" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.invoiceNumber" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Invoice #:</span><span>{{ ocrReviewData.invoiceNumber }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.orderID" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.orderID" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">PO / Order #:</span><span>{{ ocrReviewData.orderID }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.supplier" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.supplier" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Supplier:</span><span>{{ ocrReviewData.supplier }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.price" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.price" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Price:</span><span>${{ ocrReviewData.price }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.purchaseDate" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.purchaseDate" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Purchase Date:</span><span>{{ ocrReviewData.purchaseDate }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.serialNumber" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.serialNumber" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Serial #:</span><span>{{ ocrReviewData.serialNumber }} <span class="text-muted">(→ description)</span></span>
+                  </label>
+                  <label v-if="ocrReviewData.warrantyVendor" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.warrantyVendor" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Warranty Vendor:</span><span>{{ ocrReviewData.warrantyVendor }}</span>
+                  </label>
+                  <div v-if="ocrReviewData.warrantyMonths" class="flex items-center gap-2 pl-5">
+                    <span class="font-semibold w-28 shrink-0">Warranty:</span><span>{{ ocrReviewData.warrantyMonths }} months (until {{ ocrReviewData.warrantyEnd }}) <span class="text-muted">(info only)</span></span>
+                  </div>
+                  <div v-if="ocrReviewData.quantity" class="flex items-center gap-2 pl-5">
+                    <span class="font-semibold w-28 shrink-0">Quantity:</span><span>{{ ocrReviewData.quantity }} <span class="text-muted">(info only)</span></span>
+                  </div>
+                  <div v-if="Object.keys(ocrReviewData).length === 0" class="text-muted py-2">No fields could be extracted. Try a clearer image or PDF.</div>
                 </div>
                 <div class="flex gap-2">
-                  <Button type="button" variant="success" size="sm" @click="acceptOCRData">Apply to Form</Button>
+                  <Button type="button" variant="success" size="sm" @click="acceptOCRData">Apply Selected</Button>
                   <Button type="button" variant="outline" size="sm" @click="dismissOCRData">Dismiss</Button>
+                  <Button type="button" variant="outline" size="sm" @click="scanAgain">Scan Again</Button>
                 </div>
               </div>
 
@@ -696,13 +901,15 @@ import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import * as Tesseract from 'tesseract.js'
 import * as pdfjsLib from 'pdfjs-dist'
-import { inventoryService, userService, authService } from '../utils/services'
+import { inventoryService, userService, authService, invoiceImportService } from '../utils/services'
 import { formatDate, exportToExcel, ITEM_STATUSES, normalizeItemStatus } from '../utils/helpers'
 import { useActionLock } from '../hooks/useActionLock'
 import { usePermissions } from '../hooks/usePermissions'
 import { MoreVertical, Pencil, Trash2, Zap, ChevronDown, Search, Columns3 } from 'lucide-vue-next'
 import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
+import InvoiceImportReviewTable from '../components/InvoiceImportReviewTable.vue'
+import InvoiceImportDefaults from '../components/InvoiceImportDefaults.vue'
 import {
   UiBadge as Badge,
   UiButton as Button,
@@ -842,9 +1049,55 @@ export default {
     const teachers = ref([])
     const ocrReviewData = ref(null) // Phase 3: extracted data waiting for user confirmation
     const ocrConfidence = ref(0)
+    const ocrFieldSelection = ref({})
     let ocrWorker = null
     let ocrWorkerReady = false
     let invoiceCameraStream = null
+
+    // ── Invoice Import (Azure) wizard state ─────────
+    const addMode = ref('manual')        // 'manual' | 'import'
+    const importStep = ref(1)            // 1=upload, 2=header+review, 3=creating, 4=summary
+    const importAnalyzing = ref(false)
+    const importError = ref('')
+    const importInvoiceFile = ref(null)  // File object from upload
+    const importDragOver = ref(false)    // drag-over state for dropzone
+
+    const defaultImportState = () => ({
+      invoiceMeta: {
+        supplier: '', invoiceNumber: '', purchaseDate: '', orderID: '',
+        totalAmount: null, subtotal: null, totalTax: null, currency: 'HKD', customerName: '',
+      },
+      draftRows: [],
+      sharedDefaults: {
+        supplier: '', invoiceNumber: '', purchaseDate: '', orderID: '',
+        owner: 'department', departmentID: 'COMP', location: 'Lab A',
+        category: 'Computer', type: 'Hardware', fundingSource: '',
+        projectLinked: '', warrantyStartDate: '', warrantyEnd: '',
+        warrantyVendor: '', warrantyOnsite: false, status: 'Available',
+      },
+      warnings: [],
+      confidence: null,
+      createProgress: { current: 0, total: 0, successes: [], failures: [] },
+    })
+    const importState = ref(defaultImportState())
+
+    const resetImportState = () => {
+      addMode.value = 'manual'
+      importStep.value = 1
+      importAnalyzing.value = false
+      importError.value = ''
+      importInvoiceFile.value = null
+      importDragOver.value = false
+      importState.value = defaultImportState()
+    }
+
+    const importConfidenceClass = computed(() => {
+      const c = importState.value.confidence
+      if (c == null) return ''
+      if (c >= 0.8) return 'import-confidence--high'
+      if (c >= 0.5) return 'import-confidence--mid'
+      return 'import-confidence--low'
+    })
     let searchDebounceTimer = null
     let loadRequestToken = 0
 
@@ -1186,6 +1439,7 @@ export default {
       ocrReviewData.value = null
       ocrMessage.value = ''
       ocrConfidence.value = 0
+      resetImportState()
     }
 
     const handleSubmit = async () => {
@@ -1263,6 +1517,209 @@ export default {
         resetForm()
         showForm.value = false
       })
+    }
+
+    // ── Invoice Import (Azure) methods ──────────────
+    const handleImportInvoiceUpload = async (e) => {
+      const file = e.target?.files?.[0]
+      if (!file) return
+      importInvoiceFile.value = file
+      importError.value = ''
+      importAnalyzing.value = true
+
+      try {
+        const result = await invoiceImportService.analyzeInvoice(file)
+        if (!result.success) {
+          importError.value = 'Analysis returned no results.'
+          importAnalyzing.value = false
+          return
+        }
+
+        // Populate import state from normalized result
+        const meta = result.invoiceMeta || {}
+        importState.value.invoiceMeta = { ...importState.value.invoiceMeta, ...meta }
+        importState.value.warnings = result.warnings || []
+        importState.value.confidence = result.confidence
+
+        // Pre-fill shared defaults from header
+        importState.value.sharedDefaults.supplier = meta.supplier || ''
+        importState.value.sharedDefaults.invoiceNumber = meta.invoiceNumber || ''
+        importState.value.sharedDefaults.purchaseDate = meta.purchaseDate || ''
+        importState.value.sharedDefaults.orderID = meta.orderID || ''
+
+        // Build draft rows from line items
+        const lineItems = result.lineItems || []
+        importState.value.draftRows = lineItems.map(li => ({
+          _rowId: crypto.randomUUID(),
+          selected: true,
+          itemName: li.description || '',
+          quantity: li.quantity || 1,
+          unitPrice: li.unitPrice != null ? li.unitPrice : '',
+          lineTotal: li.lineTotal != null ? li.lineTotal : '',
+          productCode: li.productCode || '',
+          description: '',
+          category: '',
+          type: '',
+          location: '',
+          owner: '',
+          confidence: li.confidence,
+          validationErrors: [],
+        }))
+
+        importStep.value = 2
+      } catch (err) {
+        importError.value = err.message || 'Failed to analyze invoice.'
+      } finally {
+        importAnalyzing.value = false
+      }
+    }
+
+    const handleImportInvoiceDrop = (e) => {
+      e.preventDefault()
+      const file = e.dataTransfer?.files?.[0]
+      if (!file) return
+      // Trigger the same handler via a synthetic event-like object
+      handleImportInvoiceUpload({ target: { files: [file] } })
+    }
+
+    const addImportRow = () => {
+      importState.value.draftRows.push({
+        _rowId: crypto.randomUUID(),
+        selected: true,
+        itemName: '',
+        quantity: 1,
+        unitPrice: '',
+        lineTotal: '',
+        productCode: '',
+        description: '',
+        category: '',
+        type: '',
+        location: '',
+        owner: '',
+        confidence: null,
+        validationErrors: [],
+      })
+    }
+
+    const removeSelectedImportRows = () => {
+      importState.value.draftRows = importState.value.draftRows.filter(r => !r.selected)
+    }
+
+    const validateImportRows = () => {
+      let valid = true
+      const sd = importState.value.sharedDefaults
+      for (const row of importState.value.draftRows) {
+        row.validationErrors = []
+        if (row.selected) {
+          if (!row.itemName) { row.validationErrors.push('Name is required'); valid = false }
+          if (!row.type && !sd.type) { row.validationErrors.push('Type is required'); valid = false }
+          if (!row.category && !sd.category) { row.validationErrors.push('Category is required'); valid = false }
+        }
+      }
+      if (importState.value.draftRows.filter(r => r.selected).length === 0) {
+        importError.value = 'No items selected for creation.'
+        return false
+      }
+      importError.value = ''
+      return valid
+    }
+
+    const submitImportItems = async () => {
+      if (!validateImportRows()) return
+
+      const sd = importState.value.sharedDefaults
+      const selectedRows = importState.value.draftRows.filter(r => r.selected)
+
+      // Expand quantities
+      const payloads = []
+      for (const row of selectedRows) {
+        const qty = Math.max(1, row.quantity || 1)
+        for (let i = 0; i < qty; i++) {
+          payloads.push({
+            name: row.itemName,
+            universityID: '',
+            type: row.type || sd.type || 'Hardware',
+            category: row.category || sd.category || 'Other',
+            status: sd.status || 'Available',
+            location: row.location || sd.location || '',
+            description: row.description || '',
+            supplier: sd.supplier || '',
+            invoiceNumber: sd.invoiceNumber || '',
+            price: Number(row.unitPrice) || 0,
+            purchaseDate: sd.purchaseDate || '',
+            orderID: sd.orderID || '',
+            owner: row.owner || sd.owner || 'department',
+            departmentID: sd.departmentID || '',
+            fundingSource: sd.fundingSource || '',
+            projectLinked: sd.projectLinked || '',
+            warrantyStartDate: sd.warrantyStartDate || '',
+            warrantyEnd: sd.warrantyEnd || '',
+            warrantyVendor: sd.warrantyVendor || '',
+            warrantyOnsite: sd.warrantyOnsite || false,
+            canBorrow: true,
+          })
+        }
+      }
+
+      importStep.value = 3
+      const progress = importState.value.createProgress
+      progress.total = payloads.length
+      progress.current = 0
+      progress.successes = []
+      progress.failures = []
+
+      for (let i = 0; i < payloads.length; i++) {
+        progress.current = i + 1
+        try {
+          const created = await inventoryService.addItem(payloads[i])
+          progress.successes.push({ itemId: created?.itemId || created?.id || `Item ${i + 1}`, name: payloads[i].name })
+        } catch (err) {
+          progress.failures.push({ index: i, name: payloads[i].name, error: err.message })
+        }
+      }
+
+      importStep.value = 4
+      // Refresh the items list
+      await loadItems()
+    }
+
+    const retryFailedImports = async () => {
+      // Collect failed payloads and retry
+      const sd = importState.value.sharedDefaults
+      const failures = [...importState.value.createProgress.failures]
+      importState.value.createProgress.failures = []
+      importStep.value = 3
+      importState.value.createProgress.total = failures.length
+      importState.value.createProgress.current = 0
+
+      for (let i = 0; i < failures.length; i++) {
+        importState.value.createProgress.current = i + 1
+        try {
+          // Rebuild payload from the failure info — simplified approach
+          const created = await inventoryService.addItem({
+            name: failures[i].name,
+            universityID: '',
+            type: sd.type || 'Hardware',
+            category: sd.category || 'Other',
+            status: sd.status || 'Available',
+            location: sd.location || '',
+            supplier: sd.supplier || '',
+            invoiceNumber: sd.invoiceNumber || '',
+            price: 0,
+            purchaseDate: sd.purchaseDate || '',
+            orderID: sd.orderID || '',
+            owner: sd.owner || 'department',
+            departmentID: sd.departmentID || '',
+            canBorrow: true,
+          })
+          importState.value.createProgress.successes.push({ itemId: created?.itemId || created?.id, name: failures[i].name })
+        } catch (err) {
+          importState.value.createProgress.failures.push({ index: i, name: failures[i].name, error: err.message })
+        }
+      }
+
+      importStep.value = 4
+      await loadItems()
     }
 
     const handleEdit = (item) => {
@@ -1513,17 +1970,6 @@ export default {
       event.target.value = '' // Reset file input
     }
 
-    const applyOCRData = (extractedData) => {
-      // Auto-fill form with OCR extracted data
-      formData.value = {
-        ...defaultFormData,
-        ...extractedData
-      }
-      showForm.value = true
-      importMessage.value = 'Invoice data extracted! Please review and complete the form.'
-      importSuccess.value = true
-    }
-
     // ── Persistent Tesseract Worker ──
     const getOCRWorker = async () => {
       if (ocrWorker && ocrWorkerReady) return ocrWorker
@@ -1543,32 +1989,50 @@ export default {
     }
 
     // ── Image Preprocessing (grayscale + contrast) ──
-    const preprocessImage = (imageDataUrl) => {
+    const preprocessImage = (imageDataUrl, { skip = false } = {}) => {
+      if (skip) return Promise.resolve(imageDataUrl)
       return new Promise((resolve) => {
+        let resolved = false
+        // Safety timeout — if preprocessing stalls, return original image
+        const timer = setTimeout(() => {
+          if (!resolved) { resolved = true; resolve(imageDataUrl) }
+        }, 10000)
         const img = new Image()
         img.onload = () => {
-          const canvas = document.createElement('canvas')
-          canvas.width = img.width
-          canvas.height = img.height
-          const ctx = canvas.getContext('2d')
-          ctx.drawImage(img, 0, 0)
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-          const data = imgData.data
-          // Convert to grayscale and boost contrast
-          for (let i = 0; i < data.length; i += 4) {
-            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-            // Simple contrast stretch
-            gray = Math.min(255, Math.max(0, (gray - 128) * 1.5 + 128))
-            data[i] = data[i + 1] = data[i + 2] = gray
+          if (resolved) return
+          try {
+            const canvas = document.createElement('canvas')
+            canvas.width = img.width
+            canvas.height = img.height
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0)
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const data = imgData.data
+            // Convert to grayscale and boost contrast
+            for (let i = 0; i < data.length; i += 4) {
+              let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+              // Simple contrast stretch
+              gray = Math.min(255, Math.max(0, (gray - 128) * 1.5 + 128))
+              data[i] = data[i + 1] = data[i + 2] = gray
+            }
+            ctx.putImageData(imgData, 0, 0)
+            resolved = true
+            clearTimeout(timer)
+            resolve(canvas.toDataURL('image/jpeg', 0.95))
+          } catch (_) {
+            resolved = true
+            clearTimeout(timer)
+            resolve(imageDataUrl) // fallback to original on canvas error
           }
-          ctx.putImageData(imgData, 0, 0)
-          resolve(canvas.toDataURL('image/jpeg', 0.95))
+        }
+        img.onerror = () => {
+          if (!resolved) { resolved = true; clearTimeout(timer); resolve(imageDataUrl) }
         }
         img.src = imageDataUrl
       })
     }
 
-    const extractTextFromImage = async (imageFile) => {
+    const extractTextFromImage = async (imageFile, { skipPreprocess = false } = {}) => {
       return new Promise((resolve) => {
         const reader = new FileReader()
         reader.onload = async (e) => {
@@ -1577,8 +2041,8 @@ export default {
             ocrProgress.value = 0
             ocrMessage.value = 'Loading OCR engine and reading invoice...'
 
-            // Preprocess image for better accuracy
-            const processedImage = await preprocessImage(e.target.result)
+            // Preprocess image for better accuracy (skip for high-quality uploaded files)
+            const processedImage = await preprocessImage(e.target.result, { skip: skipPreprocess })
 
             const worker = await getOCRWorker()
             const result = await worker.recognize(processedImage)
@@ -1613,10 +2077,12 @@ export default {
             if (confidence < 60) {
               // Low confidence — show review card instead of auto-filling
               ocrReviewData.value = extractedData
+              initFieldSelection(extractedData)
               ocrMessage.value = `Low confidence scan (${Math.round(confidence)}%). Please review extracted data before applying.`
             } else {
               // Good confidence — show review card for confirmation
               ocrReviewData.value = extractedData
+              initFieldSelection(extractedData)
               ocrMessage.value = `Invoice scanned (${Math.round(confidence)}% confidence). ${filledFields.length} fields extracted — please review.`
             }
             
@@ -1692,6 +2158,7 @@ export default {
             const filledFields = Object.keys(extractedData).filter(k => extractedData[k])
             // Show review card instead of auto-filling
             ocrReviewData.value = extractedData
+            initFieldSelection(extractedData)
             ocrMessage.value = `PDF scanned! ${filledFields.length} fields extracted — please review.`
             
             resolve(extractedData)
@@ -1718,10 +2185,10 @@ export default {
         extracted.invoiceNumber = invoiceMatch[1].trim()
       }
 
-      // PO / Order Number
+      // PO / Order Number → maps to orderID form field
       const poMatch = text.match(/(?:p\.?o\.?\s*(?:no\.?|number|#)?|order\s*(?:no\.?|number|#)?)[\s:]+([A-Z0-9\-]+)/i)
       if (poMatch) {
-        extracted.poNumber = poMatch[1].trim()
+        extracted.orderID = poMatch[1].trim()
       }
 
       // Supplier/Company name — multiple strategies
@@ -1745,8 +2212,10 @@ export default {
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3 && l.length < 80)
         if (lines.length > 0) {
           const firstLine = lines[0]
-          // Only use if it looks like a name (starts with uppercase, no numbers at start)
-          if (/^[A-Z]/.test(firstLine) && !/^\d/.test(firstLine) && !/invoice|receipt|date|page/i.test(firstLine)) {
+          // Only use if it looks like a name: starts uppercase, no leading digits,
+          // at least 2 words, and not a common header keyword
+          const skipWords = /invoice|receipt|date|page|total|tax|subtotal|amount|order|bill|statement|description|qty|quantity|unit|price/i
+          if (/^[A-Z]/.test(firstLine) && !/^\d/.test(firstLine) && !skipWords.test(firstLine) && firstLine.split(/\s+/).length >= 2) {
             extracted.supplier = firstLine.substring(0, 60)
           }
         }
@@ -1758,9 +2227,16 @@ export default {
       // Prefer Grand Total / Total / Amount Due (not Subtotal)
       const totalRegex = new RegExp('(?:(?:grand\\s+)?total|amount\\s*due)(?<!sub\\s*total)[\\s:]*' + currencySymbol + amountPattern, 'i')
       const totalRegex2 = new RegExp('\\btotal[\\s:]*' + currencySymbol + amountPattern, 'i')
-      const anyCurrencyRegex = new RegExp(currencySymbol + amountPattern, 'i')
+      const anyCurrencyRegex = new RegExp(currencySymbol + amountPattern, 'gi')
       const totalPriceMatch = text.match(totalRegex) || text.match(totalRegex2)
-      const priceMatch = totalPriceMatch || text.match(anyCurrencyRegex)
+      let priceMatch = totalPriceMatch
+      if (!priceMatch) {
+        // Use last currency match (usually the total at the bottom)
+        let lastMatch = null
+        let m
+        while ((m = anyCurrencyRegex.exec(text)) !== null) lastMatch = m
+        priceMatch = lastMatch
+      }
       if (priceMatch) {
         extracted.price = priceMatch[1].replace(/,/g, '')
       }
@@ -1770,7 +2246,7 @@ export default {
         /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{4}[-/]\d{1,2}[-/]\d{1,2})/i,
         /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{1,2}[-/]\d{1,2}[-/]\d{4})/i,
         /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4})/i,
-        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4})/i,
+        /(?:date|invoice\s*date|purchase\s*date|order\s*date)[\s:]+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4})/i,
       ]
       for (const pattern of datePatterns) {
         const dateMatch = text.match(pattern)
@@ -1819,6 +2295,12 @@ export default {
         extracted.quantity = parseInt(qtyMatch[1])
       }
 
+      // Warranty Vendor
+      const warrantyVendorMatch = text.match(/(?:warranty\s*(?:provided|by|vendor|service|support))[\s:]+([A-Z][A-Za-z\s&.,'-]+?)(?=\n|$|warranty|date|phone|tel)/i)
+      if (warrantyVendorMatch) {
+        extracted.warrantyVendor = warrantyVendorMatch[1].trim()
+      }
+
       return extracted
     }
 
@@ -1827,6 +2309,7 @@ export default {
       if (!file) return
       
       ocrMessage.value = ''
+      ocrReviewData.value = null
       
       // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
@@ -1858,7 +2341,7 @@ export default {
       if (file.type === 'application/pdf') {
         await extractTextFromPDF(file)
       } else if (file.type.startsWith('image/')) {
-        await extractTextFromImage(file)
+        await extractTextFromImage(file, { skipPreprocess: true })
       }
       
       event.target.value = '' // Reset file input
@@ -1912,7 +2395,7 @@ export default {
       if (!invoiceVideoElement.value) return
 
       try {
-        ocrProcessing.value = true
+        ocrReviewData.value = null
         ocrMessage.value = 'Capturing and processing invoice...'
 
         const canvas = document.createElement('canvas')
@@ -1945,29 +2428,72 @@ export default {
         ocrMessage.value = `Error capturing invoice: ${error.message}`
         ocrSuccess.value = false
         console.error('OCR capture error:', error)
-      } finally {
-        ocrProcessing.value = false
       }
     }
 
-    // ── OCR Review: Accept or Dismiss extracted data ──
-    const acceptOCRData = () => {
-      if (ocrReviewData.value) {
-        formData.value = {
-          ...formData.value,
-          ...ocrReviewData.value,
-          invoiceFile: invoiceFileData.value
-        }
-        ocrMessage.value = 'Extracted data applied to form.'
-        ocrSuccess.value = true
-        ocrReviewData.value = null
+    // ── OCR Review: Accept, Dismiss, or Scan Again ──
+    const initFieldSelection = (data) => {
+      const sel = {}
+      const formKeys = Object.keys(defaultFormData)
+      for (const key of Object.keys(data)) {
+        if (formKeys.includes(key) || key === 'serialNumber') sel[key] = true
       }
+      ocrFieldSelection.value = sel
+    }
+
+    const acceptOCRData = () => {
+      if (!ocrReviewData.value) return
+      const data = ocrReviewData.value
+      const checked = ocrFieldSelection.value
+      // Only apply fields that exist in defaultFormData AND are checked
+      const validKeys = Object.keys(defaultFormData)
+      const toApply = {}
+      for (const key of Object.keys(data)) {
+        if (validKeys.includes(key) && checked[key] !== false) {
+          toApply[key] = data[key]
+        }
+      }
+      // Special: append serialNumber to description if checked
+      if (data.serialNumber && checked.serialNumber !== false) {
+        const currentDesc = formData.value.description || ''
+        const snText = `S/N: ${data.serialNumber}`
+        if (!currentDesc.includes(snText)) {
+          toApply.description = currentDesc ? `${currentDesc}\n${snText}` : snText
+        }
+      }
+      formData.value = {
+        ...formData.value,
+        ...toApply,
+        invoiceFile: invoiceFileData.value
+      }
+      const appliedCount = Object.keys(toApply).length
+      ocrMessage.value = `${appliedCount} field${appliedCount !== 1 ? 's' : ''} applied to form.`
+      ocrSuccess.value = true
+      ocrReviewData.value = null
     }
 
     const dismissOCRData = () => {
       ocrReviewData.value = null
+      ocrFieldSelection.value = {}
       ocrMessage.value = 'Extracted data dismissed. Invoice file is still saved.'
       ocrSuccess.value = true
+    }
+
+    const scanAgain = async () => {
+      ocrReviewData.value = null
+      ocrFieldSelection.value = {}
+      if (!invoiceFileData.value) return
+      const { data, type, name } = invoiceFileData.value
+      // Re-run OCR on the stored file
+      if (type === 'application/pdf') {
+        const blob = await (await fetch(data)).blob()
+        const file = new File([blob], name, { type })
+        await extractTextFromPDF(file)
+      } else if (type && type.startsWith('image/')) {
+        const blob = await (await fetch(data)).blob()
+        const file = new File([blob], name, { type })
+        await extractTextFromImage(file)
+      }
     }
 
     const handleOutsideClick = (e) => {
@@ -2044,8 +2570,10 @@ export default {
       ocrSuccess,
       ocrReviewData,
       ocrConfidence,
+      ocrFieldSelection,
       acceptOCRData,
       dismissOCRData,
+      scanAgain,
       itemTypes,
       itemCategories,
       defaultLocations,
@@ -2109,6 +2637,21 @@ export default {
       toggleItemSelection,
       handleDeleteItems,
       handleTeacherStatusChange,
+      // Invoice Import (Azure)
+      addMode,
+      importStep,
+      importAnalyzing,
+      importError,
+      importInvoiceFile,
+      importDragOver,
+      importState,
+      importConfidenceClass,
+      handleImportInvoiceUpload,
+      handleImportInvoiceDrop,
+      addImportRow,
+      removeSelectedImportRows,
+      submitImportItems,
+      retryFailedImports,
     }
   }
 }
@@ -2673,5 +3216,153 @@ thead th:hover .sort-icon {
 .bulk-bar-leave-from {
   max-height: 4rem;
   opacity: 1;
+}
+
+/* ── Invoice Import Wizard ──────────────────────── */
+.import-mode-switcher {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  width: fit-content;
+}
+.import-mode-btn {
+  padding: 0.45rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.import-mode-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+.import-mode-btn:hover {
+  background: var(--surface-2);
+}
+.import-mode-btn--active {
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+.import-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 1rem;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.import-dropzone--active {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+}
+
+.import-browse-btn {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.import-browse-btn:hover {
+  background: var(--accent-surface);
+}
+
+.import-error-msg {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+
+.import-warnings {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+.import-warning-line {
+  font-size: 0.75rem;
+  color: var(--warning);
+  margin: 0.15rem 0;
+}
+
+.import-confidence-bar {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.75rem;
+}
+.import-confidence-val {
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+.import-confidence--high {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+.import-confidence--mid {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
+.import-confidence--low {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.import-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+.import-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+
+.import-summary {
+  margin-bottom: 1rem;
+}
+.import-summary-success {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--success);
+  margin: 0.25rem 0;
+}
+.import-summary-fail {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--danger);
+  margin: 0.25rem 0;
+}
+.import-failure-list {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 4%, transparent);
+}
+.import-failure-item {
+  font-size: 0.75rem;
+  color: var(--danger);
+  margin: 0.15rem 0;
 }
 </style>

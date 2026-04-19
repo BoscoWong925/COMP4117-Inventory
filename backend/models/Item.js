@@ -14,7 +14,7 @@ const itemSchema = new mongoose.Schema({
   },
   universityID: {
     type: String,
-    required: [true, 'University ID is required'],
+    default: '',
     trim: true
   },
   type: {

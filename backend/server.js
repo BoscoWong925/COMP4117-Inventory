@@ -17,6 +17,7 @@ const auditLogRoutes = require('./routes/auditLogs');
 const userRoutes = require('./routes/users');
 const statsRoutes = require('./routes/stats');
 const notificationRoutes = require('./routes/notifications');
+const invoiceImportRoutes = require('./routes/invoiceImport');
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/invoice-import', invoiceImportRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

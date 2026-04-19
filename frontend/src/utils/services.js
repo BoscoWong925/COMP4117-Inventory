@@ -233,6 +233,19 @@ export const inventoryService = {
   }
 };
 
+// ===== Invoice Import Service =====
+export const invoiceImportService = {
+  analyzeInvoice: async (file) => {
+    const formData = new FormData();
+    formData.append('invoiceFile', file);
+    const data = await apiRequest('/invoice-import/analyze', {
+      method: 'POST',
+      body: formData,
+    });
+    return data;
+  },
+};
+
 // ===== Borrowing Service =====
 export const borrowingService = {
   getAllRequests: async (params = {}) => {
