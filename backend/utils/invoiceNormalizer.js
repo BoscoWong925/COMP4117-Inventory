@@ -141,6 +141,7 @@ function normalize(analyzeResult) {
     lineItems,
     warnings,
     confidence: overallConfidence,
+    rawFields: fields,
   };
 }
 

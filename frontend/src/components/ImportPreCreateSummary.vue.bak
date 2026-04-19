@@ -1,0 +1,357 @@
+<template>
+  <Card class="precreate-summary">
+    <h3 class="precreate-summary__title">Review &amp; Confirm</h3>
+
+    <div class="precreate-summary__stats">
+      <Card class="precreate-summary__stat">
+        <span class="precreate-summary__stat-num">{{ selectedRows.length }}</span>
+        <span class="precreate-summary__stat-label">Selected Rows</span>
+      </Card>
+      <Card class="precreate-summary__stat">
+        <span class="precreate-summary__stat-num">{{ excludedCount }}</span>
+        <span class="precreate-summary__stat-label">Excluded</span>
+      </Card>
+      <Card class="precreate-summary__stat precreate-summary__stat--accent">
+        <span class="precreate-summary__stat-num">{{ totalItemCount }}</span>
+        <span class="precreate-summary__stat-label">Items to Create</span>
+      </Card>
+    </div>
+
+    <p v-if="hasQuantityExpansion" class="precreate-summary__note">
+      {{ selectedRows.length }} selected rows &rarr; {{ totalItemCount }} inventory items
+      <span class="precreate-summary__note-dim">({{ rowsWithQtyGt1 }} rows have qty &gt; 1)</span>
+    </p>
+
+    <Separator class="precreate-summary__sep" />
+
+    <div class="precreate-summary__defaults">
+      <h4 class="precreate-summary__subtitle">Shared Defaults</h4>
+      <div class="precreate-summary__tags">
+        <Badge v-if="defaults.type" variant="outline">Type: {{ defaults.type }}</Badge>
+        <Badge v-if="defaults.category" variant="outline">Category: {{ defaults.category }}</Badge>
+        <Badge v-if="defaults.location" variant="outline">Location: {{ defaults.location }}</Badge>
+        <Badge v-if="defaults.owner" variant="outline">Owner: {{ defaults.owner }}</Badge>
+        <Badge v-if="defaults.departmentID" variant="outline">Dept: {{ defaults.departmentID }}</Badge>
+        <Badge v-if="defaults.fundingSource" variant="outline">Funding: {{ defaults.fundingSource }}</Badge>
+        <Badge v-if="defaults.vendor" variant="outline">Vendor: {{ defaults.vendor }}</Badge>
+        <Badge v-if="defaults.projectLinked" variant="outline">Project: {{ defaults.projectLinked }}</Badge>
+      </div>
+    </div>
+
+    <p v-if="overrideCount > 0" class="precreate-summary__note">
+      {{ overrideCount }} row(s) have per-row field overrides.
+    </p>
+
+    <div class="precreate-summary__meta" v-if="invoiceMeta.supplier || invoiceMeta.invoiceNumber">
+      <h4 class="precreate-summary__subtitle">Invoice Info</h4>
+      <div class="precreate-summary__tags">
+        <Badge v-if="invoiceMeta.supplier" variant="outline">Supplier: {{ invoiceMeta.supplier }}</Badge>
+        <Badge v-if="invoiceMeta.invoiceNumber" variant="outline">Invoice #: {{ invoiceMeta.invoiceNumber }}</Badge>
+        <Badge v-if="invoiceMeta.purchaseDate" variant="outline">Date: {{ invoiceMeta.purchaseDate }}</Badge>
+        <Badge v-if="invoiceMeta.orderID" variant="outline">PO: {{ invoiceMeta.orderID }}</Badge>
+      </div>
+    </div>
+
+    <div v-if="warnings.length > 0" class="precreate-summary__warnings">
+      <p v-for="(w, i) in warnings" :key="i" class="precreate-summary__warning-line">
+        <Badge variant="warning">Warning</Badge>
+        <span>{{ w }}</span>
+      </p>
+    </div>
+
+    <div v-if="blockingErrors.length > 0" class="precreate-summary__errors">
+      <p v-for="(e, i) in blockingErrors" :key="i" class="precreate-summary__error-line">
+        <Badge variant="destructive">Error</Badge>
+        <span>{{ e }}</span>
+      </p>
+    </div>
+
+    <div class="precreate-summary__items">
+      <h4 class="precreate-summary__subtitle">Items Preview</h4>
+      <div class="precreate-summary__item-list">
+        <div v-for="row in selectedRows" :key="row._rowId" class="precreate-summary__item-row">
+          <span class="precreate-summary__item-name">{{ row.itemName || '(unnamed)' }}</span>
+          <Badge v-if="effectiveType(row) === 'Component'" variant="info">Component</Badge>
+          <span class="precreate-summary__item-qty" v-if="row.quantity > 1">&times;{{ row.quantity }}</span>
+          <span class="precreate-summary__item-price" v-if="row.unitPrice || row.unitPrice === 0">${{ Number(row.unitPrice).toFixed(2) }}</span>
+          <Badge v-if="hasOverrides(row)" variant="accent">⚙ custom</Badge>
+          <Badge :variant="readinessVariant(row)">{{ readinessLabel(row) }}</Badge>
+        </div>
+        <div v-for="row in selectedRows.filter(r => resolveMotherLabel(r))" :key="`m-${row._rowId}`" class="precreate-summary__mother-line">
+          ↳ {{ row.itemName || '(unnamed)' }} is component of: {{ resolveMotherLabel(row) }}
+        </div>
+      </div>
+    </div>
+  </Card>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import {
+  UiCard as Card,
+  UiBadge as Badge,
+  UiSeparator as Separator,
+} from '@/components/ui'
+
+const props = defineProps({
+  rows: { type: Array, required: true },
+  defaults: { type: Object, required: true },
+  invoiceMeta: { type: Object, default: () => ({}) },
+})
+
+const selectedRows = computed(() => props.rows.filter(r => r.rowClass === 'item'))
+const excludedCount = computed(() => props.rows.filter(r => r.rowClass !== 'item').length)
+const totalItemCount = computed(() => selectedRows.value.reduce((sum, r) => sum + Math.max(1, r.quantity || 1), 0))
+const hasQuantityExpansion = computed(() => totalItemCount.value !== selectedRows.value.length)
+const rowsWithQtyGt1 = computed(() => selectedRows.value.filter(r => (r.quantity || 1) > 1).length)
+const overrideCount = computed(() => selectedRows.value.filter(r => hasOverrides(r)).length)
+
+const warnings = computed(() => {
+  const w = []
+  const nameCount = {}
+  selectedRows.value.forEach((row) => {
+    const n = row.itemName || ''
+    nameCount[n] = (nameCount[n] || 0) + 1
+  })
+  const dupes = Object.entries(nameCount).filter(([, c]) => c > 1)
+  if (dupes.length > 0) {
+    dupes.forEach(([name, count]) => {
+      w.push(`"${name || '(unnamed)'}" appears ${count} times — duplicate names will be created.`)
+    })
+  }
+
+  const allMissingUniID = selectedRows.value.every(r => !(r.overrides?.universityID))
+  if (allMissingUniID && selectedRows.value.length > 0) {
+    w.push('University ID is empty for all items. You can set it per-row in Step 4.')
+  }
+
+  const allMissingVendor = selectedRows.value.every(r => !(r.overrides?.vendor || props.defaults.vendor))
+  if (allMissingVendor && selectedRows.value.length > 0) {
+    w.push('Vendor is empty for all items. Consider setting shared default vendor.')
+  }
+
+  if (!props.defaults.status) {
+    w.push('Shared default status is empty. Items will fallback to Available.')
+  }
+
+  selectedRows.value.forEach((row, idx) => {
+    if (!row.unitPrice && row.unitPrice !== 0) {
+      w.push(`Row ${idx + 1} ("${row.itemName || 'unnamed'}") has no price.`)
+    } else if (Number(row.unitPrice) === 0) {
+      w.push(`Row ${idx + 1} ("${row.itemName || 'unnamed'}") has $0 price.`)
+    }
+    if (row.confidence != null && row.confidence < 0.5) {
+      w.push(`Row ${idx + 1} ("${row.itemName || 'unnamed'}") has low confidence (${Math.round(row.confidence * 100)}%).`)
+    }
+    const ov = row.overrides || {}
+    const sd = props.defaults
+    const wStart = ov.warrantyStartDate || sd.warrantyStartDate || ''
+    const wEnd = ov.warrantyEnd || sd.warrantyEnd || ''
+    if (wStart && wEnd && wStart > wEnd) {
+      w.push(`Row ${idx + 1} ("${row.itemName || 'unnamed'}"): warranty start date is after end date.`)
+    }
+
+    const type = effectiveType(row)
+    if (type === 'Component' && !row.overrides?.motherID) {
+      w.push(`Row ${idx + 1} ("${row.itemName || 'unnamed'}") is Component but has no parent (motherID).`)
+    }
+    if (row.overrides?.motherID?.startsWith('_row:')) {
+      const targetId = row.overrides.motherID.slice(5)
+      const found = selectedRows.value.some(r => r._rowId === targetId)
+      if (!found) {
+        w.push(`Row ${idx + 1} has unresolved parent reference.`)
+      }
+    }
+  })
+  return w
+})
+
+const blockingErrors = computed(() => {
+  const errs = []
+  const sd = props.defaults
+  selectedRows.value.forEach((row, idx) => {
+    if (!row.itemName) errs.push(`Row ${idx + 1}: Name is required.`)
+    const t = row.overrides?.type || sd.type
+    if (!t) errs.push(`Row ${idx + 1}: Type is required (no default set).`)
+    const c = row.overrides?.category || sd.category
+    if (!c) errs.push(`Row ${idx + 1}: Category is required (no default set).`)
+  })
+  if (selectedRows.value.length === 0) errs.push('No items selected for creation.')
+
+  const parentGraph = {}
+  selectedRows.value.forEach((row) => {
+    const ref = row.overrides?.motherID
+    if (ref && ref.startsWith('_row:')) parentGraph[row._rowId] = ref.slice(5)
+  })
+  selectedRows.value.forEach((row) => {
+    const a = row._rowId
+    const b = parentGraph[a]
+    if (b && parentGraph[b] === a) {
+      errs.push(`Circular parent reference detected between rows "${row.itemName || a}" and "${selectedRows.value.find(r => r._rowId === b)?.itemName || b}".`)
+    }
+  })
+  return errs
+})
+
+function hasOverrides(row) {
+  if (!row.overrides) return false
+  return Object.values(row.overrides).some(v => v !== '' && v !== null && v !== undefined)
+}
+
+function effectiveType(row) {
+  return row.overrides?.type || props.defaults.type || ''
+}
+
+function readinessLabel(row) {
+  if (row.rowClass === 'excluded') return '— Excluded'
+  if (row.rowClass === 'non-inventory') return '🏷 Non-inventory'
+  const sd = props.defaults
+  if (!row.itemName) return '⚠ Incomplete'
+  if (!(row.overrides?.type || sd.type)) return '⚠ Incomplete'
+  if (!(row.overrides?.category || sd.category)) return '⚠ Incomplete'
+  return '✓ Ready'
+}
+
+function readinessVariant(row) {
+  const label = readinessLabel(row)
+  if (label.includes('Ready')) return 'success'
+  if (label.includes('Incomplete')) return 'warning'
+  return 'outline'
+}
+
+function resolveMotherLabel(row) {
+  const motherID = row.overrides?.motherID
+  if (!motherID) return ''
+  if (motherID.startsWith('_row:')) {
+    const id = motherID.slice(5)
+    const found = selectedRows.value.find(r => r._rowId === id)
+    return found ? (found.itemName || '(unnamed import row)') : '(unresolved import row)'
+  }
+  return motherID
+}
+</script>
+
+<style scoped>
+.precreate-summary {
+  padding: 1rem 1.25rem;
+}
+.precreate-summary__title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 1rem;
+}
+.precreate-summary__stats {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.precreate-summary__stat {
+  flex: 1;
+  text-align: center;
+  padding: 0.6rem 0.5rem;
+}
+.precreate-summary__stat--accent {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+}
+.precreate-summary__stat-num {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.precreate-summary__stat--accent .precreate-summary__stat-num {
+  color: var(--accent);
+}
+.precreate-summary__stat-label {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+.precreate-summary__sep {
+  margin: 0.65rem 0 0.75rem;
+}
+.precreate-summary__subtitle {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem;
+}
+.precreate-summary__note {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.75rem;
+}
+.precreate-summary__note-dim {
+  opacity: 0.7;
+}
+.precreate-summary__defaults,
+.precreate-summary__meta {
+  margin-bottom: 0.75rem;
+}
+.precreate-summary__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.precreate-summary__warnings {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+.precreate-summary__warning-line,
+.precreate-summary__error-line {
+  font-size: 0.75rem;
+  margin: 0.2rem 0;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.precreate-summary__errors {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+.precreate-summary__items {
+  margin-top: 0.75rem;
+}
+.precreate-summary__item-list {
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.precreate-summary__item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--border);
+}
+.precreate-summary__item-row:last-child {
+  border-bottom: none;
+}
+.precreate-summary__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.precreate-summary__item-qty,
+.precreate-summary__item-price {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.precreate-summary__mother-line {
+  font-size: 0.7rem;
+  color: var(--info);
+  padding: 0.25rem 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+</style>

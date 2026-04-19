@@ -1,0 +1,289 @@
+<template>
+  <div class="import-review-table">
+    <div class="import-review-toolbar">
+      <span class="import-review-count"><Badge variant="outline">{{ activeCount }} / {{ rows.length }}</Badge> items active</span>
+      <div class="import-review-actions">
+        <Button size="sm" variant="outline" @click="emit('addRow')">+ Add Row</Button>
+        <Button size="sm" variant="destructive" :disabled="activeCount === 0" @click="emit('excludeSelected')">Exclude All Active</Button>
+        <Button v-if="excludedCount > 0" size="sm" variant="outline" @click="emit('restoreExcluded')">Restore Excluded ({{ excludedCount }})</Button>
+      </div>
+    </div>
+
+    <div class="import-review-scroll">
+      <table class="import-review-table__el">
+        <thead>
+          <tr>
+            <th class="import-review-th import-review-th--check">
+              <Checkbox :checked="allActive" :indeterminate="someActive && !allActive" @update:checked="toggleAll" />
+            </th>
+            <th class="import-review-th import-review-th--class">Class</th>
+            <th class="import-review-th">Item Name <span class="irt-required">*</span></th>
+            <th class="import-review-th import-review-th--num">Qty</th>
+            <th class="import-review-th import-review-th--num">Unit Price</th>
+            <th class="import-review-th import-review-th--num">Line Total</th>
+            <th class="import-review-th">Product Code</th>
+            <th class="import-review-th">Notes</th>
+            <th class="import-review-th import-review-th--conf">Conf.</th>
+            <th class="import-review-th import-review-th--status">Ready</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in rows"
+            :key="row._rowId"
+            class="import-review-row"
+            :class="{
+              'import-review-row--error': row.validationErrors && row.validationErrors.length > 0,
+              'import-review-row--excluded': row.rowClass === 'excluded',
+              'import-review-row--noninv': row.rowClass === 'non-inventory',
+            }"
+          >
+            <td class="import-review-td import-review-td--check">
+              <Checkbox :checked="row.rowClass === 'item'" @update:checked="toggleRowActive(row)" />
+            </td>
+            <td class="import-review-td import-review-td--class">
+              <Select :modelValue="row.rowClass" @update:modelValue="row.rowClass = $event" class="import-review-class-select">
+                <option value="item">✓ Item</option>
+                <option value="non-inventory">🏷 Non-inv</option>
+                <option value="excluded">— Exclude</option>
+              </Select>
+            </td>
+            <td class="import-review-td">
+              <Input v-model="row.itemName" placeholder="Item name" class="import-review-input" />
+            </td>
+            <td class="import-review-td import-review-td--num">
+              <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Number($event) || 1" min="1" class="import-review-input import-review-input--num" />
+            </td>
+            <td class="import-review-td import-review-td--num">
+              <Input type="number" :modelValue="row.unitPrice" @update:modelValue="row.unitPrice = $event === '' ? '' : Number($event)" step="0.01" min="0" class="import-review-input import-review-input--num" />
+            </td>
+            <td class="import-review-td import-review-td--num">
+              <span class="import-review-readonly">{{ formatLineTotal(row) }}</span>
+            </td>
+            <td class="import-review-td">
+              <Input v-model="row.productCode" placeholder="—" class="import-review-input" />
+            </td>
+            <td class="import-review-td">
+              <Input v-model="row.description" placeholder="Notes" class="import-review-input" />
+            </td>
+            <td class="import-review-td import-review-td--conf">
+              <Badge v-if="row.confidence != null" :variant="confidenceVariant(row.confidence)">{{ Math.round(row.confidence * 100) }}%</Badge>
+              <span v-else class="import-review-conf--na">—</span>
+            </td>
+            <td class="import-review-td import-review-td--status">
+              <Badge :variant="readinessVariant(row)">{{ readinessLabel(row) }}</Badge>
+            </td>
+          </tr>
+          <tr v-if="rows.length === 0">
+            <td colspan="10" class="import-review-td import-review-empty">
+              No line items detected. Click "Add Row" to add items manually.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Quantity expansion note -->
+    <p v-if="expandedItemCount !== activeCount" class="import-review-expansion-note">
+      {{ activeCount }} active rows &rarr; {{ expandedItemCount }} inventory items ({{ rowsWithQtyGt1 }} rows have qty &gt; 1)
+    </p>
+
+    <!-- Validation errors summary -->
+    <div v-if="validationErrors.length > 0" class="import-review-errors">
+      <p v-for="(err, i) in validationErrors" :key="i" class="import-review-error-line">{{ err }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import {
+  UiButton as Button,
+  UiBadge as Badge,
+  UiCheckbox as Checkbox,
+  UiSelect as Select,
+  UiInput as Input,
+} from '@/components/ui'
+
+const props = defineProps({
+  rows: { type: Array, required: true },
+  sharedDefaults: { type: Object, default: () => ({}) },
+})
+
+const emit = defineEmits(['addRow', 'excludeSelected', 'restoreExcluded'])
+
+const activeCount = computed(() => props.rows.filter(r => r.rowClass === 'item').length)
+const excludedCount = computed(() => props.rows.filter(r => r.rowClass === 'excluded').length)
+const allActive = computed(() => props.rows.length > 0 && props.rows.every(r => r.rowClass === 'item'))
+const someActive = computed(() => props.rows.some(r => r.rowClass === 'item'))
+const expandedItemCount = computed(() =>
+  props.rows.filter(r => r.rowClass === 'item').reduce((sum, r) => sum + Math.max(1, r.quantity || 1), 0)
+)
+const rowsWithQtyGt1 = computed(() =>
+  props.rows.filter(r => r.rowClass === 'item' && (r.quantity || 1) > 1).length
+)
+const validationErrors = computed(() => {
+  const errs = []
+  props.rows.forEach((row, idx) => {
+    if (row.validationErrors) {
+      row.validationErrors.forEach(e => errs.push(`Row ${idx + 1}: ${e}`))
+    }
+  })
+  return errs
+})
+
+function toggleAll() {
+  const newClass = allActive.value ? 'excluded' : 'item'
+  props.rows.forEach(r => {
+    if (r.rowClass !== 'non-inventory') r.rowClass = newClass
+  })
+}
+
+function toggleRowActive(row) {
+  row.rowClass = row.rowClass === 'item' ? 'excluded' : 'item'
+}
+
+function formatLineTotal(row) {
+  if (row.lineTotal != null && row.lineTotal !== '') return Number(row.lineTotal).toFixed(2)
+  if (row.unitPrice && row.quantity) return (Number(row.unitPrice) * Number(row.quantity)).toFixed(2)
+  return '—'
+}
+
+function confidenceVariant(conf) {
+  if (conf >= 0.8) return 'success'
+  if (conf >= 0.5) return 'warning'
+  return 'destructive'
+}
+
+function readinessLabel(row) {
+  if (row.rowClass === 'excluded') return '—'
+  if (row.rowClass === 'non-inventory') return '🏷'
+  const sd = props.sharedDefaults
+  if (!row.itemName) return '⚠'
+  if (!(row.overrides?.type || sd.type)) return '⚠'
+  if (!(row.overrides?.category || sd.category)) return '⚠'
+  return '✓'
+}
+
+function readinessVariant(row) {
+  const label = readinessLabel(row)
+  if (label === '✓') return 'success'
+  if (label === '⚠') return 'warning'
+  return 'outline'
+}
+</script>
+
+<style scoped>
+.import-review-table {
+  margin-bottom: 1rem;
+}
+.import-review-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.import-review-count {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.import-review-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.import-review-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.import-review-table__el {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.import-review-th {
+  padding: 0.5rem 0.5rem;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.import-review-th--check { width: 2rem; text-align: center; }
+.import-review-th--num { width: 6rem; text-align: right; }
+.import-review-th--conf { width: 3.5rem; text-align: center; }
+.import-review-th--status { width: 2.5rem; text-align: center; }
+.import-review-th--class { width: 7rem; text-align: center; }
+.import-review-td--class { text-align: center; }
+.import-review-class-select { font-size: 0.6875rem; }
+.import-review-row { transition: background 0.1s; }
+.import-review-row:hover { background: var(--surface-2); }
+.import-review-row--error { background: color-mix(in srgb, var(--danger) 6%, transparent); }
+.import-review-row--excluded { opacity: 0.45; }
+.import-review-row--noninv { opacity: 0.45; background: color-mix(in srgb, var(--muted-foreground) 4%, transparent); }
+.import-review-td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.import-review-td--check { text-align: center; }
+.import-review-td--num { text-align: right; }
+.import-review-td--conf { text-align: center; }
+.import-review-td--status { text-align: center; }
+.import-review-input {
+  border-color: transparent;
+  background: transparent;
+  height: auto;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.8125rem;
+  box-shadow: none;
+}
+.import-review-input:focus-within {
+  border-color: var(--accent);
+  background: var(--card);
+}
+.import-review-input--num {
+  text-align: right;
+  width: 5rem;
+}
+.import-review-readonly {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.import-review-conf--na {
+  color: var(--muted-foreground);
+}
+.import-review-expansion-note {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--accent-surface);
+  border-radius: var(--radius-sm);
+}
+.import-review-empty {
+  text-align: center;
+  color: var(--muted-foreground);
+  padding: 2rem 0.5rem;
+}
+.import-review-errors {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+.import-review-error-line {
+  font-size: 0.75rem;
+  color: var(--danger);
+  margin: 0.15rem 0;
+}
+.irt-required {
+  color: var(--danger);
+}
+</style>

@@ -356,9 +356,16 @@
         <!-- ════════════════════════════════════════════ -->
         <div v-if="addMode === 'import' && !editingItem">
 
+          <!-- Step Indicator -->
+          <ImportStepIndicator
+            :current="importStep"
+            :maxReachable="importMaxStep"
+            @go="navigateImportStep"
+          />
+
           <!-- Step 1: Upload -->
           <div v-if="importStep === 1" class="form-section">
-            <h3 class="form-section-title">Upload Invoice</h3>
+            <h3 class="form-section-title">Step 1: Upload Invoice</h3>
             <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.75rem;">
               Upload an invoice image or PDF. Azure AI Document Intelligence will extract vendor info and line items.
             </p>
@@ -386,8 +393,16 @@
             <p v-if="importError" class="import-error-msg">{{ importError }}</p>
           </div>
 
-          <!-- Step 2: Header Review + Line Items + Defaults -->
+          <!-- Step 2: Invoice Header Review -->
           <div v-if="importStep === 2">
+            <h3 class="form-section-title" style="margin-bottom:0.75rem;">Step 2: Invoice Header</h3>
+
+            <!-- Invoice preview button -->
+            <div v-if="importInvoiceFile" class="import-file-info">
+              <span style="font-size:0.75rem;color:var(--muted-foreground);">{{ importInvoiceFile.name }} ({{ (importInvoiceFile.size / 1024).toFixed(1) }} KB)</span>
+              <button type="button" class="import-review-btn" @click="viewImportInvoice">View Invoice</button>
+            </div>
+
             <!-- Warnings -->
             <div v-if="importState.warnings.length > 0" class="import-warnings">
               <p v-for="(w, i) in importState.warnings" :key="i" class="import-warning-line">⚠ {{ w }}</p>
@@ -403,7 +418,7 @@
 
             <!-- Invoice Header Card -->
             <div class="form-section">
-              <h3 class="form-section-title">Invoice Header</h3>
+              <h3 class="form-section-title">Extracted Header Fields</h3>
               <div class="form-section-grid">
                 <div>
                   <label class="form-label">Supplier / Vendor</label>
@@ -432,15 +447,68 @@
               </div>
             </div>
 
-            <!-- Line Items Review Table -->
+            <!-- Extracted Data Inspector (collapsible) -->
+            <div v-if="importState.rawFields" class="form-section">
+              <button type="button" class="import-inspector-toggle" @click="importInspectorOpen = !importInspectorOpen">
+                <span class="form-section-title" style="margin:0">{{ importInspectorOpen ? '▼' : '▶' }} Extracted Data Inspector</span>
+              </button>
+              <div v-if="importInspectorOpen" class="import-inspector-body">
+                <div v-for="(val, key) in flattenedRawFields" :key="key" class="import-inspector-row">
+                  <span class="import-inspector-key">{{ key }}</span>
+                  <span class="import-inspector-val">{{ val }}</span>
+                </div>
+                <button type="button" class="import-review-btn" style="margin-top:0.5rem;" @click="copyRawFieldsJSON">Copy Raw JSON</button>
+              </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="form-actions">
+              <Button type="button" variant="outline" @click="confirmReupload">
+                &larr; Re-upload
+              </Button>
+              <Button type="button" variant="default" @click="importStep = 3">
+                Next: Line Items &rarr;
+              </Button>
+            </div>
+          </div>
+
+          <!-- Step 3: Line Items Review & Classification -->
+          <div v-if="importStep === 3">
+            <h3 class="form-section-title" style="margin-bottom:0.75rem;">Step 3: Review Line Items</h3>
+
+            <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.75rem;">
+              Classify each row. Non-inventory and excluded rows will not create items.
+            </p>
+
             <div class="form-section">
-              <h3 class="form-section-title">Line Items</h3>
               <InvoiceImportReviewTable
                 :rows="importState.draftRows"
+                :sharedDefaults="importState.sharedDefaults"
+                :invoiceMeta="importState.invoiceMeta"
                 @addRow="addImportRow"
-                @removeSelected="removeSelectedImportRows"
+                @excludeSelected="excludeSelectedImportRows"
+                @restoreExcluded="restoreExcludedImportRows"
               />
             </div>
+
+            <!-- Navigation -->
+            <div class="form-actions">
+              <Button type="button" variant="outline" @click="importStep = 2">
+                &larr; Header
+              </Button>
+              <Button type="button" variant="default" @click="goToStep4" :disabled="importState.draftRows.filter(r => r.rowClass === 'item').length === 0">
+                Next: Configure Fields &rarr;
+              </Button>
+            </div>
+            <p v-if="importError" class="import-error-msg">{{ importError }}</p>
+          </div>
+
+          <!-- Step 4: Configure Item Fields (Shared Defaults + Per-row) -->
+          <div v-if="importStep === 4">
+            <h3 class="form-section-title" style="margin-bottom:0.75rem;">Step 4: Configure Item Fields</h3>
+            <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.75rem;">
+              Set shared defaults for all items. Expand individual rows below to override fields per-item.
+            </p>
 
             <!-- Shared Defaults -->
             <InvoiceImportDefaults
@@ -451,20 +519,235 @@
               :teachers="teachers"
             />
 
-            <!-- Actions -->
+            <!-- Per-row overrides section -->
+            <div class="form-section" style="margin-top:0.75rem;">
+              <h4 class="form-section-title">Per-Row Overrides</h4>
+              <p style="font-size:0.75rem;color:var(--muted-foreground);margin-bottom:0.5rem;">
+                Expand rows that need different values from the shared defaults above.
+              </p>
+              <div v-for="row in importState.draftRows.filter(r => r.rowClass === 'item')" :key="row._rowId" class="import-override-row">
+                <div class="import-override-header" @click="row.expanded = !row.expanded">
+                  <span class="import-override-expand">{{ row.expanded ? '▼' : '▶' }}</span>
+                  <span class="import-override-name">{{ row.itemName || '(unnamed)' }}</span>
+                  <span class="import-override-qty" v-if="row.quantity > 1">&times;{{ row.quantity }}</span>
+                  <Badge v-if="hasRowOverrides(row)" variant="accent">⚙ custom</Badge>
+                  <Badge :variant="rowReadinessClass(row) === 'import-override-readiness--ready' ? 'success' : rowReadinessClass(row) === 'import-override-readiness--incomplete' ? 'warning' : 'outline'">{{ rowReadinessLabel(row) }}</Badge>
+                  <Button size="sm" variant="destructive" style="margin-left:auto;" @click.stop="row.rowClass = 'excluded'">Remove</Button>
+                </div>
+                <div v-if="row.expanded" class="import-override-panel">
+                  <div class="import-override-grid">
+                    <!-- ── Item Identification ── -->
+                    <div>
+                      <label class="form-label">Name <span class="form-required">*</span></label>
+                      <Input v-model="row.itemName" placeholder="Item name" />
+                    </div>
+                    <div>
+                      <label class="form-label">University ID</label>
+                      <Input v-model="row.overrides.universityID" placeholder="e.g. FE-XXX" />
+                    </div>
+                    <div>
+                      <label class="form-label">Type</label>
+                      <Select v-model="row.overrides.type">
+                        <option value="">— Use default —</option>
+                        <option v-for="t in itemTypes" :key="t" :value="t">{{ t }}</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">Category</label>
+                      <Select v-model="row.overrides.category">
+                        <option value="">— Use default —</option>
+                        <option v-for="c in mutableCategories" :key="c" :value="c">{{ c }}</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">Qty</label>
+                      <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Number($event) || 1" min="1" />
+                    </div>
+                    <div class="import-override-grid-full">
+                      <label class="form-label">Description</label>
+                      <Input v-model="row.description" placeholder="Item description / notes" />
+                    </div>
+
+                    <Separator class="import-override-sep" />
+
+                    <!-- ── Classification & Location ── -->
+                    <div>
+                      <label class="form-label">Status</label>
+                      <Select v-model="row.overrides.status">
+                        <option value="">— Use default —</option>
+                        <option value="Available">Available</option>
+                        <option value="In-use">In-use</option>
+                        <option value="Not Available">Not Available</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">Location</label>
+                      <Select v-model="row.overrides.location">
+                        <option value="">— Use default —</option>
+                        <option v-for="l in mutableLocations" :key="l" :value="l">{{ l }}</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">Department</label>
+                      <Input v-model="row.overrides.departmentID" placeholder="— Use default —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Owner</label>
+                      <Select v-model="row.overrides.owner">
+                        <option value="">— Use default —</option>
+                        <option value="department">Department</option>
+                        <option v-for="t in teachers" :key="t.userId" :value="t.userId">{{ t.name || t.userId }}</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">Can Borrow</label>
+                      <Select :modelValue="row.overrides.canBorrow == null ? '' : String(row.overrides.canBorrow)" @update:modelValue="row.overrides.canBorrow = $event === '' ? null : $event === 'true'">
+                        <option value="">— Use default —</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </Select>
+                    </div>
+
+                    <Separator class="import-override-sep" />
+
+                    <!-- ── Procurement & Financial ── -->
+                    <div>
+                      <label class="form-label">Supplier</label>
+                      <Input v-model="row.overrides.supplier" placeholder="— Use invoice header —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Vendor</label>
+                      <Input v-model="row.overrides.vendor" placeholder="— Use default —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Invoice #</label>
+                      <Input v-model="row.overrides.invoiceNumber" placeholder="— Use invoice header —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Price ($)</label>
+                      <Input type="number" step="0.01" min="0" :modelValue="row.unitPrice" @update:modelValue="row.unitPrice = $event === '' ? '' : Number($event)" placeholder="0.00" />
+                    </div>
+                    <div>
+                      <label class="form-label">Purchase Date</label>
+                      <Input type="date" v-model="row.overrides.purchaseDate" />
+                    </div>
+                    <div>
+                      <label class="form-label">Supplier Status</label>
+                      <Select v-model="row.overrides.supplierStatus">
+                        <option value="">— None —</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Backordered">Backordered</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label class="form-label">FO Request ID</label>
+                      <Input v-model="row.overrides.foRequestID" placeholder="Financial Office ref" />
+                    </div>
+                    <div>
+                      <label class="form-label">Order ID</label>
+                      <Input v-model="row.overrides.orderID" placeholder="— Use invoice header —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Funding Source</label>
+                      <Input v-model="row.overrides.fundingSource" placeholder="— Use default —" />
+                    </div>
+                    <div>
+                      <label class="form-label">Project Linked</label>
+                      <Input v-model="row.overrides.projectLinked" placeholder="— Use default —" />
+                    </div>
+
+                    <Separator class="import-override-sep" />
+
+                    <!-- ── Warranty ── -->
+                    <div>
+                      <label class="form-label">Warranty Start</label>
+                      <Input type="date" v-model="row.overrides.warrantyStartDate" />
+                    </div>
+                    <div>
+                      <label class="form-label">Warranty End</label>
+                      <Input type="date" v-model="row.overrides.warrantyEnd" />
+                    </div>
+                    <div>
+                      <label class="form-label">Warranty Vendor</label>
+                      <Input v-model="row.overrides.warrantyVendor" placeholder="— Use default —" />
+                    </div>
+                    <div class="import-override-checkbox-row">
+                      <Checkbox :checked="!!row.overrides.warrantyOnsite" @update:checked="row.overrides.warrantyOnsite = $event ? true : null" />
+                      <label class="form-label" style="margin-bottom:0;">Warranty Onsite</label>
+                    </div>
+
+                    <Separator class="import-override-sep" />
+
+                    <!-- ── Parent / Component ── -->
+                    <div class="import-override-grid-full">
+                      <label class="form-label">Parent Item (motherID)</label>
+                      <div class="import-override-mother">
+                        <Select v-model="row.overrides.motherID" class="import-override-mother-select">
+                          <option value="">— No parent (standalone) —</option>
+                          <option
+                            v-for="sibling in importState.draftRows.filter(r => r.rowClass === 'item' && r._rowId !== row._rowId)"
+                            :key="sibling._rowId"
+                            :value="'_row:' + sibling._rowId"
+                          >[Import] {{ sibling.itemName || '(unnamed)' }}</option>
+                        </Select>
+                        <Input
+                          v-if="!row.overrides.motherID || !row.overrides.motherID.startsWith('_row:')"
+                          v-model="row.overrides.motherID"
+                          placeholder="Or enter existing item ID..."
+                          class="import-override-mother-input"
+                        />
+                      </div>
+                      <p v-if="row.overrides.motherID" class="import-override-mother-hint">
+                        This item will be created as a component. It will NOT be independently borrowable.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Navigation -->
             <div class="form-actions">
-              <Button type="button" variant="outline" @click="importStep = 1; importState.draftRows = []">
-                &larr; Re-upload
+              <Button type="button" variant="outline" @click="importStep = 3">
+                &larr; Line Items
               </Button>
-              <Button type="button" variant="success" @click="submitImportItems">
-                Create {{ importState.draftRows.filter(r => r.selected).length }} Items
+              <Button type="button" variant="default" @click="goToStep5">
+                Next: Review &amp; Confirm &rarr;
+              </Button>
+            </div>
+          </div>
+
+          <!-- Step 5: Pre-Create Validation & Confirmation -->
+          <div v-if="importStep === 5">
+            <h3 class="form-section-title" style="margin-bottom:0.75rem;">Step 5: Review &amp; Confirm</h3>
+
+            <ImportPreCreateSummary
+              :rows="importState.draftRows"
+              :defaults="importState.sharedDefaults"
+              :invoiceMeta="importState.invoiceMeta"
+            />
+
+            <!-- Navigation -->
+            <div class="form-actions" style="margin-top:1rem;">
+              <Button type="button" variant="outline" @click="importStep = 4">
+                &larr; Fields
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                @click="submitImportItems"
+                :disabled="importBlockingErrors.length > 0"
+              >
+                Create {{ importExpandedItemCount }} Items
               </Button>
             </div>
             <p v-if="importError" class="import-error-msg">{{ importError }}</p>
           </div>
 
-          <!-- Step 3: Creating Progress -->
-          <div v-if="importStep === 3" class="form-section" style="text-align:center;padding:2rem;">
+          <!-- Step 6: Creating Progress -->
+          <div v-if="importStep === 6" class="form-section" style="text-align:center;padding:2rem;">
             <Spinner :size="32" />
             <p style="font-size:0.875rem;font-weight:600;margin-top:0.75rem;">
               Creating item {{ importState.createProgress.current }} of {{ importState.createProgress.total }}...
@@ -477,8 +760,8 @@
             </div>
           </div>
 
-          <!-- Step 4: Summary -->
-          <div v-if="importStep === 4" class="form-section">
+          <!-- Step 7: Summary -->
+          <div v-if="importStep === 7" class="form-section">
             <h3 class="form-section-title">Import Complete</h3>
             <div class="import-summary">
               <p class="import-summary-success" v-if="importState.createProgress.successes.length > 0">
@@ -910,6 +1193,8 @@ import DropdownWithOther from '../components/DropdownWithOther.vue'
 import DeleteBlockModal from '../components/DeleteBlockModal.vue'
 import InvoiceImportReviewTable from '../components/InvoiceImportReviewTable.vue'
 import InvoiceImportDefaults from '../components/InvoiceImportDefaults.vue'
+import ImportStepIndicator from '../components/ImportStepIndicator.vue'
+import ImportPreCreateSummary from '../components/ImportPreCreateSummary.vue'
 import {
   UiBadge as Badge,
   UiButton as Button,
@@ -923,6 +1208,7 @@ import {
   UiInput as Input,
   UiModulePageHeader as ModulePageHeader,
   UiSelect as Select,
+  UiSeparator as Separator,
   UiTextarea as Textarea,
   UiTablePaginationBar as TablePaginationBar,
   UiSpinner as Spinner,
@@ -996,12 +1282,17 @@ export default {
     FilterSelect,
     FilterToggleButton,
     DropdownWithOther,
+    ImportPreCreateSummary,
+    ImportStepIndicator,
     Input,
+    InvoiceImportDefaults,
+    InvoiceImportReviewTable,
     ModulePageHeader,
     MoreVertical,
     Pencil,
     Search,
     Select,
+    Separator,
     Spinner,
     Textarea,
     TablePaginationBar,
@@ -1062,6 +1353,7 @@ export default {
     const importInvoiceFile = ref(null)  // File object from upload
     const importDragOver = ref(false)    // drag-over state for dropzone
 
+
     const defaultImportState = () => ({
       invoiceMeta: {
         supplier: '', invoiceNumber: '', purchaseDate: '', orderID: '',
@@ -1069,12 +1361,13 @@ export default {
       },
       draftRows: [],
       sharedDefaults: {
-        supplier: '', invoiceNumber: '', purchaseDate: '', orderID: '',
         owner: 'department', departmentID: 'COMP', location: 'Lab A',
         category: 'Computer', type: 'Hardware', fundingSource: '',
         projectLinked: '', warrantyStartDate: '', warrantyEnd: '',
         warrantyVendor: '', warrantyOnsite: false, status: 'Available',
+        vendor: '', canBorrow: true,
       },
+      rawFields: null,
       warnings: [],
       confidence: null,
       createProgress: { current: 0, total: 0, successes: [], failures: [] },
@@ -1098,6 +1391,116 @@ export default {
       if (c >= 0.5) return 'import-confidence--mid'
       return 'import-confidence--low'
     })
+
+    // ── New: 7-step wizard helpers ──────────────
+    const importInspectorOpen = ref(false)
+
+    const importMaxStep = computed(() => {
+      // Highest step the user can reach (prevents skipping ahead)
+      if (importState.value.draftRows.length === 0) return 1
+      return 5
+    })
+
+    const importExpandedItemCount = computed(() => {
+      return importState.value.draftRows
+        .filter(r => r.rowClass === 'item')
+        .reduce((sum, r) => sum + Math.max(1, r.quantity || 1), 0)
+    })
+
+    const importBlockingErrors = computed(() => {
+      const errs = []
+      const sd = importState.value.sharedDefaults
+      const activeRows = importState.value.draftRows.filter(r => r.rowClass === 'item')
+      activeRows.forEach((row, idx) => {
+        if (!row.itemName) errs.push(`Row ${idx + 1}: Name is required.`)
+        if (!(row.overrides?.type || sd.type)) errs.push(`Row ${idx + 1}: Type is required.`)
+        if (!(row.overrides?.category || sd.category)) errs.push(`Row ${idx + 1}: Category is required.`)
+      })
+      if (activeRows.length === 0) errs.push('No items selected for creation.')
+      return errs
+    })
+
+    const flattenedRawFields = computed(() => {
+      const raw = importState.value.rawFields
+      if (!raw) return {}
+      const out = {}
+      for (const [key, field] of Object.entries(raw)) {
+        if (key === 'Items') continue // line items shown in step 3
+        const val = field?.content || field?.valueString || ''
+        const conf = field?.confidence != null ? ` (${Math.round(field.confidence * 100)}%)` : ''
+        if (val) out[key] = val + conf
+      }
+      return out
+    })
+
+    const navigateImportStep = (step) => {
+      if (step < importStep.value && step <= 5) {
+        importStep.value = step
+      }
+    }
+
+    const confirmReupload = () => {
+      if (importState.value.draftRows.length > 0) {
+        if (!window.confirm('Discard current review data and re-upload a different invoice?')) return
+      }
+      importStep.value = 1
+      importState.value = defaultImportState()
+      importInvoiceFile.value = null
+      importError.value = ''
+      importInspectorOpen.value = false
+    }
+
+    const viewImportInvoice = () => {
+      if (importInvoiceFile.value) {
+        const url = URL.createObjectURL(importInvoiceFile.value)
+        window.open(url, '_blank')
+      }
+    }
+
+    const copyRawFieldsJSON = () => {
+      const raw = importState.value.rawFields
+      if (raw) {
+        navigator.clipboard.writeText(JSON.stringify(raw, null, 2)).catch(() => {})
+      }
+    }
+
+    const goToStep4 = () => {
+      const activeRows = importState.value.draftRows.filter(r => r.rowClass === 'item')
+      if (activeRows.length === 0) {
+        importError.value = 'Select at least one inventory item to continue.'
+        return
+      }
+      importError.value = ''
+      importStep.value = 4
+    }
+
+    const goToStep5 = () => {
+      importError.value = ''
+      importStep.value = 5
+    }
+
+    const hasRowOverrides = (row) => {
+      if (!row.overrides) return false
+      return Object.values(row.overrides).some(v => v !== '' && v !== null && v !== undefined)
+    }
+
+    const rowReadinessLabel = (row) => {
+      if (row.rowClass === 'excluded') return '— Excluded'
+      if (row.rowClass === 'non-inventory') return '🏷 Non-inventory'
+      const sd = importState.value.sharedDefaults
+      if (!row.itemName) return '⚠ Incomplete'
+      if (!(row.overrides?.type || sd.type)) return '⚠ Incomplete'
+      if (!(row.overrides?.category || sd.category)) return '⚠ Incomplete'
+      return '✓ Ready'
+    }
+
+    const rowReadinessClass = (row) => {
+      const label = rowReadinessLabel(row)
+      if (label.includes('Ready')) return 'import-readiness--ready'
+      if (label.includes('Incomplete')) return 'import-readiness--incomplete'
+      return 'import-readiness--excluded'
+    }
+
     let searchDebounceTimer = null
     let loadRequestToken = 0
 
@@ -1540,31 +1943,50 @@ export default {
         importState.value.invoiceMeta = { ...importState.value.invoiceMeta, ...meta }
         importState.value.warnings = result.warnings || []
         importState.value.confidence = result.confidence
-
-        // Pre-fill shared defaults from header
-        importState.value.sharedDefaults.supplier = meta.supplier || ''
-        importState.value.sharedDefaults.invoiceNumber = meta.invoiceNumber || ''
-        importState.value.sharedDefaults.purchaseDate = meta.purchaseDate || ''
-        importState.value.sharedDefaults.orderID = meta.orderID || ''
+        importState.value.rawFields = result.rawFields || null
 
         // Build draft rows from line items
         const lineItems = result.lineItems || []
-        importState.value.draftRows = lineItems.map(li => ({
+        importState.value.draftRows = lineItems.map(li => {
+          // Derive unitPrice from lineTotal / qty when Azure didn't extract unitPrice
+          let unitPrice = li.unitPrice != null ? li.unitPrice : ''
+          const qty = li.quantity || 1
+          if ((unitPrice === '' || unitPrice == null) && li.lineTotal != null && qty > 0) {
+            unitPrice = li.lineTotal / qty
+          }
+          return {
           _rowId: crypto.randomUUID(),
-          selected: true,
+          rowClass: 'item', // 'item' | 'non-inventory' | 'excluded'
           itemName: li.description || '',
-          quantity: li.quantity || 1,
-          unitPrice: li.unitPrice != null ? li.unitPrice : '',
+          quantity: qty,
+          unitPrice,
           lineTotal: li.lineTotal != null ? li.lineTotal : '',
           productCode: li.productCode || '',
           description: '',
-          category: '',
-          type: '',
-          location: '',
-          owner: '',
           confidence: li.confidence,
           validationErrors: [],
-        }))
+          expanded: false,
+          overrides: {
+            type: '', category: '', location: '', owner: '',
+            departmentID: '', fundingSource: '', warrantyStartDate: '',
+            warrantyEnd: '', warrantyVendor: '', warrantyOnsite: null,
+            universityID: '', status: '', canBorrow: null,
+            vendor: '', projectLinked: '', motherID: '',
+            supplier: '', invoiceNumber: '', purchaseDate: '',
+            supplierStatus: '', foRequestID: '', orderID: '',
+          },
+        }
+        })
+
+        // Auto-detect non-inventory rows (shipping, fees, tax, services)
+        // Note: \b word boundary does not work with CJK characters, so CJK patterns are separate
+        const nonInvPatternEn = /\b(shipping|delivery|deliver|freight|tax|vat|gst|fee|service\s?charge|install(ation)?|assembly|labour|labor|discount|handling|surcharge|rebate|credit|adjustment|deposit|setup|support|maintenance|bundling|recycling|no\s?charge|foc|free\s?of\s?charge|pre.?install)\b/i
+        const nonInvPatternCJK = /送貨|運費|砌機|安裝|組裝|回收|稅|服務費/
+        for (const row of importState.value.draftRows) {
+          if (nonInvPatternEn.test(row.itemName) || nonInvPatternCJK.test(row.itemName) || (row.unitPrice !== '' && Number(row.unitPrice) <= 0)) {
+            row.rowClass = 'non-inventory'
+          }
+        }
 
         importStep.value = 2
       } catch (err) {
@@ -1585,24 +2007,42 @@ export default {
     const addImportRow = () => {
       importState.value.draftRows.push({
         _rowId: crypto.randomUUID(),
-        selected: true,
+        rowClass: 'item',
         itemName: '',
         quantity: 1,
         unitPrice: '',
         lineTotal: '',
         productCode: '',
         description: '',
-        category: '',
-        type: '',
-        location: '',
-        owner: '',
         confidence: null,
         validationErrors: [],
+        expanded: false,
+        overrides: {
+          type: '', category: '', location: '', owner: '',
+          departmentID: '', fundingSource: '', warrantyStartDate: '',
+          warrantyEnd: '', warrantyVendor: '', warrantyOnsite: null,
+          universityID: '', status: '', canBorrow: null,
+          vendor: '', projectLinked: '', motherID: '',
+          supplier: '', invoiceNumber: '', purchaseDate: '',
+          supplierStatus: '', foRequestID: '', orderID: '',
+        },
       })
     }
 
-    const removeSelectedImportRows = () => {
-      importState.value.draftRows = importState.value.draftRows.filter(r => !r.selected)
+    const excludeSelectedImportRows = () => {
+      for (const row of importState.value.draftRows) {
+        if (row.rowClass === 'item') {
+          row.rowClass = 'excluded'
+        }
+      }
+    }
+
+    const restoreExcludedImportRows = () => {
+      for (const row of importState.value.draftRows) {
+        if (row.rowClass === 'excluded') {
+          row.rowClass = 'item'
+        }
+      }
     }
 
     const validateImportRows = () => {
@@ -1610,13 +2050,13 @@ export default {
       const sd = importState.value.sharedDefaults
       for (const row of importState.value.draftRows) {
         row.validationErrors = []
-        if (row.selected) {
+        if (row.rowClass === 'item') {
           if (!row.itemName) { row.validationErrors.push('Name is required'); valid = false }
-          if (!row.type && !sd.type) { row.validationErrors.push('Type is required'); valid = false }
-          if (!row.category && !sd.category) { row.validationErrors.push('Category is required'); valid = false }
+          if (!(row.overrides?.type || sd.type)) { row.validationErrors.push('Type is required'); valid = false }
+          if (!(row.overrides?.category || sd.category)) { row.validationErrors.push('Category is required'); valid = false }
         }
       }
-      if (importState.value.draftRows.filter(r => r.selected).length === 0) {
+      if (importState.value.draftRows.filter(r => r.rowClass === 'item').length === 0) {
         importError.value = 'No items selected for creation.'
         return false
       }
@@ -1628,40 +2068,69 @@ export default {
       if (!validateImportRows()) return
 
       const sd = importState.value.sharedDefaults
-      const selectedRows = importState.value.draftRows.filter(r => r.selected)
+      const meta = importState.value.invoiceMeta
+      const activeRows = importState.value.draftRows.filter(r => r.rowClass === 'item')
 
-      // Expand quantities
-      const payloads = []
-      for (const row of selectedRows) {
-        const qty = Math.max(1, row.quantity || 1)
-        for (let i = 0; i < qty; i++) {
-          payloads.push({
-            name: row.itemName,
-            universityID: '',
-            type: row.type || sd.type || 'Hardware',
-            category: row.category || sd.category || 'Other',
-            status: sd.status || 'Available',
-            location: row.location || sd.location || '',
-            description: row.description || '',
-            supplier: sd.supplier || '',
-            invoiceNumber: sd.invoiceNumber || '',
-            price: Number(row.unitPrice) || 0,
-            purchaseDate: sd.purchaseDate || '',
-            orderID: sd.orderID || '',
-            owner: row.owner || sd.owner || 'department',
-            departmentID: sd.departmentID || '',
-            fundingSource: sd.fundingSource || '',
-            projectLinked: sd.projectLinked || '',
-            warrantyStartDate: sd.warrantyStartDate || '',
-            warrantyEnd: sd.warrantyEnd || '',
-            warrantyVendor: sd.warrantyVendor || '',
-            warrantyOnsite: sd.warrantyOnsite || false,
-            canBorrow: true,
-          })
+      // Sort: rows without motherID first (parents), then rows with motherID (children)
+      const parentRows = activeRows.filter(r => !r.overrides?.motherID)
+      const childRows = activeRows.filter(r => !!r.overrides?.motherID)
+      const sortedRows = [...parentRows, ...childRows]
+
+      // Map _rowId → created itemId (for resolving import-row parent references)
+      const rowIdToItemId = {}
+
+      // Build payload for a single row instance
+      const buildPayload = (row) => {
+        const ov = row.overrides || {}
+        const desc = [row.description, row.productCode ? `Product Code: ${row.productCode}` : ''].filter(Boolean).join(' | ')
+
+        // Resolve motherID: if it's a _row: reference, resolve to created itemId
+        let resolvedMotherID = ov.motherID || ''
+        if (resolvedMotherID.startsWith('_row:')) {
+          const refRowId = resolvedMotherID.slice(5)
+          resolvedMotherID = rowIdToItemId[refRowId] || ''
+        }
+
+        return {
+          name: row.itemName,
+          universityID: ov.universityID || '',
+          type: ov.type || sd.type || 'Hardware',
+          category: ov.category || sd.category || 'Other',
+          status: ov.status || sd.status || 'Available',
+          location: ov.location || sd.location || '',
+          description: desc,
+          supplier: ov.supplier || meta.supplier || '',
+          invoiceNumber: ov.invoiceNumber || meta.invoiceNumber || '',
+          price: Number(row.unitPrice) || 0,
+          purchaseDate: ov.purchaseDate || meta.purchaseDate || '',
+          supplierStatus: ov.supplierStatus || '',
+          foRequestID: ov.foRequestID || '',
+          orderID: ov.orderID || meta.orderID || '',
+          owner: ov.owner || sd.owner || 'department',
+          departmentID: ov.departmentID || sd.departmentID || '',
+          fundingSource: ov.fundingSource || sd.fundingSource || '',
+          projectLinked: ov.projectLinked || sd.projectLinked || '',
+          vendor: ov.vendor || sd.vendor || '',
+          warrantyStartDate: ov.warrantyStartDate || sd.warrantyStartDate || '',
+          warrantyEnd: ov.warrantyEnd || sd.warrantyEnd || '',
+          warrantyVendor: ov.warrantyVendor || sd.warrantyVendor || '',
+          warrantyOnsite: ov.warrantyOnsite != null ? ov.warrantyOnsite : (sd.warrantyOnsite || false),
+          canBorrow: ov.canBorrow != null ? ov.canBorrow : (sd.canBorrow != null ? sd.canBorrow : true),
+          motherID: resolvedMotherID || null,
+          _sourceRowId: row._rowId, // track for rowId→itemId mapping
         }
       }
 
-      importStep.value = 3
+      // Expand quantities and build payloads in sorted order
+      const payloads = []
+      for (const row of sortedRows) {
+        const qty = Math.max(1, row.quantity || 1)
+        for (let i = 0; i < qty; i++) {
+          payloads.push(buildPayload(row))
+        }
+      }
+
+      importStep.value = 6
       const progress = importState.value.createProgress
       progress.total = payloads.length
       progress.current = 0
@@ -1670,55 +2139,46 @@ export default {
 
       for (let i = 0; i < payloads.length; i++) {
         progress.current = i + 1
+        const payload = { ...payloads[i] }
+        const sourceRowId = payload._sourceRowId
+        delete payload._sourceRowId
         try {
-          const created = await inventoryService.addItem(payloads[i])
-          progress.successes.push({ itemId: created?.itemId || created?.id || `Item ${i + 1}`, name: payloads[i].name })
+          const created = await inventoryService.addItem(payload)
+          const createdId = created?.itemId || created?.id || `Item ${i + 1}`
+          progress.successes.push({ itemId: createdId, name: payload.name })
+          // Map row _rowId to created itemId for child resolution
+          if (sourceRowId && !rowIdToItemId[sourceRowId]) {
+            rowIdToItemId[sourceRowId] = createdId
+          }
         } catch (err) {
-          progress.failures.push({ index: i, name: payloads[i].name, error: err.message })
+          progress.failures.push({ index: i, name: payload.name, error: err.message, payload })
         }
       }
 
-      importStep.value = 4
+      importStep.value = 7
       // Refresh the items list
       await loadItems()
     }
 
     const retryFailedImports = async () => {
-      // Collect failed payloads and retry
-      const sd = importState.value.sharedDefaults
       const failures = [...importState.value.createProgress.failures]
       importState.value.createProgress.failures = []
-      importStep.value = 3
+      importStep.value = 6
       importState.value.createProgress.total = failures.length
       importState.value.createProgress.current = 0
 
       for (let i = 0; i < failures.length; i++) {
         importState.value.createProgress.current = i + 1
         try {
-          // Rebuild payload from the failure info — simplified approach
-          const created = await inventoryService.addItem({
-            name: failures[i].name,
-            universityID: '',
-            type: sd.type || 'Hardware',
-            category: sd.category || 'Other',
-            status: sd.status || 'Available',
-            location: sd.location || '',
-            supplier: sd.supplier || '',
-            invoiceNumber: sd.invoiceNumber || '',
-            price: 0,
-            purchaseDate: sd.purchaseDate || '',
-            orderID: sd.orderID || '',
-            owner: sd.owner || 'department',
-            departmentID: sd.departmentID || '',
-            canBorrow: true,
-          })
+          const payload = failures[i].payload || { name: failures[i].name, canBorrow: true }
+          const created = await inventoryService.addItem(payload)
           importState.value.createProgress.successes.push({ itemId: created?.itemId || created?.id, name: failures[i].name })
         } catch (err) {
-          importState.value.createProgress.failures.push({ index: i, name: failures[i].name, error: err.message })
+          importState.value.createProgress.failures.push({ index: i, name: failures[i].name, error: err.message, payload: failures[i].payload })
         }
       }
 
-      importStep.value = 4
+      importStep.value = 7
       await loadItems()
     }
 
@@ -2646,10 +3106,25 @@ export default {
       importDragOver,
       importState,
       importConfidenceClass,
+      importInspectorOpen,
+      importMaxStep,
+      importExpandedItemCount,
+      importBlockingErrors,
+      flattenedRawFields,
+      navigateImportStep,
+      confirmReupload,
+      viewImportInvoice,
+      copyRawFieldsJSON,
+      goToStep4,
+      goToStep5,
+      hasRowOverrides,
+      rowReadinessLabel,
+      rowReadinessClass,
       handleImportInvoiceUpload,
       handleImportInvoiceDrop,
       addImportRow,
-      removeSelectedImportRows,
+      excludeSelectedImportRows,
+      restoreExcludedImportRows,
       submitImportItems,
       retryFailedImports,
     }
@@ -3365,4 +3840,146 @@ thead th:hover .sort-icon {
   color: var(--danger);
   margin: 0.15rem 0;
 }
+
+/* ── Import wizard: file info, inspector, overrides ── */
+.import-file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.import-inspector-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--foreground);
+  width: 100%;
+  text-align: left;
+}
+.import-inspector-body {
+  margin-top: 0.75rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.import-inspector-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.import-inspector-key {
+  font-weight: 600;
+  color: var(--muted-foreground);
+  min-width: 10rem;
+}
+.import-inspector-val {
+  color: var(--foreground);
+  word-break: break-word;
+}
+.import-override-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+.import-override-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  background: var(--surface-2);
+  transition: background 0.15s;
+}
+.import-override-header:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+}
+.import-override-expand {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  width: 1rem;
+}
+.import-override-name {
+  flex: 1;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-override-qty {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.import-override-badge {
+  font-size: 0.625rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+.import-override-readiness {
+  font-size: 0.625rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.import-override-panel {
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.import-override-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem 1rem;
+}
+.import-override-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1.25rem;
+}
+.import-override-sep {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0;
+}
+.import-override-grid-full {
+  grid-column: 1 / -1;
+}
+.import-override-mother {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.import-override-mother-select {
+  flex: 1;
+}
+.import-override-mother-input {
+  flex: 1;
+}
+.import-override-mother-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--info);
+  font-weight: 500;
+}
+.import-readiness--ready {
+  color: var(--success);
+}
+.import-readiness--incomplete {
+  color: var(--warning);
+}
+.import-readiness--excluded {
+  color: var(--muted-foreground);
+}
+
 </style>
