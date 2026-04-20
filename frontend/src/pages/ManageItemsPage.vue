@@ -325,6 +325,9 @@
           <Button variant="ghost" size="sm" @click="showForm = false; resetForm()">
             &larr; Back
           </Button>
+          <h2 class="page-title" style="margin:0;flex:1;">
+            {{ editingItem ? 'Edit Item' : 'Add New Item' }}
+          </h2>
           <Button
             v-if="editingItem"
             variant="destructive"
@@ -334,9 +337,6 @@
             Delete Item
           </Button>
         </div>
-        <h2 class="page-title mb-6">
-          {{ editingItem ? 'Edit Item' : 'Add New Item' }}
-        </h2>
 
         <!-- Mode switcher (hidden during edit) -->
         <div v-if="!editingItem" class="import-mode-switcher">
@@ -1017,6 +1017,236 @@
             </div>
           </div>
 
+          <!-- ── Section: Documents (editing only – stored invoice) ── -->
+          <div v-if="editingItem" class="form-section">
+            <button type="button" class="form-section-toggle" @click="showDocumentsSection = !showDocumentsSection">
+              <h3 class="form-section-title" style="margin:0">Documents</h3>
+              <span class="form-section-chevron" :class="{ 'form-section-chevron--open': showDocumentsSection }">
+                <ChevronDown :size="14" />
+              </span>
+            </button>
+
+            <template v-if="showDocumentsSection">
+              <!-- Invoice attached -->
+              <div v-if="invoiceFileData" class="mb-4 p-3 border rounded-lg" style="border-color:var(--info);background:var(--info-light)">
+                <p class="text-xs font-semibold mb-2" style="color:var(--info-dark)">Invoice Attached:</p>
+                <img
+                  v-if="uploadedImage"
+                  :src="uploadedImage"
+                  class="w-full max-h-40 rounded border object-contain mb-3" style="border-color:var(--info);background:var(--modal-bg)"
+                />
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-secondary font-medium">{{ invoiceFileData.name }}</span>
+                    <span class="text-xs text-muted">({{ (invoiceFileData.size / 1024).toFixed(2) }} KB)</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <Button variant="outline" size="sm" @click="viewInvoice">View</Button>
+                    <Button variant="success" size="sm" @click="downloadInvoice">Download</Button>
+                  </div>
+                </div>
+              </div>
+              <!-- No invoice yet -->
+              <div v-else class="mb-4 p-3 border rounded-lg text-center" style="border-color:var(--warning);background:var(--warning-light)">
+                <p class="text-sm font-semibold mb-1" style="color:var(--warning-dark)">No invoice attached</p>
+                <p class="text-xs" style="color:var(--muted-foreground)">Use Invoice Assist below to upload a receipt or invoice.</p>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── Section: Invoice Assist (OCR scanner & upload) ── -->
+          <div class="form-section">
+            <button type="button" class="form-section-toggle" @click="showInvoiceSection = !showInvoiceSection">
+              <h3 class="form-section-title" style="margin:0">Invoice Assist</h3>
+              <span class="form-section-chevron" :class="{ 'form-section-chevron--open': showInvoiceSection }">
+                <ChevronDown :size="14" />
+              </span>
+            </button>
+
+            <template v-if="showInvoiceSection">
+              <!-- Replace notice when editing has existing invoice -->
+              <div v-if="editingItem && invoiceFileData" class="mb-3 p-2 rounded-lg text-xs font-medium" style="background:var(--info-light);color:var(--info-dark);border:1px solid var(--info)">
+                Uploading a new file here will replace the stored invoice when you save.
+              </div>
+
+              <div class="form-invoice-modes">
+                <button
+                  type="button"
+                  @click="invoiceMode = 'upload'"
+                  class="form-invoice-mode-btn"
+                  :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'upload' }"
+                >
+                  Upload Invoice / Receipt
+                </button>
+                <button
+                  type="button"
+                  @click="invoiceMode = 'camera'"
+                  class="form-invoice-mode-btn"
+                  :class="{ 'form-invoice-mode-btn--active': invoiceMode === 'camera' }"
+                >
+                  Photo Invoice
+                </button>
+              </div>
+
+              <!-- Invoice Upload Section -->
+              <div v-if="invoiceMode === 'upload'" class="mb-4 p-4 border rounded-lg theme-card">
+                <div 
+                  @drop.prevent="handleInvoiceDrop"
+                  @dragover.prevent="isDraggingInvoice = true"
+                  @dragleave="isDraggingInvoice = false"
+                  :class="`p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition ${isDraggingInvoice ? 'border-[color:var(--accent)]' : ''}`"
+                  :style="isDraggingInvoice ? 'background:var(--accent-surface)' : 'border-color:var(--border);background:var(--filter-bg)'"
+                >
+                  <input 
+                    type="file" 
+                    ref="invoiceInput"
+                    @change="handleInvoiceUpload"
+                    accept="image/*,.pdf"
+                    class="hidden"
+                  />
+                  <div @click="$refs.invoiceInput.click()">
+                    <p class="font-semibold mb-1 text-sm">{{ isDraggingInvoice ? 'Drop invoice here' : 'Upload invoice or receipt image / PDF' }}</p>
+                    <p class="text-xs text-muted mb-3">PNG, JPG, PDF (Max 10MB) — text will be auto-extracted</p>
+                    <Button type="button" variant="outline" size="sm">Browse Files</Button>
+                  </div>
+                </div>
+
+                <div v-if="uploadedImage" class="mt-4 p-3 border rounded-lg" style="border-color:var(--success);background:var(--success-light)">
+                  <p class="text-xs font-semibold mb-2" style="color:var(--success-dark)">Invoice Preview:</p>
+                  <img :src="uploadedImage" class="w-full max-h-48 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
+                  <p v-if="invoiceFileData" class="text-xs text-secondary mt-2">{{ invoiceFileData.name }} &bull; {{ (invoiceFileData.size / 1024).toFixed(2) }} KB</p>
+                </div>
+              </div>
+
+              <!-- Invoice Camera Section -->
+              <div v-if="invoiceMode === 'camera'" class="mb-4 p-4 border rounded-lg theme-card">
+                <div class="rounded-lg overflow-hidden mb-3 border-2" style="aspect-ratio: 4/3; max-height: 320px;border-color:var(--accent);background:#000">
+                  <video
+                    v-if="cameraActive"
+                    ref="invoiceVideoElement"
+                    class="w-full h-full object-cover"
+                    autoplay
+                    playsinline
+                  ></video>
+                  <div v-else class="w-full h-full flex items-center justify-center" style="background:#1a1a2e">
+                    <p class="text-muted text-sm">Camera ready</p>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <Button
+                    v-if="!cameraActive"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="flex-1"
+                    @click="startInvoiceCamera"
+                    :disabled="invoiceCameraStarting"
+                  >
+                    {{ invoiceCameraStarting ? 'Starting...' : 'Start Camera' }}
+                  </Button>
+                  <Button
+                    v-else
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    class="flex-1"
+                    @click="stopInvoiceCamera"
+                  >
+                    Stop Camera
+                  </Button>
+                  <Button
+                    v-if="cameraActive"
+                    type="button"
+                    variant="success"
+                    size="sm"
+                    class="flex-1"
+                    @click="captureInvoicePhoto"
+                    :disabled="ocrProcessing"
+                  >
+                    {{ ocrProcessing ? 'Processing...' : 'Capture' }}
+                  </Button>
+                </div>
+                <div v-if="uploadedImage" class="mt-3 p-3 border rounded-lg" style="border-color:var(--success);background:var(--success-light)">
+                  <p class="text-xs font-semibold mb-2" style="color:var(--success-dark)">Captured Preview:</p>
+                  <img :src="uploadedImage" class="w-full max-h-48 rounded border object-contain" style="border-color:var(--success);background:var(--modal-bg)" />
+                </div>
+              </div>
+
+              <!-- Processing Status -->
+              <div v-if="ocrProcessing" class="mb-4 p-4 border rounded-lg" style="border-color:var(--info);background:var(--info-light)">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="animate-spin h-4 w-4 border-2 rounded-full" style="border-color:var(--info);border-top-color:transparent"></div>
+                  <span class="text-sm font-semibold" style="color:var(--info-dark)">Processing Invoice... {{ ocrProgress }}%</span>
+                </div>
+                <div class="w-full rounded-full h-2" style="background:var(--filter-bg)">
+                  <div class="h-2 rounded-full transition-all duration-300" style="background:var(--info)" :style="{ width: ocrProgress + '%' }"></div>
+                </div>
+              </div>
+
+              <!-- OCR Message -->
+              <div v-if="ocrMessage && !ocrProcessing" class="mb-4 p-3 rounded-lg border text-sm font-semibold" :style="ocrSuccess ? 'background:var(--success-light);border-color:var(--success);color:var(--success-dark)' : 'background:var(--danger-light);border-color:var(--danger);color:var(--danger-dark)'">
+                {{ ocrMessage }}
+              </div>
+
+              <!-- OCR Review Confirmation Card -->
+              <div v-if="ocrReviewData && !ocrProcessing" class="mb-4 p-4 border rounded-lg" style="border-color:var(--accent);background:var(--accent-surface, var(--filter-bg))">
+                <div class="flex items-center justify-between mb-3">
+                  <p class="text-sm font-semibold" style="color:var(--accent)">Extracted Invoice Data</p>
+                  <span v-if="ocrConfidence" class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :style="ocrConfidence >= 60 ? 'background:var(--success-light);color:var(--success-dark)' : 'background:var(--warning-light, #fef3cd);color:var(--warning-dark, #856404)'">
+                    {{ ocrConfidence >= 60 ? 'High' : 'Low' }} · {{ ocrConfidence }}%
+                  </span>
+                </div>
+                <div class="space-y-1.5 text-xs mb-3" style="color:var(--text-primary)">
+                  <label v-if="ocrReviewData.name" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.name" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Item Name:</span><span>{{ ocrReviewData.name }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.invoiceNumber" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.invoiceNumber" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Invoice #:</span><span>{{ ocrReviewData.invoiceNumber }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.orderID" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.orderID" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">PO / Order #:</span><span>{{ ocrReviewData.orderID }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.supplier" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.supplier" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Supplier:</span><span>{{ ocrReviewData.supplier }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.price" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.price" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Price:</span><span>${{ ocrReviewData.price }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.purchaseDate" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.purchaseDate" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Purchase Date:</span><span>{{ ocrReviewData.purchaseDate }}</span>
+                  </label>
+                  <label v-if="ocrReviewData.serialNumber" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.serialNumber" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Serial #:</span><span>{{ ocrReviewData.serialNumber }} <span class="text-muted">(→ description)</span></span>
+                  </label>
+                  <label v-if="ocrReviewData.warrantyVendor" class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" v-model="ocrFieldSelection.warrantyVendor" class="accent-[var(--accent)]" />
+                    <span class="font-semibold w-28 shrink-0">Warranty Vendor:</span><span>{{ ocrReviewData.warrantyVendor }}</span>
+                  </label>
+                  <div v-if="ocrReviewData.warrantyMonths" class="flex items-center gap-2 pl-5">
+                    <span class="font-semibold w-28 shrink-0">Warranty:</span><span>{{ ocrReviewData.warrantyMonths }} months (until {{ ocrReviewData.warrantyEnd }}) <span class="text-muted">(info only)</span></span>
+                  </div>
+                  <div v-if="ocrReviewData.quantity" class="flex items-center gap-2 pl-5">
+                    <span class="font-semibold w-28 shrink-0">Quantity:</span><span>{{ ocrReviewData.quantity }} <span class="text-muted">(info only)</span></span>
+                  </div>
+                  <div v-if="Object.keys(ocrReviewData).length === 0" class="text-muted py-2">No fields could be extracted. Try a clearer image or PDF.</div>
+                </div>
+                <div class="flex gap-2">
+                  <Button type="button" variant="success" size="sm" @click="acceptOCRData">Apply Selected</Button>
+                  <Button type="button" variant="outline" size="sm" @click="dismissOCRData">Dismiss</Button>
+                  <Button type="button" variant="outline" size="sm" @click="scanAgain">Scan Again</Button>
+                </div>
+              </div>
+            </template>
+          </div>
+
           <!-- ── Form Actions ── -->
           <div class="form-actions">
             <Button type="submit" variant="success">{{ editingItem ? 'Update' : 'Add' }} Item</Button>
@@ -1227,6 +1457,8 @@ export default {
     const ocrSuccess = ref(false)
     const invoiceFileData = ref(null)
     const showInvoiceSection = ref(false)
+    const replacingInvoice = ref(false)
+    const showDocumentsSection = ref(false)
     const currentPage = ref(1)
     const pageSize = ref(10)
     const totalItems = ref(0)
@@ -1748,6 +1980,8 @@ export default {
       ocrReviewData.value = null
       ocrMessage.value = ''
       ocrConfidence.value = 0
+      replacingInvoice.value = false
+      showDocumentsSection.value = false
       resetImportState()
     }
 
@@ -1813,7 +2047,10 @@ export default {
             } else {
               addPayload.price = 0
             }
-            await inventoryService.addItem(addPayload)
+            // Extract invoice File object before sending JSON payload
+            const addInvoiceFile = addPayload.invoiceFile instanceof File ? addPayload.invoiceFile : null
+            delete addPayload.invoiceFile
+            await inventoryService.addItem(addPayload, addInvoiceFile)
             // Reload full list to pick up the new item with server-generated ID
             await loadItems()
           }
@@ -2122,48 +2359,81 @@ export default {
 
       // Close any open invoice panel from a previous item
       closeInvoicePanel()
+      replacingInvoice.value = false
+
 
       // Load stored invoice file if it exists
-      if (item.invoiceFile) {
-        invoiceFileData.value = item.invoiceFile
-        ocrMessage.value = `Invoice ${item.invoiceFile.name} loaded`
+      if (item.invoiceFile && item.invoiceFile.filename) {
+        // Server-stored invoice: has filename/mimetype/path, no base64 data
+        invoiceFileData.value = {
+          name: item.invoiceFile.filename,
+          type: item.invoiceFile.mimetype,
+          size: item.invoiceFile.size,
+          data: null  // will use API endpoint for view/download
+        }
+        ocrMessage.value = `Invoice ${item.invoiceFile.filename} loaded`
         ocrSuccess.value = true
-        showInvoiceSection.value = true
+        showDocumentsSection.value = true
+        showInvoiceSection.value = false
       } else {
         invoiceFileData.value = null
         ocrMessage.value = ''
         ocrSuccess.value = false
+        showDocumentsSection.value = true
         showInvoiceSection.value = false
       }
       
       showForm.value = true
     }
 
-    const viewInvoice = () => {
+    const viewInvoice = async () => {
       if (!invoiceFileData.value) {
         alert('No invoice file available')
         return
       }
-      
-      // Open invoice in new window/tab
-      const link = document.createElement('a')
-      link.href = invoiceFileData.value.data
-      link.target = '_blank'
-      link.download = invoiceFileData.value.name
-      link.click()
+      if (invoiceFileData.value.data) {
+        // Locally uploaded (base64) — open directly
+        const link = document.createElement('a')
+        link.href = invoiceFileData.value.data
+        link.target = '_blank'
+        link.click()
+      } else if (editingItem.value) {
+        // Server-stored file — fetch via authenticated API
+        try {
+          const blob = await inventoryService.getInvoiceBlob(editingItem.value.id)
+          const url = URL.createObjectURL(blob)
+          window.open(url, '_blank')
+        } catch {
+          alert('Could not load invoice from server.')
+        }
+      }
     }
 
-    const downloadInvoice = () => {
+    const downloadInvoice = async () => {
       if (!invoiceFileData.value) {
         alert('No invoice file available')
         return
       }
-      
-      // Download invoice file
-      const link = document.createElement('a')
-      link.href = invoiceFileData.value.data
-      link.download = invoiceFileData.value.name
-      link.click()
+      if (invoiceFileData.value.data) {
+        // Locally uploaded (base64) — download directly
+        const link = document.createElement('a')
+        link.href = invoiceFileData.value.data
+        link.download = invoiceFileData.value.name
+        link.click()
+      } else if (editingItem.value) {
+        // Server-stored file — fetch via authenticated API
+        try {
+          const blob = await inventoryService.getInvoiceBlob(editingItem.value.id)
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = invoiceFileData.value.name || 'invoice'
+          link.click()
+          setTimeout(() => URL.revokeObjectURL(url), 5000)
+        } catch {
+          alert('Could not download invoice from server.')
+        }
+      }
     }
 
     const handleEditInvoiceFile = (e) => {
@@ -2744,8 +3014,8 @@ export default {
             type: file.type,
             size: file.size
           }
-          // Store in form data
-          formData.value.invoiceFile = invoiceFileData.value
+          // Store the raw File object in formData for uploading to the server
+          formData.value.invoiceFile = file
           ocrMessage.value = `Invoice ${file.name} saved successfully!`
           ocrSuccess.value = true
           resolve() // COMPLETE STORAGE BEFORE PROCEEDING
@@ -2829,15 +3099,17 @@ export default {
           type: 'image/jpeg',
           size: imageData.length
         }
-        formData.value.invoiceFile = invoiceFileData.value
+
+        // Convert to a real File object for upload
+        const capturedBlob = await (await fetch(imageData)).blob()
+        formData.value.invoiceFile = new File([capturedBlob], invoiceFileData.value.name, { type: 'image/jpeg' })
 
         ocrSuccess.value = true
         ocrMessage.value = 'Invoice captured! Processing text...'
 
-        // Process the captured image - need to convert dataURL to blob
-        const blob = await (await fetch(imageData)).blob()
-        const file = new File([blob], 'invoice.jpg', { type: 'image/jpeg' })
-        await extractTextFromImage(file)
+        // Process the captured image for OCR
+        const ocrFile = new File([capturedBlob], 'invoice.jpg', { type: 'image/jpeg' })
+        await extractTextFromImage(ocrFile)
         
         stopInvoiceCamera()
       } catch (error) {
@@ -2979,6 +3251,8 @@ export default {
       invoiceCameraStarting,
       invoiceFileData,
       showInvoiceSection,
+      replacingInvoice,
+      showDocumentsSection,
       isDraggingInvoice,
       ocrProcessing,
       ocrProgress,
@@ -3103,24 +3377,28 @@ export default {
 /* ── Form Sections ──────────────────────────────── */
 .form-section {
   margin-bottom: 1.25rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: var(--radius-lg);
   background: var(--card);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .form-section-title {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
-  margin-bottom: 0.75rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.875rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .form-section-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem 1rem;
+  gap: 0.875rem 1.25rem;
 }
 
 .form-section-grid .col-span-2 {
@@ -3138,6 +3416,11 @@ export default {
   padding: 0;
   margin-bottom: 0.5rem;
 }
+.form-section-toggle .form-section-title {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
 
 .form-section-chevron {
   color: var(--muted-foreground);
@@ -3148,30 +3431,34 @@ export default {
 }
 
 .form-invoice-modes {
-  display: flex;
-  gap: 0.5rem;
+  display: inline-flex;
+  gap: 0;
   margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-50);
+  padding: 0.2rem;
 }
 
 .form-invoice-mode-btn {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 1rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.15s;
 }
 .form-invoice-mode-btn:hover {
-  background: var(--surface-100);
+  color: var(--text-primary);
 }
 .form-invoice-mode-btn--active {
-  border-color: var(--accent);
+  background: var(--card);
   color: var(--accent);
-  background: var(--accent-surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 .form-required {
@@ -3182,7 +3469,9 @@ export default {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
-  padding: 1rem 0 0.5rem;
+  padding: 1.25rem 0 0.5rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .table-spinner-cell {
@@ -3662,33 +3951,33 @@ thead th:hover .sort-icon {
 
 /* ── Invoice Import Wizard ──────────────────────── */
 .import-mode-switcher {
-  display: flex;
+  display: inline-flex;
   gap: 0;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  width: fit-content;
+  background: var(--surface-50);
+  padding: 0.2rem;
 }
 .import-mode-btn {
-  padding: 0.45rem 1rem;
+  padding: 0.5rem 1.25rem;
   font-size: 0.8125rem;
   font-weight: 600;
   border: none;
-  background: var(--card);
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.15s;
 }
-.import-mode-btn:not(:last-child) {
-  border-right: 1px solid var(--border);
-}
 .import-mode-btn:hover {
-  background: var(--surface-2);
+  color: var(--text-primary);
 }
 .import-mode-btn--active {
-  background: var(--accent-surface);
+  background: var(--card);
   color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 .import-dropzone {

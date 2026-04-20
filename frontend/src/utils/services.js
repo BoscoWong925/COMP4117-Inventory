@@ -211,6 +211,14 @@ export const inventoryService = {
     return data.success;
   },
 
+  getInvoiceBlob: async (id) => {
+    const token = getToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const response = await fetch(`${API_BASE}/items/${id}/invoice`, { headers });
+    if (!response.ok) throw new Error('Invoice not found on server');
+    return response.blob();
+  },
+
   updateItemStatus: async (id, status) => {
     const data = await apiRequest(`/items/${id}/status`, {
       method: 'PUT',
