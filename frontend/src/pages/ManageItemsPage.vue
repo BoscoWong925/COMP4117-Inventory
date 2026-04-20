@@ -317,7 +317,10 @@
 
     <!-- ========== FULL-PAGE FORM VIEW ========== -->
     <template v-if="showForm">
-      <div class="max-w-3xl mx-auto pt-4">
+      <div :class="invoicePanelOpen ? 'invoice-split-layout' : 'max-w-3xl mx-auto pt-4'">
+        <!-- Form column -->
+        <div :class="invoicePanelOpen ? 'invoice-split-form' : ''"
+             :style="invoicePanelOpen ? { width: invoiceSplitPos + 'px', minWidth: '0', maxWidth: 'none', flex: 'none' } : {}">
         <div class="flex items-center justify-between mb-4">
           <Button variant="ghost" size="sm" @click="showForm = false; resetForm()">
             &larr; Back
@@ -367,7 +370,7 @@
           <div v-if="importStep === 1" class="form-section">
             <h3 class="form-section-title">Step 1: Upload Invoice</h3>
             <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.75rem;">
-              Upload an invoice image or PDF. Azure AI Document Intelligence will extract vendor info and line items.
+              Upload an invoice image or PDF. Our AI will automatically extract vendor info and line items.
             </p>
             <div
               class="import-dropzone"
@@ -378,7 +381,7 @@
             >
               <template v-if="importAnalyzing">
                 <Spinner :size="32" />
-                <p style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted-foreground)">Analyzing invoice with Azure AI...</p>
+                <p style="margin-top:0.5rem;font-size:0.8125rem;color:var(--muted-foreground)">AI is analyzing your invoice...</p>
               </template>
               <template v-else>
                 <p style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem;">Drag &amp; drop invoice here</p>
@@ -541,9 +544,22 @@
                       <label class="form-label">Name <span class="form-required">*</span></label>
                       <Input v-model="row.itemName" placeholder="Item name" />
                     </div>
-                    <div>
-                      <label class="form-label">University ID</label>
-                      <Input v-model="row.overrides.universityID" placeholder="e.g. FE-XXX" />
+                    <div :class="{ 'import-override-grid-full': row.quantity > 1 }">
+                      <label class="form-label">University ID{{ row.quantity > 1 ? 's' : '' }}</label>
+                      <!-- Single item: one input -->
+                      <Input v-if="row.quantity <= 1" v-model="row.overrides.universityID" placeholder="e.g. FE-XXX" />
+                      <!-- Multiple items: one input per unit -->
+                      <div v-else class="import-uid-multi">
+                        <div v-for="idx in row.quantity" :key="idx" class="import-uid-row">
+                          <span class="import-uid-label">Unit {{ idx }}:</span>
+                          <Input
+                            :modelValue="(row.overrides.universityIDs || [])[idx - 1] || ''"
+                            @update:modelValue="val => { if (!row.overrides.universityIDs) row.overrides.universityIDs = Array(row.quantity).fill(''); row.overrides.universityIDs[idx - 1] = val }"
+                            placeholder="e.g. FE-XXX"
+                            style="flex:1"
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label class="form-label">Type</label>
@@ -561,7 +577,7 @@
                     </div>
                     <div>
                       <label class="form-label">Qty</label>
-                      <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Number($event) || 1" min="1" />
+                      <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Math.max(1, Math.round(Number($event) || 1))" min="1" step="1" />
                     </div>
                     <div class="import-override-grid-full">
                       <label class="form-label">Description</label>
@@ -911,6 +927,49 @@
             </div>
           </div>
 
+          <!-- ── Section: Invoice File ── -->
+          <div class="form-section">
+            <h3 class="form-section-title">Invoice File</h3>
+            <div class="invoice-file-section">
+              <!-- Show existing stored invoice -->
+              <div v-if="editingItem && editingItem.invoiceFile && editingItem.invoiceFile.filename && !formData.invoiceFile" class="invoice-file-existing">
+                <div class="invoice-file-info">
+                  <span class="invoice-file-icon">📄</span>
+                  <div>
+                    <p class="invoice-file-name">{{ editingItem.invoiceFile.filename }}</p>
+                    <p class="invoice-file-size">{{ editingItem.invoiceFile.size ? (editingItem.invoiceFile.size / 1024).toFixed(1) + ' KB' : '' }}</p>
+                  </div>
+                </div>
+                <div class="invoice-file-actions">
+                  <Button type="button" size="sm" variant="outline" @click="viewItemInvoice">View</Button>
+                  <Button type="button" size="sm" variant="outline" @click="downloadItemInvoice">Download</Button>
+                  <Button type="button" size="sm" variant="outline" @click="$refs.editInvoiceInput.click()">Replace</Button>
+                </div>
+              </div>
+              <!-- Show newly selected file -->
+              <div v-else-if="formData.invoiceFile" class="invoice-file-existing">
+                <div class="invoice-file-info">
+                  <span class="invoice-file-icon">📄</span>
+                  <div>
+                    <p class="invoice-file-name">{{ formData.invoiceFile.name }}</p>
+                    <p class="invoice-file-size">{{ (formData.invoiceFile.size / 1024).toFixed(1) }} KB</p>
+                  </div>
+                </div>
+                <div class="invoice-file-actions">
+                  <Button type="button" size="sm" variant="destructive" @click="formData.invoiceFile = null">Remove</Button>
+                </div>
+              </div>
+              <!-- No invoice: show upload -->
+              <div v-else class="invoice-file-upload">
+                <p style="font-size:0.8125rem;color:var(--muted-foreground);margin-bottom:0.5rem;">
+                  {{ editingItem ? 'No invoice file attached. Upload one:' : 'Attach an invoice file (optional):' }}
+                </p>
+                <Button type="button" size="sm" variant="outline" @click="$refs.editInvoiceInput.click()">Choose File</Button>
+              </div>
+              <input ref="editInvoiceInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff" style="display:none" @change="handleEditInvoiceFile" />
+            </div>
+          </div>
+
           <!-- ── Section: Warranty ── -->
           <div class="form-section">
             <h3 class="form-section-title">Warranty</h3>
@@ -971,6 +1030,30 @@
           message="This item is currently in use (lent out) and cannot be deleted. Please return it first."
           @close="showDeleteBlock = false"
         />
+        </div><!-- end form column -->
+
+        <!-- Resize handle -->
+        <div v-if="invoicePanelOpen" class="invoice-split-handle" :class="{ 'invoice-split-handle--active': isDraggingSplit }" @mousedown.prevent="startSplitDrag">
+          <div class="invoice-split-handle-bar"></div>
+        </div>
+
+        <!-- Invoice side panel -->
+        <div v-if="invoicePanelOpen" class="invoice-split-panel">
+          <div class="invoice-panel-header">
+            <span class="invoice-panel-title">📄 Invoice</span>
+            <button class="invoice-panel-close" @click="closeInvoicePanel" title="Close panel">✕</button>
+          </div>
+          <div class="invoice-panel-scroll">
+            <iframe v-if="invoicePanelMime === 'application/pdf' || !invoicePanelMime.startsWith('image/')"
+              :src="invoicePanelUrl"
+              class="invoice-panel-frame"
+            />
+            <img v-else :src="invoicePanelUrl"
+              class="invoice-panel-img"
+            />
+          </div>
+        </div>
+
       </div>
     </template>
   </div>
@@ -1106,6 +1189,32 @@ export default {
     const formData = ref({ ...defaultFormData })
     const importMessage = ref('')
     const importSuccess = ref(false)
+    const invoicePanelOpen = ref(false)
+    const invoicePanelUrl = ref(null)
+    const invoicePanelMime = ref('')
+    const invoiceZoom = ref(1)
+    const invoiceSplitPos = ref(480)
+    const isDraggingSplit = ref(false)
+    let splitDragContainer = null
+
+    const startSplitDrag = (e) => {
+      isDraggingSplit.value = true
+      splitDragContainer = e.target.closest('.invoice-split-layout')
+      document.addEventListener('mousemove', onSplitDrag)
+      document.addEventListener('mouseup', stopSplitDrag)
+    }
+    const onSplitDrag = (e) => {
+      if (!isDraggingSplit.value || !splitDragContainer) return
+      const rect = splitDragContainer.getBoundingClientRect()
+      const newPos = e.clientX - rect.left
+      invoiceSplitPos.value = Math.max(280, Math.min(newPos, rect.width - 280))
+    }
+    const stopSplitDrag = () => {
+      isDraggingSplit.value = false
+      splitDragContainer = null
+      document.removeEventListener('mousemove', onSplitDrag)
+      document.removeEventListener('mouseup', stopSplitDrag)
+    }
     const invoiceInput = ref(null)
     const invoiceVideoElement = ref(null)
     const invoiceMode = ref('upload')
@@ -1835,7 +1944,7 @@ export default {
     }
 
     const restoreExcludedImportRows = () => {
-      for (const row of importState.value.draftRows) {
+      for (const row of (ov.universityIDs && ov.universityIDs[unitIndex]) || importState.value.draftRows) {
         if (row.rowClass === 'excluded') {
           row.rowClass = 'item'
         }
@@ -1868,7 +1977,7 @@ export default {
       const meta = importState.value.invoiceMeta
       const activeRows = importState.value.draftRows.filter(r => r.rowClass === 'item')
 
-      // Sort: rows without motherID first (parents), then rows with motherID (children)
+      // Sort: rows without motherID fir, ist (parents), then rows with motherID (children)
       const parentRows = activeRows.filter(r => !r.overrides?.motherID)
       const childRows = activeRows.filter(r => !!r.overrides?.motherID)
       const sortedRows = [...parentRows, ...childRows]
@@ -1877,7 +1986,7 @@ export default {
       const rowIdToItemId = {}
 
       // Build payload for a single row instance
-      const buildPayload = (row) => {
+      const buildPayload = (row, unitIndex = 0) => {
         const ov = row.overrides || {}
         const desc = [row.description, row.productCode ? `Product Code: ${row.productCode}` : ''].filter(Boolean).join(' | ')
 
@@ -1890,7 +1999,7 @@ export default {
 
         return {
           name: row.itemName,
-          universityID: ov.universityID || '',
+          universityID: (ov.universityIDs && ov.universityIDs[unitIndex]) || ov.universityID || '',
           type: ov.type || sd.type || 'Hardware',
           category: ov.category || sd.category || 'Other',
           status: ov.status || sd.status || 'Available',
@@ -1923,7 +2032,7 @@ export default {
       for (const row of sortedRows) {
         const qty = Math.max(1, row.quantity || 1)
         for (let i = 0; i < qty; i++) {
-          payloads.push(buildPayload(row))
+          payloads.push(buildPayload(row, i))
         }
       }
 
@@ -1940,7 +2049,7 @@ export default {
         const sourceRowId = payload._sourceRowId
         delete payload._sourceRowId
         try {
-          const created = await inventoryService.addItem(payload)
+          const created = await inventoryService.addItem(payload, importInvoiceFile.value)
           const createdId = created?.itemId || created?.id || `Item ${i + 1}`
           progress.successes.push({ itemId: createdId, name: payload.name })
           // Map row _rowId to created itemId for child resolution
@@ -1968,7 +2077,7 @@ export default {
         importState.value.createProgress.current = i + 1
         try {
           const payload = failures[i].payload || { name: failures[i].name, canBorrow: true }
-          const created = await inventoryService.addItem(payload)
+          const created = await inventoryService.addItem(payload, importInvoiceFile.value)
           importState.value.createProgress.successes.push({ itemId: created?.itemId || created?.id, name: failures[i].name })
         } catch (err) {
           importState.value.createProgress.failures.push({ index: i, name: failures[i].name, error: err.message, payload: failures[i].payload })
@@ -2010,7 +2119,10 @@ export default {
         invoiceFile: null,
       }
       editingItem.value = item
-      
+
+      // Close any open invoice panel from a previous item
+      closeInvoicePanel()
+
       // Load stored invoice file if it exists
       if (item.invoiceFile) {
         invoiceFileData.value = item.invoiceFile
@@ -2052,6 +2164,53 @@ export default {
       link.href = invoiceFileData.value.data
       link.download = invoiceFileData.value.name
       link.click()
+    }
+
+    const handleEditInvoiceFile = (e) => {
+      const file = e.target?.files?.[0]
+      if (!file) return
+      formData.value.invoiceFile = file
+    }
+
+    const downloadItemInvoice = async () => {
+      if (!editingItem.value || !editingItem.value.invoiceFile) return
+      const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002') + '/api'
+      const url = `${API_BASE}/items/${editingItem.value.itemId || editingItem.value.id}/invoice`
+      const token = sessionStorage.getItem('token')
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return alert('Failed to download invoice')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = editingItem.value.invoiceFile.filename || 'invoice'
+      link.click()
+      URL.revokeObjectURL(blobUrl)
+    }
+
+    const viewItemInvoice = async () => {
+      if (!editingItem.value || !editingItem.value.invoiceFile) return
+      const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002') + '/api'
+      const url = `${API_BASE}/items/${editingItem.value.itemId || editingItem.value.id}/invoice/view`
+      const token = sessionStorage.getItem('token')
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) return alert('Failed to load invoice')
+      const blob = await res.blob()
+      // Revoke previous blob URL if any
+      if (invoicePanelUrl.value) URL.revokeObjectURL(invoicePanelUrl.value)
+      invoicePanelUrl.value = URL.createObjectURL(blob)
+      invoicePanelMime.value = blob.type
+      invoiceZoom.value = 1
+      invoicePanelOpen.value = true
+    }
+
+    const closeInvoicePanel = () => {
+      invoicePanelOpen.value = false
+      if (invoicePanelUrl.value) {
+        URL.revokeObjectURL(invoicePanelUrl.value)
+        invoicePanelUrl.value = null
+      }
+      invoicePanelMime.value = ''
     }
 
     const handleDelete = async (id) => {
@@ -2872,6 +3031,17 @@ export default {
       captureInvoicePhoto,
       viewInvoice,
       downloadInvoice,
+      handleEditInvoiceFile,
+      downloadItemInvoice,
+      viewItemInvoice,
+      closeInvoicePanel,
+      invoicePanelOpen,
+      invoicePanelUrl,
+      invoicePanelMime,
+      invoiceZoom,
+      invoiceSplitPos,
+      isDraggingSplit,
+      startSplitDrag,
       formatDate,
       normalizeItemStatus,
       activeStatusFilter,
@@ -3752,6 +3922,22 @@ thead th:hover .sort-icon {
 .import-override-grid-full {
   grid-column: 1 / -1;
 }
+.import-uid-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.import-uid-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.import-uid-label {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  min-width: 3rem;
+  white-space: nowrap;
+}
 .import-override-mother {
   display: flex;
   gap: 0.5rem;
@@ -3777,6 +3963,158 @@ thead th:hover .sort-icon {
 }
 .import-readiness--excluded {
   color: var(--muted-foreground);
+}
+
+/* Invoice side panel split layout */
+.invoice-split-layout {
+  display: flex;
+  gap: 0;
+  padding-top: 1rem;
+  height: calc(100vh - 80px);
+  overflow: hidden;
+  user-select: none;
+}
+.invoice-split-form {
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  flex: none;
+}
+.invoice-split-handle {
+  flex: none;
+  width: 8px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+}
+.invoice-split-handle-bar {
+  width: 3px;
+  height: 48px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.invoice-split-handle:hover .invoice-split-handle-bar,
+.invoice-split-handle--active .invoice-split-handle-bar {
+  background: var(--primary);
+}
+.invoice-split-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #fff;
+}
+.invoice-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.invoice-panel-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex: 1;
+}
+.invoice-panel-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.invoice-zoom-btn {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.15rem 0.45rem;
+  color: var(--foreground);
+}
+.invoice-zoom-btn:hover { background: var(--accent); }
+.invoice-zoom-reset { font-size: 0.85rem; }
+.invoice-zoom-label {
+  font-size: 0.75rem;
+  min-width: 3rem;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.invoice-panel-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--muted-foreground);
+  line-height: 1;
+  padding: 0.25rem;
+}
+.invoice-panel-close:hover { color: var(--foreground); }
+.invoice-panel-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.invoice-panel-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  border: none;
+}
+.invoice-panel-img {
+  display: block;
+  height: auto;
+}
+
+/* Invoice file section in edit form */
+.invoice-file-section {
+  padding: 0;
+}
+.invoice-file-existing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--muted);
+}
+.invoice-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.invoice-file-icon {
+  font-size: 1.5rem;
+}
+.invoice-file-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin: 0;
+}
+.invoice-file-size {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.invoice-file-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.invoice-file-upload {
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  text-align: center;
 }
 
 </style>

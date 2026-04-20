@@ -252,7 +252,7 @@ const warnings = computed(() => {
     w.push(`"${name || '(unnamed)'}" appears ${count} times — duplicate names will be created.`)
   })
 
-  if (selectedRows.value.length > 0 && selectedRows.value.every(r => !(r.overrides?.universityID))) {
+  if (selectedRows.value.length > 0 && selectedRows.value.every(r => !(r.overrides?.universityID) && !(r.overrides?.universityIDs?.some(id => id)))) {
     w.push('University ID is empty for all items. You can set it per-row in Step 4.')
   }
 

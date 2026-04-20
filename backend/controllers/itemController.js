@@ -577,6 +577,30 @@ exports.getInvoice = catchAsync(async (req, res, next) => {
 });
 
 /**
+ * GET /api/items/:id/invoice/view
+ * View invoice file inline (opens in browser).
+ */
+exports.viewInvoiceFile = catchAsync(async (req, res, next) => {
+  const item = await Item.findOne({ itemId: req.params.id });
+  if (!item) {
+    return next(ApiError.notFound(`Item ${req.params.id} not found`));
+  }
+
+  if (!item.invoiceFile || !item.invoiceFile.path) {
+    return next(ApiError.notFound('No invoice file found for this item'));
+  }
+
+  const filePath = item.invoiceFile.path;
+  if (!fs.existsSync(filePath)) {
+    return next(ApiError.notFound('Invoice file not found on server'));
+  }
+
+  res.setHeader('Content-Type', item.invoiceFile.mimetype || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${item.invoiceFile.filename}"`);
+  fs.createReadStream(filePath).pipe(res);
+});
+
+/**
  * GET /api/items/by-owner/:ownerId
  * Get items owned by a specific user or department.
  */

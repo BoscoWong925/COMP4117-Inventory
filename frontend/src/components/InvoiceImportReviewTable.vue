@@ -78,7 +78,7 @@
               <Input v-model="row.itemName" placeholder="Item name" class="irt-input" />
             </td>
             <td class="irt-td irt-td--qty">
-              <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Number($event) || 1" min="1" class="irt-input irt-input--num" />
+              <Input type="number" :modelValue="row.quantity" @update:modelValue="row.quantity = Math.max(1, Math.round(Number($event) || 1))" min="1" step="1" class="irt-input irt-input--num" />
               <Badge v-if="row.rowClass === 'item' && (row.quantity || 1) > 1" variant="accent" class="irt-qty-badge">
                 &rarr;{{ row.quantity }} items
               </Badge>
@@ -88,9 +88,6 @@
             </td>
             <td class="irt-td irt-td--total">
               <span class="irt-readonly">${{ formatLineTotal(row) }}</span>
-              <span v-if="hasLineTotalMismatch(row)" class="irt-mismatch" :title="'Azure extracted $' + Number(row.lineTotal).toFixed(2) + ' but unitPrice×qty = $' + (Number(row.unitPrice) * Math.max(1, row.quantity || 1)).toFixed(2)">
-                ⚠
-              </span>
               <span v-if="row.unitPrice === '' || row.unitPrice == null" class="irt-missing-price" title="No unit price from OCR — enter manually">?</span>
             </td>
             <td class="irt-td irt-td--code">
