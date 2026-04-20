@@ -1,6 +1,11 @@
 <template>
   <div class="api-test-page">
-    <div class="test-container">
+    <!-- Admin-only guard -->
+    <div v-if="!isAdmin" class="access-denied">
+      <h2>Access Denied</h2>
+      <p>The API Test Runner is restricted to admin users only.</p>
+    </div>
+    <div v-else class="test-container">
       <!-- Header -->
       <div class="test-header">
         <div>
@@ -46,6 +51,94 @@
       <!-- Progress Bar -->
       <div v-if="isRunning" class="progress-bar">
         <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+      </div>
+
+      <!-- Charts -->
+      <div v-if="hasAnyResult" class="charts-row">
+        <!-- Area Chart: Test Results by Group -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h4 class="chart-title">Test Results by Group</h4>
+            <p class="chart-desc">Stacked pass / fail / skip counts per API group</p>
+          </div>
+          <div class="vis-chart-wrap">
+            <VisXYContainer :data="areaChartData" :height="220"
+              :margin="{ top: 10, bottom: 30, left: 10, right: 10 }"
+              :yDomain="[0, areaMaxY]"
+              :svgDefs="areaGradientDefs">
+              <VisArea
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.yPass"
+                color="url(#fillPass)"
+                :curveType="'monotoneX'"
+                :opacity="0.85"
+              />
+              <VisLine
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.yPass"
+                color="#22c55e"
+                :lineWidth="2"
+                :curveType="'monotoneX'"
+              />
+              <VisArea
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.yFail"
+                color="url(#fillFail)"
+                :curveType="'monotoneX'"
+                :opacity="0.85"
+              />
+              <VisLine
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.yFail"
+                color="#ef4444"
+                :lineWidth="2"
+                :curveType="'monotoneX'"
+              />
+              <VisArea
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.ySkip"
+                color="url(#fillSkip)"
+                :curveType="'monotoneX'"
+                :opacity="0.85"
+              />
+              <VisLine
+                :x="areaChartConfig.x"
+                :y="areaChartConfig.ySkip"
+                color="#a3a3a3"
+                :lineWidth="1.5"
+                :curveType="'monotoneX'"
+              />
+              <VisAxis type="x" :tickFormat="areaChartConfig.tickFormat" :numTicks="areaChartData.length"
+                :tickLine="false" :domainLine="false" :gridLine="false" />
+              <VisAxis type="y" :numTicks="4" :tickLine="false" :domainLine="false" />
+            </VisXYContainer>
+          </div>
+          <div class="chart-legend">
+            <span class="chart-legend-item"><span class="chart-dot" style="background: #22c55e;"></span> Pass</span>
+            <span class="chart-legend-item"><span class="chart-dot" style="background: #ef4444;"></span> Fail</span>
+            <span class="chart-legend-item"><span class="chart-dot" style="background: #a3a3a3;"></span> Skip</span>
+          </div>
+        </div>
+
+        <!-- Bar Chart: Response Time by API Group -->
+        <div class="chart-card" v-if="groupResponseData.length > 0">
+          <div class="chart-header">
+            <h4 class="chart-title">Response Time by API Group</h4>
+            <p class="chart-desc">Average response time for each API group in this run</p>
+          </div>
+          <div class="group-bar-chart">
+            <div v-for="row in groupResponseData" :key="row.name" class="gbar-row">
+              <span class="gbar-label">{{ row.name }}</span>
+              <div class="gbar-track">
+                <div class="gbar-fill" :style="{ width: row.pct + '%', background: row.color }">
+                  <span v-if="row.pct > 18" class="gbar-val-inner">{{ row.avg }} ms</span>
+                </div>
+                <span v-if="row.pct <= 18" class="gbar-val-outer">{{ row.avg }} ms</span>
+              </div>
+            </div>
+          </div>
+          <p class="gbar-footnote">Sorted slowest → fastest &middot; slowest endpoint shown per group</p>
+        </div>
       </div>
 
       <!-- Test Groups -->
@@ -132,16 +225,28 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuth } from '../hooks/useAuth'
+import { usePermissions } from '../hooks/usePermissions'
+import { VisXYContainer, VisArea, VisLine, VisAxis } from '@unovis/vue'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') + '/api'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002') + '/api'
 
 export default {
+  components: { VisXYContainer, VisArea, VisLine, VisAxis },
   setup() {
     const { user } = useAuth()
+    const { isAdmin } = usePermissions()
     const isRunning = ref(false)
+
+    // Helper: return a future date string for approve tests
+    const futureDate = () => {
+      const d = new Date()
+      d.setMonth(d.getMonth() + 1)
+      return d.toISOString().slice(0, 10)
+    }
 
     // --------------- Test Definitions ---------------
     const createTestGroups = () => [
+      /* ===== Health Check ===== */
       {
         name: 'Health Check',
         collapsed: false,
@@ -159,6 +264,8 @@ export default {
           }
         ]
       },
+
+      /* ===== Auth ===== */
       {
         name: 'Auth — /api/auth',
         collapsed: false,
@@ -204,9 +311,21 @@ export default {
             run: async (t) => {
               return await doRequest(t, 'GET', '/auth/me', null, false)
             }
+          },
+          {
+            id: 'auth-5',
+            method: 'POST',
+            path: '/auth/logout',
+            description: 'Logout current user',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'POST', '/auth/logout')
+            }
           }
         ]
       },
+
+      /* ===== Users ===== */
       {
         name: 'Users — /api/users',
         collapsed: false,
@@ -224,22 +343,22 @@ export default {
           {
             id: 'user-2',
             method: 'GET',
-            path: '/users/U001',
-            description: 'Get user by ID (U001 = admin)',
+            path: '/users/U0001',
+            description: 'Get user by ID (U0001 = admin)',
             status: 'pending',
             run: async (t) => {
-              return await doRequest(t, 'GET', '/users/U001')
+              return await doRequest(t, 'GET', '/users/U0001')
             }
           },
           {
             id: 'user-3',
             method: 'GET',
-            path: '/users/U999',
+            path: '/users/U9999',
             description: 'Get non-existent user (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'GET', '/users/U999')
+              return await doRequest(t, 'GET', '/users/U9999')
             }
           },
           {
@@ -253,6 +372,16 @@ export default {
             }
           },
           {
+            id: 'user-4b',
+            method: 'GET',
+            path: '/users/teachers',
+            description: 'Get all teacher users',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/users/teachers')
+            }
+          },
+          {
             id: 'user-5',
             method: 'POST',
             path: '/users',
@@ -260,6 +389,7 @@ export default {
             status: 'pending',
             run: async (t) => {
               const body = {
+                userId: 'UTEST01',
                 username: 'testrunner_user',
                 password: 'Test1234!',
                 name: 'API Test Runner User',
@@ -297,7 +427,22 @@ export default {
               const id = createdTestUserId.value
               if (!id) { t.status = 'skip'; t.error = 'No test user created yet'; return false }
               t.path = `/users/${id}/status`
-              return await doRequest(t, 'PUT', `/users/${id}/status`)
+              return await doRequest(t, 'PUT', `/users/${id}/status`, { isActive: false })
+            }
+          },
+          {
+            id: 'user-7b',
+            method: 'POST',
+            path: '/users/send-email',
+            description: 'Send email to user (admin/operator/teacher)',
+            status: 'pending',
+            run: async (t) => {
+              const id = createdTestUserId.value
+              if (!id) { t.status = 'skip'; t.error = 'No test user created yet'; return false }
+              const body = { userId: id, subject: 'API Test', message: 'Hello from API test runner' }
+              const result = await doRequest(t, 'POST', '/users/send-email', body)
+              // Email may fail if SMTP not configured; treat 2xx or 500 from delivery as pass if endpoint responded
+              return result
             }
           },
           {
@@ -317,6 +462,8 @@ export default {
           }
         ]
       },
+
+      /* ===== Items ===== */
       {
         name: 'Items — /api/items',
         collapsed: false,
@@ -352,34 +499,79 @@ export default {
             }
           },
           {
-            id: 'item-4',
+            id: 'item-3b',
             method: 'GET',
-            path: '/items/INV-001',
-            description: 'Get item by ID (INV-001)',
+            path: '/items/owners',
+            description: 'Get distinct item owners',
             status: 'pending',
             run: async (t) => {
-              return await doRequest(t, 'GET', '/items/INV-001')
+              return await doRequest(t, 'GET', '/items/owners')
+            }
+          },
+          {
+            id: 'item-3c',
+            method: 'GET',
+            path: '/items/by-owner/123456',
+            description: 'Get items by owner (123456)',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/items/by-owner/123456')
+            }
+          },
+          {
+            id: 'item-4',
+            method: 'GET',
+            path: '/items/INV-0001',
+            description: 'Get item by ID (INV-0001)',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/items/INV-0001')
             }
           },
           {
             id: 'item-5',
             method: 'GET',
-            path: '/items/INV-999',
+            path: '/items/INV-9999',
             description: 'Get non-existent item (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'GET', '/items/INV-999')
+              return await doRequest(t, 'GET', '/items/INV-9999')
             }
           },
           {
             id: 'item-6',
             method: 'GET',
-            path: '/items/INV-001/components',
-            description: 'Get components for INV-001',
+            path: '/items/INV-0001/components',
+            description: 'Get components for INV-0001',
             status: 'pending',
             run: async (t) => {
-              return await doRequest(t, 'GET', '/items/INV-001/components')
+              return await doRequest(t, 'GET', '/items/INV-0001/components')
+            }
+          },
+          {
+            id: 'item-6b',
+            method: 'GET',
+            path: '/items/INV-0001/invoice',
+            description: 'Download invoice for INV-0001 (admin/operator)',
+            status: 'pending',
+            run: async (t) => {
+              const result = await doRequest(t, 'GET', '/items/INV-0001/invoice')
+              // May 404 if no invoice attached — still consider endpoint reachable
+              if (t.statusCode === 404) { t.status = 'pass'; t.error = 'No invoice file attached (404 is expected)' }
+              return result
+            }
+          },
+          {
+            id: 'item-6c',
+            method: 'GET',
+            path: '/items/INV-0001/invoice/view',
+            description: 'View invoice inline for INV-0001',
+            status: 'pending',
+            run: async (t) => {
+              const result = await doRequest(t, 'GET', '/items/INV-0001/invoice/view')
+              if (t.statusCode === 404) { t.status = 'pass'; t.error = 'No invoice file attached (404 is expected)' }
+              return result
             }
           },
           {
@@ -419,6 +611,19 @@ export default {
             }
           },
           {
+            id: 'item-8b',
+            method: 'PUT',
+            path: '/items/:testItemId/status',
+            description: 'Change test item status to Not Available',
+            status: 'pending',
+            run: async (t) => {
+              const id = createdTestItemId.value
+              if (!id) { t.status = 'skip'; t.error = 'No test item created yet'; return false }
+              t.path = `/items/${id}/status`
+              return await doRequest(t, 'PUT', `/items/${id}/status`, { status: 'Not Available' })
+            }
+          },
+          {
             id: 'item-9',
             method: 'DELETE',
             path: '/items/:testItemId',
@@ -445,6 +650,8 @@ export default {
           }
         ]
       },
+
+      /* ===== Borrow Requests ===== */
       {
         name: 'Borrow Requests — /api/borrow-requests',
         collapsed: false,
@@ -463,7 +670,7 @@ export default {
             id: 'br-2',
             method: 'GET',
             path: '/borrow-requests/pending',
-            description: 'Get pending requests (with notification count)',
+            description: 'Get pending requests (with checkout queue)',
             status: 'pending',
             run: async (t) => {
               return await doRequest(t, 'GET', '/borrow-requests/pending')
@@ -480,39 +687,59 @@ export default {
             }
           },
           {
-            id: 'br-4',
+            id: 'br-3b',
             method: 'GET',
-            path: '/borrow-requests/REQ-001',
-            description: 'Get request by ID (REQ-001)',
+            path: '/borrow-requests/teacher-pending',
+            description: 'Get teacher\'s owned-item pending requests',
             status: 'pending',
             run: async (t) => {
-              return await doRequest(t, 'GET', '/borrow-requests/REQ-001')
+              return await doRequest(t, 'GET', '/borrow-requests/teacher-pending')
+            }
+          },
+          {
+            id: 'br-3c',
+            method: 'GET',
+            path: '/borrow-requests/teacher-history',
+            description: 'Get teacher\'s owned-item history',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/borrow-requests/teacher-history')
+            }
+          },
+          {
+            id: 'br-4',
+            method: 'GET',
+            path: '/borrow-requests/REQ-0001',
+            description: 'Get request by ID (REQ-0001)',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/borrow-requests/REQ-0001')
             }
           },
           {
             id: 'br-5',
             method: 'GET',
-            path: '/borrow-requests/REQ-999',
+            path: '/borrow-requests/REQ-9999',
             description: 'Get non-existent request (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'GET', '/borrow-requests/REQ-999')
+              return await doRequest(t, 'GET', '/borrow-requests/REQ-9999')
             }
           },
           {
             id: 'br-6',
             method: 'POST',
             path: '/borrow-requests',
-            description: 'Create borrow request (needs user role — skipped as admin)',
+            description: 'Create borrow request (any authenticated user)',
             status: 'pending',
             run: async (t) => {
-              // This endpoint requires 'user' role, admin gets 403
-              const result = await doRequest(t, 'POST', '/borrow-requests', { itemID: 'INV-001', reason: 'API Test' })
-              // If we get 403 it means endpoint is working but role restricted — that's correct
-              if (t.statusCode === 403) {
-                t.status = 'pass'
-                t.error = 'Got 403 as expected (admin cannot create requests, needs user role)'
+              const result = await doRequest(t, 'POST', '/borrow-requests', { itemID: 'INV-0001', reason: 'API Test' })
+              // Any authenticated user can create requests — expect 201 or item-specific validation error
+              if (t.statusCode === 201) {
+                if (t.responseBody?.request?.requestId) {
+                  createdTestRequestId.value = t.responseBody.request.requestId
+                }
               }
               return result
             }
@@ -520,34 +747,77 @@ export default {
           {
             id: 'br-7',
             method: 'PUT',
-            path: '/borrow-requests/REQ-999/approve',
+            path: '/borrow-requests/REQ-9999/approve',
             description: 'Approve non-existent request (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'PUT', '/borrow-requests/REQ-999/approve', { returnDate: '2025-12-31' })
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/approve', { returnDate: futureDate() })
             }
           },
           {
             id: 'br-8',
             method: 'PUT',
-            path: '/borrow-requests/REQ-999/reject',
+            path: '/borrow-requests/REQ-9999/reject',
             description: 'Reject non-existent request (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'PUT', '/borrow-requests/REQ-999/reject', { reason: 'test rejection' })
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/reject', { reason: 'test rejection' })
+            }
+          },
+          {
+            id: 'br-8b',
+            method: 'PUT',
+            path: '/borrow-requests/REQ-9999/checkout',
+            description: 'Checkout non-existent request (should 404)',
+            status: 'pending',
+            expectStatus: 404,
+            run: async (t) => {
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/checkout', {})
+            }
+          },
+          {
+            id: 'br-8c',
+            method: 'PUT',
+            path: '/borrow-requests/REQ-9999/deny',
+            description: 'Deny checkout non-existent request (should 404)',
+            status: 'pending',
+            expectStatus: 404,
+            run: async (t) => {
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/deny', { reason: 'test deny' })
+            }
+          },
+          {
+            id: 'br-8d',
+            method: 'PUT',
+            path: '/borrow-requests/REQ-9999/declare-return',
+            description: 'Declare return date non-existent (should 404)',
+            status: 'pending',
+            expectStatus: 404,
+            run: async (t) => {
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/declare-return', { declaredReturnDate: futureDate() })
             }
           },
           {
             id: 'br-9',
             method: 'PUT',
-            path: '/borrow-requests/REQ-999/return',
+            path: '/borrow-requests/REQ-9999/return',
             description: 'Return non-existent request (should 404)',
             status: 'pending',
             expectStatus: 404,
             run: async (t) => {
-              return await doRequest(t, 'PUT', '/borrow-requests/REQ-999/return', {})
+              return await doRequest(t, 'PUT', '/borrow-requests/REQ-9999/return', {})
+            }
+          },
+          {
+            id: 'br-9b',
+            method: 'POST',
+            path: '/borrow-requests/auto-expire',
+            description: 'Auto-expire old pending checkouts',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'POST', '/borrow-requests/auto-expire')
             }
           },
           {
@@ -559,9 +829,26 @@ export default {
             run: async (t) => {
               return await doRequest(t, 'GET', '/borrow-requests?status=Approved')
             }
+          },
+          {
+            id: 'br-11',
+            method: 'DELETE',
+            path: '/borrow-requests/:testRequestId',
+            description: 'Delete test request (cleanup)',
+            status: 'pending',
+            run: async (t) => {
+              const id = createdTestRequestId.value
+              if (!id) { t.status = 'skip'; t.error = 'No test request created'; return false }
+              t.path = `/borrow-requests/${id}`
+              const result = await doRequest(t, 'DELETE', `/borrow-requests/${id}`)
+              if (result) createdTestRequestId.value = null
+              return result
+            }
           }
         ]
       },
+
+      /* ===== Stats ===== */
       {
         name: 'Stats — /api/stats',
         collapsed: false,
@@ -575,9 +862,21 @@ export default {
             run: async (t) => {
               return await doRequest(t, 'GET', '/stats')
             }
+          },
+          {
+            id: 'stats-2',
+            method: 'GET',
+            path: '/stats/dashboard-queue',
+            description: 'Get dashboard action queue',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/stats/dashboard-queue')
+            }
           }
         ]
       },
+
+      /* ===== Audit Logs ===== */
       {
         name: 'Audit Logs — /api/audit-logs',
         collapsed: false,
@@ -613,6 +912,77 @@ export default {
             }
           }
         ]
+      },
+
+      /* ===== Notifications ===== */
+      {
+        name: 'Notifications — /api/notifications',
+        collapsed: false,
+        tests: [
+          {
+            id: 'notif-1',
+            method: 'GET',
+            path: '/notifications',
+            description: 'Get current user\'s notifications',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/notifications')
+            }
+          },
+          {
+            id: 'notif-2',
+            method: 'GET',
+            path: '/notifications/unread-count',
+            description: 'Get unread notification count',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'GET', '/notifications/unread-count')
+            }
+          },
+          {
+            id: 'notif-3',
+            method: 'PUT',
+            path: '/notifications/read-all',
+            description: 'Mark all notifications as read',
+            status: 'pending',
+            run: async (t) => {
+              return await doRequest(t, 'PUT', '/notifications/read-all')
+            }
+          },
+          {
+            id: 'notif-4',
+            method: 'PUT',
+            path: '/notifications/NOTIF-999/read',
+            description: 'Mark single notification as read (non-existent)',
+            status: 'pending',
+            run: async (t) => {
+              const result = await doRequest(t, 'PUT', '/notifications/NOTIF-999/read')
+              // 404 for non-existent notification is acceptable
+              if (t.statusCode === 404) { t.status = 'pass'; t.error = 'Notification not found (404 expected)' }
+              return result
+            }
+          }
+        ]
+      },
+
+      /* ===== Invoice Import ===== */
+      {
+        name: 'Invoice Import — /api/invoice-import',
+        collapsed: false,
+        tests: [
+          {
+            id: 'invoice-1',
+            method: 'POST',
+            path: '/invoice-import/analyze',
+            description: 'Analyze invoice (no file — expect 400)',
+            status: 'pending',
+            expectStatus: 400,
+            run: async (t) => {
+              // Send empty FormData to trigger validation error
+              return await doRequest(t, 'POST', '/invoice-import/analyze', new FormData())
+            }
+          }
+        ]
       }
     ]
 
@@ -620,6 +990,7 @@ export default {
     const testGroups = ref(createTestGroups())
     const createdTestUserId = ref(null)
     const createdTestItemId = ref(null)
+    const createdTestRequestId = ref(null)
 
     // --------------- Computed ---------------
     const allTests = computed(() => testGroups.value.flatMap(g => g.tests))
@@ -650,7 +1021,7 @@ export default {
       }
 
       const url = `${API_BASE}${path}`
-      test.requestInfo = `${method} ${url}` + (body ? `\n${JSON.stringify(body, null, 2)}` : '')
+      test.requestInfo = `${method} ${url}` + (body && !(body instanceof FormData) ? `\n${JSON.stringify(body, null, 2)}` : '')
 
       const start = performance.now()
       try {
@@ -710,6 +1081,7 @@ export default {
       isRunning.value = true
       createdTestUserId.value = null
       createdTestItemId.value = null
+      createdTestRequestId.value = null
 
       // Reset all tests
       for (const group of testGroups.value) {
@@ -772,6 +1144,7 @@ export default {
       testGroups.value = createTestGroups()
       createdTestUserId.value = null
       createdTestItemId.value = null
+      createdTestRequestId.value = null
     }
 
     // --------------- Helpers ---------------
@@ -792,8 +1165,87 @@ export default {
       return 'code-5xx'
     }
 
+    // --------------- Chart Data ---------------
+    const hasAnyResult = computed(() => allTests.value.some(t => t.status !== 'pending'))
+
+    // Group colors for consistent identification
+    const GROUP_COLORS = [
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+      '#06b6d4', '#6366f1', '#f43f5e', '#84cc16', '#a855f7'
+    ]
+
+    // Area chart: test results by group (stacked pass/fail/skip)
+    const areaChartData = computed(() => {
+      return testGroups.value.map((g, i) => ({
+        group: g.name.split('—')[0].trim(),
+        index: i,
+        pass: g.tests.filter(t => t.status === 'pass').length,
+        fail: g.tests.filter(t => t.status === 'fail').length,
+        skip: g.tests.filter(t => t.status === 'skip').length,
+        total: g.tests.length
+      }))
+    })
+
+    const areaChartConfig = {
+      passColor: '#22c55e',
+      failColor: '#ef4444',
+      skipColor: '#a3a3a3',
+      x: (d) => d.index,
+      yPass: [(d) => d.pass],
+      yFail: [(d) => d.fail],
+      ySkip: [(d) => d.skip],
+      tickFormat: (i) => {
+        const data = areaChartData.value
+        return data[Math.round(i)]?.group ?? ''
+      }
+    }
+
+    const areaMaxY = computed(() => {
+      return Math.max(...areaChartData.value.map(d => d.total), 1)
+    })
+
+    // SVG gradient definitions for area charts
+    const areaGradientDefs = `
+      <linearGradient id="fillPass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stop-color="#22c55e" stop-opacity="0.8"/>
+        <stop offset="95%" stop-color="#22c55e" stop-opacity="0.05"/>
+      </linearGradient>
+      <linearGradient id="fillFail" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stop-color="#ef4444" stop-opacity="0.8"/>
+        <stop offset="95%" stop-color="#ef4444" stop-opacity="0.05"/>
+      </linearGradient>
+      <linearGradient id="fillSkip" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stop-color="#a3a3a3" stop-opacity="0.6"/>
+        <stop offset="95%" stop-color="#a3a3a3" stop-opacity="0.05"/>
+      </linearGradient>
+    `
+
+    // Bar chart: average response time per API group, sorted slowest-first
+    const groupResponseData = computed(() => {
+      const rows = []
+      testGroups.value.forEach((g, gi) => {
+        const durations = g.tests.filter(t => t.duration != null).map(t => t.duration)
+        if (durations.length === 0) return
+        const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+        const maxMs = Math.max(...durations)
+        const slowest = g.tests.find(t => t.duration === maxMs)
+        rows.push({
+          name: g.name.split('—')[0].trim(),
+          avg,
+          max: maxMs,
+          slowestId: slowest ? slowest.id : '',
+          color: GROUP_COLORS[gi % GROUP_COLORS.length]
+        })
+      })
+      rows.sort((a, b) => b.avg - a.avg)
+      const peak = rows.length ? rows[0].avg : 1
+      rows.forEach(r => { r.pct = Math.max(Math.round((r.avg / peak) * 100), 4) })
+      return rows
+    })
+
     return {
       user,
+      isAdmin,
       isRunning,
       testGroups,
       totalTests,
@@ -811,7 +1263,13 @@ export default {
       runGroupTests,
       clearResults,
       formatJson,
-      codeClass
+      codeClass,
+      hasAnyResult,
+      areaChartData,
+      areaChartConfig,
+      areaMaxY,
+      areaGradientDefs,
+      groupResponseData
     }
   }
 }
@@ -1238,6 +1696,25 @@ export default {
 .dot.skip { background: #a3a3a3; }
 .dot.pending { background: #eab308; }
 
+/* Access Denied */
+.access-denied {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--muted-foreground);
+}
+
+.access-denied h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ef4444;
+  margin: 0 0 0.5rem;
+}
+
+.access-denied p {
+  font-size: 0.9375rem;
+  margin: 0;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .test-header {
@@ -1268,5 +1745,161 @@ export default {
     justify-content: flex-end;
     margin-top: 0.25rem;
   }
+
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Charts */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.chart-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.chart-header {
+  margin-bottom: 0.75rem;
+}
+
+.chart-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chart-desc {
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* Group bar chart */
+.group-bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.gbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gbar-label {
+  width: 110px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gbar-track {
+  flex: 1;
+  height: 22px;
+  background: var(--surface-1, #f4f4f5);
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.gbar-fill {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.gbar-val-inner {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+.gbar-val-outer {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.gbar-footnote {
+  margin: 0.625rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.vis-chart-wrap {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.vis-chart-wrap :deep(.unovis-xy-container) {
+  font-family: inherit;
+}
+
+.vis-chart-wrap :deep(.unovis-axis-tick text) {
+  fill: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.vis-chart-wrap :deep(.unovis-xy-container svg) {
+  overflow: visible;
+}
+
+.vis-chart-wrap :deep(.unovis-axis-grid line) {
+  stroke: var(--border);
+  opacity: 0.4;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  justify-content: center;
+}
+
+.chart-legend-wrap {
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.chart-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 </style>

@@ -330,7 +330,6 @@ export default {
           ]},
           { key: 'systems', label: 'Systems', icon: NAV_ICONS.auditLog, children: [
             { page: 'audit-log', label: 'Audit Log', icon: NAV_ICONS.auditLog },
-            { page: 'api-status', label: 'API Status', icon: NAV_ICONS.apiStatus },
           ]},
         ]
       } else if (user.value?.role === 'user' && user.value?.subRole === 'teacher') {

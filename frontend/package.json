@@ -5,6 +5,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@unovis/ts": "^1.6.4",
+    "@unovis/vue": "^1.6.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jsqr": "^1.4.0",
